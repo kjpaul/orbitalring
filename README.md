@@ -6,9 +6,9 @@
 
 ## Why this exists
 
-While writing *How to Build an Orbital Ring, Vol. 1*, I began with a set of assumptions that turned out to be wrong. Some issues yielded to clean, analytic solutions — but the time-dependent processes (e.g., orbital-ring deployment) stubbornly demanded **iterative, numerical** approaches. Running simple Python scripts over and over led to a series of surprising, testable results (see the book’s Chapter 6). The code was crude and magical in equal measure.
+While writing *How to Build an Orbital Ring, Vol. 1*, I began with a set of assumptions that turned out to be wrong. Some issues yielded to clean, analytic solutions, but the time-dependent processes (e.g., orbital-ring deployment) stubbornly demanded **iterative, numerical** approaches. Running simple Python scripts over and over led to a series of surprising, testable results (see the book’s Chapter 6). The code was crude and magical in equal measure.
 
-This repository is the next step: an open-source project to **model, optimize, and explain** space-infrastructure systems — starting with **orbital rings**, **space elevators**, and **mass drivers**, and expanding to **trajectory design** (e.g., 4 g launch profiles from a specific ring) and related problems.
+This repository is the next step: an open-source project to **model, optimize, and explain** space-infrastructure systems, starting with **orbital rings**, **space elevators**, and **mass drivers**, and expanding to **trajectory design** (e.g., 4 g launch profiles from a specific ring) and related problems.
 
 The core idea: a **Python interface** that anyone can run locally. It shows the equations, explains what they mean, and lets contributors improve models and algorithms. If the community likes the improvement, it will be added to the repository. The tool is both a **design environment** and a **learning environment** for curious minds who want to see how these systems actually work.
 
@@ -193,4 +193,5 @@ Thanks to the early Python notebooks that proved what the equations wouldn’t �
 ### Contact
 
 Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
+
 
