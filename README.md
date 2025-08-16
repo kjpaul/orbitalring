@@ -10,7 +10,7 @@ While writing *How to Build an Orbital Ring, Vol. 1*, I began with a set of assu
 
 This repository is the next step: an open-source project to **model, optimize, and explain** space-infrastructure systems — starting with **orbital rings**, **space elevators**, and **mass drivers**, and expanding to **trajectory design** (e.g., 4 g launch profiles from a specific ring) and related problems.
 
-The core idea: a **Python interface** that anyone can run locally. It shows the equations, explains what they mean, and lets contributors improve models and algorithms. If the community likes the improvement, it ships. The tool is both a **design environment** and a **learning environment** for curious minds who want to see how these systems actually work.
+The core idea: a **Python interface** that anyone can run locally. It shows the equations, explains what they mean, and lets contributors improve models and algorithms. If the community likes the improvement, it will be added to the repository. The tool is both a **design environment** and a **learning environment** for curious minds who want to see how these systems actually work.
 
 ---
 
@@ -193,3 +193,4 @@ Thanks to the early Python notebooks that proved what the equations wouldn’t �
 ### Contact
 
 Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
+
