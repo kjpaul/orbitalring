@@ -16,7 +16,7 @@ The core idea: a **Python interface** that anyone can run locally. It shows the 
 
 ## Scope (initial + planned)
 
-* **Orbital ring deployment**: 1-D/2-D time-dependent models, LIM profiles, casing/cable interactions, energy budgets.
+* **Orbital ring deployment**: 1-D/2-D time-dependent models, linear induction motor parameters, casing/cable interactions, energy budgets.
 * **Space elevator tether**: tapered-cable sizing, stress margins, counterweight strategies, J2 and drag perturbation options.
 * **Mass drivers & coilguns**: staging, eddy-current coupling, thermal limits, power electronics envelopes.
 * **Trajectory design (planned)**: ring-to-LEO transfers, 4 g launch profiles, interplanetary windows, plane change economics.
@@ -193,5 +193,6 @@ Thanks to the early Python notebooks that proved what the equations wouldn’t �
 ### Contact
 
 Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
+
 
 
