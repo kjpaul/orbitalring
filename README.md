@@ -177,7 +177,7 @@ This software is for **research and education**. It is **not** a substitute for 
 
 If you use this project in academic or public work, please cite:
 
-> Dutchy, *How to Build an Orbital Ring, Vol. 1* (forthcoming).
+> Paul G de Jong, *How to Build an Orbital Ring, Vol. 1* (forthcoming).
 > Space Infrastructure Lab (GitHub repository), version X.Y.Z.
 
 A BibTeX entry will be added after the first tagged release.
@@ -193,6 +193,7 @@ Thanks to the early Python notebooks that proved what the equations wouldn’t �
 ### Contact
 
 Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
+
 
 
 
