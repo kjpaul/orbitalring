@@ -76,7 +76,7 @@ examples/
 ### Install (development mode)
 
 ```bash
-git clone https://github.com/<your-org>/space-infra-lab.git
+git clone https://github.com/kjpaul/orbitalring.git
 cd space-infra-lab
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"    # installs package + dev tools (black, ruff, pytest)
@@ -193,6 +193,7 @@ Thanks to the early Python notebooks that proved what the equations wouldn’t �
 ### Contact
 
 Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
+
 
 
 
