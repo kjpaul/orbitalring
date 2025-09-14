@@ -1,12 +1,12 @@
 # Space Infrastructure Lab (open-source)
 
-**Numerical tools for designing and understanding orbital rings, space elevators, and mass drivers — built for accuracy, clarity, and learning.**
+**Numerical tools for designing and understanding orbital rings, space elevators, mass drivers, space habitats and other space related technologies — built for accuracy, clarity, and learning.**
 
 ---
 
 ## Why this exists
 
-While writing *How to Build an Orbital Ring, Vol. 1*, I began with a set of assumptions that turned out to be wrong. Some issues yielded to clean, analytic solutions, but the time-dependent processes (e.g., orbital-ring deployment) stubbornly demanded **iterative, numerical** approaches. Running simple Python scripts over and over led to a series of surprising, testable results (see the book’s Chapter 6). The code was crude and magical in equal measure.
+While writing *How to Build an Orbital Ring, Vol. 1*, I began with a set of assumptions that turned out to be wrong. Some issues yielded to clean, analytic solutions, but the time-dependent processes (e.g., orbital-ring deployment) stubbornly demanded **iterative, numerical** approaches. Running simple Python scripts over and over led to a series of surprising, testable results (see the book’s Chapter 6). The code was crude and magical in equal measure. This process lead me to thinking about allowing the comunity to contribute to the process.
 
 This repository is the next step: an open-source project to **model, optimize, and explain** space-infrastructure systems, starting with **orbital rings**, **space elevators**, and **mass drivers**, and expanding to **trajectory design** (e.g., 4 g launch profiles from a specific ring) and related problems.
 
@@ -193,6 +193,7 @@ Thanks to the early Python notebooks that proved what the equations wouldn’t �
 ### Contact
 
 Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
+
 
 
 
