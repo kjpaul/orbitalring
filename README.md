@@ -20,49 +20,17 @@ The core idea: a **Python interface** that anyone can run locally. It shows the 
 * **Space elevator tether**: tapered-cable sizing, stress margins, counterweight strategies, J2 and drag perturbation options.
 * **Mass drivers & coilguns**: staging, eddy-current coupling, thermal limits, power electronics envelopes.
 * **Trajectory design (planned)**: ring-to-LEO transfers, 4 g launch profiles, interplanetary windows, plane change economics.
+* **Ion Accelorator Thrust**: Equtions related to ion liberation and the thrust that can be achieved.
+* **Heat Dissipation**: Heat dissipation is one of the major problems that needs to be tackled for space-based infrastructure to work.
 * **Education mode**: inline derivations, parameter sensitivity plots, and “explain this equation” toggles.
 
 ---
 
 ## Design principles
 
-1. **Transparency over black boxes**: Equations are shown next to code paths.
-2. **Determinism**: Simulations are reproducible; seeds and integrator tolerances are explicit.
-3. **Engineering-grade defaults**: Units, material properties, and environmental constants are sane, cited, and overrideable.
-4. **Performance where it matters**: Pure Python first; vectorize/numba only when fidelity or speed demands it.
-
----
-
-## Package layout (proposed)
-
-```
-space_infra_lab/
-  __init__.py
-  constants.py          # GM, ?, atmosphere models, material DB hooks
-  materials/            # Cable & conductor property tables; user-extensible
-  dynamics/
-    gravity.py          # Point mass + J2
-    rotation.py         # Earth rotation, frames
-    drag.py             # Rarefied atmo models for low alt segments
-  systems/
-    orbital_ring.py     # Ring kinematics & deployment integrators
-    space_elevator.py   # Taper sizing, stress profiles, counterweight models
-    mass_driver.py      # Electromechanical models, staging, losses
-  optimize/
-    optimizers.py       # Grid search, CMA-ES, gradient-ish hooks
-    objectives.py       # Mass, energy, throughput, cost functions
-  io/
-    config.py           # YAML/JSON schema & validation
-    results.py          # HDF5/Parquet writers; plotting helpers
-  viz/
-    plots.py            # Matplotlib renderers; explain-mode charts
-cli/
-  sil.py                # `sil` command-line entry point
-examples/
-  ring_deploy.yaml
-  elevator_taper.yaml
-  mass_driver.yaml
-```
+1. **Show the work**: Equations are shown next to code paths to help users understand what is going on.
+2. **Engineering-grade defaults**: Units, material properties, and environmental constants are cited.
+3. **Performance where it matters**: Pure Python first; vectorize/numba only when fidelity or speed demands it.
 
 ---
 
@@ -71,7 +39,8 @@ examples/
 ### Requirements
 
 * Python **3.11+**
-* `numpy`, `scipy`, `matplotlib`, `pydantic`, `pyyaml`, `pandas` (installed automatically)
+* `sys`, `math`, `matplotlib`, `tabulate` (installed automatically)
+* Tables are turned off by default.
 
 ### Install (development mode)
 
@@ -80,33 +49,6 @@ git clone https://github.com/kjpaul/orbitalring.git
 cd space-infra-lab
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"    # installs package + dev tools (black, ruff, pytest)
-```
-
-### Quickstart: simulate a simple ring deployment
-
-```python
-from space_infra_lab.systems.orbital_ring import RingDeployment
-from space_infra_lab.constants import EARTH
-
-ring = RingDeployment(
-    planet=EARTH,
-    initial_speed=7755.0,          # m/s at ~250 km
-    target_speed=18000.0,          # m/s cable target
-    lim_spacing=1000.0,            # m
-    lim_efficiency=0.85,
-    casing_mass_per_m=1200.0,      # kg/m
-    cable_mass_per_m=2700.0        # kg/m (example)
-)
-
-result = ring.run(dt=0.2, t_max=30_000)  # seconds
-result.plot()  # shows velocity, tension, power vs time
-```
-
-### CLI (after install)
-
-```bash
-sil sim ring --config examples/ring_deploy.yaml --out runs/ring_001
-sil sim elevator --config examples/elevator_taper.yaml --out runs/elev_001
 ```
 
 ---
@@ -193,6 +135,7 @@ Thanks to the early Python notebooks that proved what the equations wouldn’t �
 ### Contact
 
 Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
+
 
 
 
