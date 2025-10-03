@@ -1,0 +1,33 @@
+# example_config.yaml — sample parameters for orbital_ring_sim.py
+
+# Mass model (kg/m)
+m_cable_per_m: 12000.0
+m_casing_per_m: 5000.0
+
+# Simulation model: "constant_force" or "constant_power"
+model: constant_power
+
+# If model == constant_force, set the force [N]
+force: 1.0e6
+
+# If model == constant_power, set the power [W] and optional fmax [N]
+power: 6.5e11
+fmax: 3.0e10
+
+# Time step and limits
+dt: 0.5
+max_time: 3.0e8
+tol_v: 1.0e-3
+
+# Verbose logging and explanations
+verbose: true
+explain: true
+
+# Plotting (choose any of: velocities, tension, weight)
+plot: ["velocities"]
+save_plots: false
+outdir: "."
+
+# Materials (future expansion for tension checks)
+cable_area_m2: 15.0
+cable_sigma_break: 2.5e10
