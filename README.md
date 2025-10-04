@@ -1,144 +1,81 @@
-# Space Infrastructure Lab (open-source)
+# Orbital Ring Deployment Simulator (CLI)
 
-**Numerical tools for designing and understanding orbital rings, space elevators, mass drivers, space habitats and other space related technologies — built for accuracy, clarity, and learning.**
+**`orbital_ring_sim.py`** is a clean, commented, command‑line tool for simulating the **tangential momentum exchange** between an orbital ring’s **outer casing** and **inner cable** during deployment. It prints what it’s doing, explains the equations (with `--explain`), and can optionally plot results.
 
----
+> **Fixed kinematics by altitude (default 250 km circular orbit):**
+> - Initial orbital speed: **7,754.866 m/s**
+> - Final casing (ground‑sync) speed: **483.331 m/s**
+> - Local gravity at altitude: **9.073 m/s²**
+> - Orbital radius: **~6,628,137 m** (Earth radius + 250 km)
+> - Circumference: **~41,645,813 m**
 
-## Why this exists
-
-While writing *How to Build an Orbital Ring, Vol. 1*, I began with a set of assumptions that turned out to be wrong. Some issues yielded to clean, analytic solutions, but the time-dependent processes (e.g., orbital-ring deployment) stubbornly demanded **iterative, numerical** approaches. Running simple Python scripts over and over led to a series of surprising, testable results (see the book’s Chapter 6). The code was crude and magical in equal measure. This process lead me to thinking about allowing the comunity to contribute to the process.
-
-This repository is the next step: an open-source project to **model, optimize, and explain** space-infrastructure systems, starting with **orbital rings**, **space elevators**, and **mass drivers**, and expanding to **trajectory design** (e.g., 4 g launch profiles from a specific ring) and related problems.
-
-The core idea: a **Python interface** that anyone can run locally. It shows the equations, explains what they mean, and lets contributors improve models and algorithms. If the community likes the improvement, it will be added to the repository. The tool is both a **design environment** and a **learning environment** for curious minds who want to see how these systems actually work.
-
----
-
-## Scope (initial + planned)
-
-* **Orbital ring deployment**: 1-D/2-D time-dependent models, linear induction motor parameters, casing/cable interactions, energy budgets.
-* **Space elevator tether**: tapered-cable sizing, stress margins, counterweight strategies, J2 and drag perturbation options.
-* **Mass drivers & coilguns**: staging, eddy-current coupling, thermal limits, power electronics envelopes.
-* **Trajectory design (planned)**: ring-to-LEO transfers, 4 g launch profiles, interplanetary windows, plane change economics.
-* **Ion Accelorator Thrust**: Equtions related to ion liberation and the thrust that can be achieved.
-* **Heat Dissipation**: Heat dissipation is one of the major problems that needs to be tackled for space-based infrastructure to work.
-* **Education mode**: inline derivations, parameter sensitivity plots, and “explain this equation” toggles.
-
----
-
-## Design principles
-
-1. **Show the work**: Equations are shown next to code paths to help users understand what is going on.
-2. **Engineering-grade defaults**: Units, material properties, and environmental constants are cited.
-3. **Performance where it matters**: Pure Python first; vectorize/numba only when fidelity or speed demands it.
-
----
-
-## Getting started
-
-### Requirements
-
-* Python **3.11+**
-* `sys`, `math`, `matplotlib`, `tabulate` (installed automatically)
-* Tables are turned off by default.
-
-### Install (development mode)
+## Quick Start
 
 ```bash
-git clone https://github.com/kjpaul/orbitalring.git
-cd space-infra-lab
-python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"    # installs package + dev tools (black, ruff, pytest)
+# 1) Grab the script and optional example config
+python orbital_ring_sim.py --help
+
+# 2) Run with simple constant force (prints per‑second status and explanations)
+python orbital_ring_sim.py --model constant_force --force 1e6 --dt 0.5 --verbose --explain
+
+# 3) Or run with constant power and plot velocities
+python orbital_ring_sim.py --model constant_power --power 5e9 --dt 0.25 --plot velocities
 ```
 
----
-
-## How the math shows up
-
-Every model surfaces the governing equations in docstrings and `explain()` calls. For example, the elevator taper is implemented as:
-
-$$
-A(r) = A_0 \exp\!\left[\frac{\rho}{\eta\,\sigma}
-\left(\tfrac{1}{2}\omega^2(r^2-r_0^2) - GM\Bigl(\frac{1}{r}-\frac{1}{r_0}\Bigr)\right)\right]
-$$
-
-with a companion `explain_taper()` that walks through assumptions, units, and typical parameter ranges.
-
----
-
-## Contributing
-
-Contributions are very welcome — from bug fixes to full subsystems.
-
-1. **Fork** and create a feature branch.
-2. **Code style**: `ruff` + `black`; **typing**: `mypy` (strict where practical).
-3. **Tests**: add `pytest` coverage for new behavior; include a minimal example in `examples/`.
-4. **Docs**: expand docstrings and `explain()` text for any new equations.
-5. **PR**: open against `main` with a brief design note (what changed, why, references).
-
-We follow the **Contributor Covenant v2.1** for community conduct.
-
----
-
-## Roadmap
-
-* **v0.1**: Orbital ring 1-D deployment integrator + power/energy accounting
-* **v0.2**: Space elevator taper & counterweight explorer (GEO ± ?r)
-* **v0.3**: Mass-driver stage model with eddy-current/heating limits
-* **v0.4**: Trajectory module (ring-assisted 4 g launch; patched-conic seeds)
-* **v0.5**: Optimization API (multi-objective: mass × cost × throughput)
-
----
-
-## Educational mode
-
-Toggle `explain=True` or run:
+If you prefer editing a file instead of many CLI flags:
 
 ```bash
-sil explain elevator --param sigma=1e11 rho=1300 eta=0.5
+python orbital_ring_sim.py --config example_config.yaml --plot velocities
 ```
 
-and the tool prints equations, assumptions, and sensitivity tables alongside plots.
+If `PyYAML` is not installed, either install it (`pip install pyyaml`) or pass parameters via CLI flags.
 
----
+## What the Code Simulates
+
+- A time‑dependent loop integrates
+  \\[
+    \\frac{dv_\\text{casing}}{dt} = \\frac{F_\\text{casing}}{M_\\text{casing}}, \\qquad
+    \\frac{dv_\\text{cable}}{dt}  = \\frac{F_\\text{cable}}{M_\\text{cable}}
+  \\]
+  with **Newton’s third law** (internal LIM force): \\(F_\\text{cable} = -F_\\text{casing}\\).
+- Two thrust models:
+  - **`constant_force`**: apply a fixed |F| until the casing hits target.
+  - **`constant_power`**: use \\(F = P / v\\) (capped by `--fmax` if set).
+- The loop **stops** when the casing slows to **483.331 m/s** (within tolerance).
+
+As a cross‑check, the script also prints the **final cable speed** implied by **angular‑momentum conservation** in a closed system:
+\\[
+v_{\\text{cable,final}}=\\frac{(M_\\text{total} v_\\text{orbit}) - (M_\\text{casing} v_\\text{casing,final})}{M_\\text{cable}}.
+\\]
+
+## Plots (optional)
+
+- `--plot velocities` — time histories of casing and cable speeds
+- `--plot tension` — **first‑order** total cable tension proxy (placeholder; see TODO)
+- `--plot weight` — sign of net radial load (+outward, −inward), **schematic**
+
+Save plots instead of showing them interactively:
+```bash
+python orbital_ring_sim.py --plot velocities --save-plots --outdir results
+```
+
+## Parameters You’ll Likely Edit
+
+- `--m-cable-per-m` and `--m-casing-per-m` (kg/m): mass budgets
+- `--model`, `--force` or `--power`, `--fmax` (N): actuation model
+- `--dt`, `--max-time`, `--tol-v` (s): integration controls
+- `--plot`, `--save-plots`, `--outdir`: outputs
+
+Or keep these in a YAML file (see `example_config.yaml`).
+
+## Notes & Roadmap
+
+- **Tension & Net Weight**: The current implementation includes *placeholders* for total tension and a simple radial sign check. You can extend:
+  - Use distributed ring mechanics to compute section tensions (Fourier‑mode approach).
+  - Include gravity vs centrifugal terms per subsystem; incorporate coupler loads.
+- **Losses & EM Detail**: Add LIM slip, electrical/cryogenic losses, and power budgets.
+- **Controllers**: Add higher‑level controllers (e.g., accelerate within a power envelope to reach the target in a specified time).
 
 ## License
 
-**Apache-2.0** (permissive, patent-grant).
-If you prefer MIT or a dual-license, update `LICENSE` and `pyproject.toml` accordingly before your first public release.
-
----
-
-## Disclaimer
-
-This software is for **research and education**. It is **not** a substitute for professional engineering review, certification, or safety analysis. Real-world systems demand margins, fault trees, and environmental testing that exceed the scope of this codebase.
-
----
-
-## Citation
-
-If you use this project in academic or public work, please cite:
-
-> Paul G de Jong, *How to Build an Orbital Ring, Vol. 1* (forthcoming).
-> Space Infrastructure Lab (GitHub repository), version X.Y.Z.
-
-A BibTeX entry will be added after the first tagged release.
-
----
-
-## Acknowledgments
-
-Thanks to the early Python notebooks that proved what the equations wouldn’t — and to the community that will make them rigorous, reusable, and teachable.
-
----
-
-### Contact
-
-Open an issue or discussion on GitHub. For collaboration inquiries, please file a “Proposal” discussion with a short abstract and references.
-
-
-
-
-
-
-
+MIT — feel free to fork, extend, and PR improvements.

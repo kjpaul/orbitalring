@@ -1,0 +1,72 @@
+name: CI (smoke)
+
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Create tiny smoke config
+        run: |
+          mkdir -p .github
+          cat > .github/smoke.yaml << 'YAML'
+          # Minimal, fast-running config (no plots)
+          m_cable_per_m: 26300.0
+          m_casing_per_m: 5000.0
+          dt: 0.25                # small dt to prove the integrator runs
+          max_time: 2000          # ~33 minutes simulated; the loop will exit earlier on tol_v
+          tol_v: 1e-3
+          verbose: false
+          explain: false
+          plot: []                # no plots; matplotlib not required on CI
+          lim:
+            n_turns: 8
+            tau_p: 50.0
+            w_coil: 1.0
+            gap: 0.2
+            pitch_count: 3
+            spacing: 500.0
+            volts_max_user: 2000.0
+            i_peak_min: 10.0
+            i_peak_target: 100.0  # keep small so it runs quickly
+            v_slip_min: 10.0
+            v_slip_max: 50.0
+            max_site_power: 2.0e6
+          YAML
+
+      - name: Smoke run (v2 sim if present, else v1)
+        run: |
+          set -euxo pipefail
+          if [ -f "orbital_ring_lim_v2.py" ]; then
+            python orbital_ring_lim_v2.py --config .github/smoke.yaml > smoke.json
+          else
+            python orbital_ring_lim.py --config .github/smoke.yaml > smoke.json
+          fi
+          # sanity: ensure JSON printed and has 'results'
+          python - << 'PY'
+          import json,sys
+          data=json.load(open("smoke.json"))
+          assert "results" in data, "no results in output"
+          r=data["results"]
+          # basic keys we expect
+          for k in ["time_elapsed_s","steps","v_casing_end","v_cable_end"]:
+              assert k in r, f"missing {k}"
+          print("Smoke OK:", {k:r[k] for k in ["steps","v_casing_end","v_cable_end"]})
+          PY
