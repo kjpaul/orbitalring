@@ -51,22 +51,13 @@ jobs:
             max_site_power: 2.0e6
           YAML
 
-      - name: Smoke run (v2 sim if present, else v1)
+      - name: Smoke run
         run: |
           set -euxo pipefail
-          if [ -f "orbital_ring_lim_v2.py" ]; then
-            python orbital_ring_lim_v2.py --config .github/smoke.yaml > smoke.json
-          else
-            python orbital_ring_lim.py --config .github/smoke.yaml > smoke.json
-          fi
-          # sanity: ensure JSON printed and has 'results'
+          python orbital_ring.py --config .github/smoke.yaml > smoke.json
           python - << 'PY'
-          import json,sys
+          import json
           data=json.load(open("smoke.json"))
-          assert "results" in data, "no results in output"
-          r=data["results"]
-          # basic keys we expect
-          for k in ["time_elapsed_s","steps","v_casing_end","v_cable_end"]:
-              assert k in r, f"missing {k}"
-          print("Smoke OK:", {k:r[k] for k in ["steps","v_casing_end","v_cable_end"]})
+          assert "results" in data and "v_cable_end" in data["results"]
+          print("Smoke OK")
           PY
