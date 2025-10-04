@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import argparse, sys, math, json
+import argparse
+import sys
+import math
+import json
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Any
+from typing import Optional, Dict, List, Any, Tuple
 try:
-    import yaml
+    import yaml # type: ignore[import-not-found]
     HAVE_YAML = True
 except Exception:
     HAVE_YAML = False
@@ -93,24 +96,34 @@ def _coerce_like(cur: Any, val: Any) -> Any:
     if val is None:
         return cur
     if isinstance(cur, list):
-        if isinstance(val, list): return list(val)
-        if isinstance(val, str): return [s.strip() for s in val.split(",") if s.strip()]
+        if isinstance(val, list):
+            return list(val)
+        if isinstance(val, str):
+            return [s.strip() for s in val.split(",") if s.strip()]
         return [val]
     if isinstance(cur, bool):
-        if isinstance(val, bool): return val
-        if isinstance(val, (int, float)): return bool(val)
-        if isinstance(val, str): return val.strip().lower() in ("true","yes","on","1")
+        if isinstance(val, bool):
+            return val
+        if isinstance(val, (int, float)):
+            return bool(val)
+        if isinstance(val, str):
+            return val.strip().lower() in ("true","yes","on","1")
         return bool(val)
     if isinstance(cur, float):
-        if isinstance(val, (int,float)): return float(val)
-        if isinstance(val, str): return float(val.strip())
+        if isinstance(val, (int,float)):
+            return float(val)
+        if isinstance(val, str):
+            return float(val.strip())
     if isinstance(cur, int):
-        if isinstance(val, (int,float)): return int(val)
-        if isinstance(val, str): return int(float(val.strip()))
+        if isinstance(val, (int,float)):
+            return int(val)
+        if isinstance(val, str):
+            return int(float(val.strip()))
     return val
 
 def load_yaml(path: str, base: Params) -> Params:
-    if not HAVE_YAML: raise RuntimeError("PyYAML not installed.")
+    if not HAVE_YAML:
+        raise RuntimeError("PyYAML not installed.")
     with open(path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     for k, v in data.items():
@@ -182,8 +195,10 @@ def slip_ratio(v_slip: float, v_rel: float, p: Params) -> float:
     return f_from_v(v_slip, p) / max(f_from_v(v_rel + v_slip, p), 1e-9)
 
 def site_thrust(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
-    B = b_plate_peak(i_peak, p); s = slip_ratio(v_slip, v_rel, p)
-    rr = set_r_r(f_from_v(v_slip, p), p); V_eddy = plate_eddy_volume(f_from_v(v_slip, p), p)
+    B = b_plate_peak(i_peak, p)
+    s = slip_ratio(v_slip, v_rel, p)
+    rr = set_r_r(f_from_v(v_slip, p), p)
+    V_eddy = plate_eddy_volume(f_from_v(v_slip, p), p)
     return p.lim.thrust_coeff * (B*B) * (s/(1.0 + s*s)) * (V_eddy / max(rr, 1e-12))
 
 def site_voltage_estimate(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
@@ -211,7 +226,8 @@ def site_power_estimate(i_peak: float, v_rel: float, v_slip: float, p: Params) -
 
 def downsample(x: List[float], y: List[float], max_points: int = 5000):
     n = len(x)
-    if n <= max_points: return x, y
+    if n <= max_points: 
+        return x, y
     step = max(1, n // max_points)
     return x[::step], y[::step]
 
@@ -223,19 +239,47 @@ def _prep_xy_for_plot(x_months, y_series, max_points=5000):
     xx, yy = _align_tail(x_months, y_series)
     return downsample(xx, yy, max_points=max_points)
 
-def annotate_last(ax, x, y):
-    if not x or not y: return
-    ax.annotate(f"{y[-1]:.3g}", xy=(x[-1], y[-1]), xytext=(5,5), textcoords="offset points", fontsize=9)
+def annotate_last(ax, x, y, unit: str = "", fmt: str = ".0f",
+                  dx: int = -40, dy: int = 10, fontsize: int = 11) -> None:
+    """
+    Annotate the last point of a series with value + unit.
 
-def maybe_plot(p: Params, ts: List[float], vc: List[float], vb: List[float],
-               tension: List[float], net_per_m_hist: List[float],
-               extras: Dict[str, List[float]] = None) -> None:
-    if not p.plot or not HAVE_MPL: return
+    unit  : e.g. "m/s", "GPa", "t/m", "m/s²", "MW", "V", "A"
+    fmt   : number format (".0f" integer-like, ".1f", ".2f", etc.)
+    dx,dy : offset in points (negative dx pulls label leftward/inward)
+    """
+    if not x or not y:
+        return
+    value_str = f"{y[-1]:{fmt}} {unit}".strip()
+    ax.annotate(
+        value_str,
+        xy=(x[-1], y[-1]),
+        xytext=(dx, dy),
+        textcoords="offset points",
+        fontsize=fontsize,
+        ha="left", va="bottom",
+        bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, lw=0),
+        zorder=5,
+    )
+
+
+def maybe_plot(
+    p: Params,
+    ts: List[float],
+    vc: List[float],
+    vb: List[float],
+    tension: List[float],
+    net_per_m_hist: List[float],
+    extras: Optional[Dict[str, List[float]]] = None, ) -> None:
+    if not p.plot or not HAVE_MPL:
+        return
     extras = extras or {}
     i0 = 0
     while i0 < len(ts) and ts[i0] < p.plot_skip_s:
         i0 += 1
-    ts = ts[i0:]; vc = vc[i0:]; vb = vb[i0:]
+    ts = ts[i0:]
+    vc = vc[i0:]
+    vb = vb[i0:]
     tension = tension[i0:] if tension else tension
     net_per_m_hist = net_per_m_hist[i0:] if net_per_m_hist else net_per_m_hist
     t_months = [t/SEC_PER_MONTH for t in ts]
@@ -243,119 +287,183 @@ def maybe_plot(p: Params, ts: List[float], vc: List[float], vb: List[float],
     if "velocities" in p.plot and t_months:
         tm, vc_ds = downsample(t_months, vc)
         _,  vb_ds = downsample(t_months, vb)
-        fig = plt.figure(); ax = fig.gca()
+        fig = plt.figure()
+        ax = fig.gca()
         ax.plot(tm, vc_ds, label="v_casing [m/s]")
         ax.plot(tm, vb_ds, label="v_cable [m/s]")
-        annotate_last(ax, tm, vc_ds); annotate_last(ax, tm, vb_ds)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("speed [m/s]")
+        annotate_last(ax, tm, vc_ds, unit="m/s", fmt=".0f")
+        annotate_last(ax, tm, vb_ds, unit="m/s", fmt=".0f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("speed [m/s]")
         ax.set_title("Casing and Cable Speeds vs Time")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/velocities.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        if p.save_plots:
+            plt.savefig(f"{p.outdir.rstrip('/')}/velocities.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "stress" in p.plot and t_months and tension:
         stress = [T/p.cable_area_m2/1e9 for T in tension]
         tm, st_ds = downsample(t_months, stress)
-        fig = plt.figure(); ax = fig.gca()
+        fig = plt.figure()
+        ax = fig.gca()
         ax.plot(tm, st_ds, label="cable stress [GPa]")
-        annotate_last(ax, tm, st_ds)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("GPa")
+        annotate_last(ax, tm, st_ds, unit="GPa", fmt=".2f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("GPa")
         ax.set_title("Cable Stress vs Time")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/stress.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/stress.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "net_weight_sign" in p.plot and t_months and net_per_m_hist:
         sign_series = [ -1 if v < 0 else (1 if v > 0 else 0) for v in net_per_m_hist ]
-        tm, s_ds = downsample(t_months, sign_series)
+        sign_series_f = [float(v) for v in sign_series]
+        tm, s_ds = downsample(t_months, sign_series_f)
         any_neg = any(v < 0 for v in s_ds)
         color = "red" if any_neg else "green"
-        fig = plt.figure(); ax = fig.gca()
+        fig = plt.figure()
+        ax = fig.gca()
         ax.step(tm, s_ds, where="post", label="sign (−1,0,+1)", color=color)
-        annotate_last(ax, tm, s_ds)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("sign")
-        ax.set_yticks([-1, 0, 1]); ax.set_ylim(-1.2, 1.2)
+        annotate_last(ax, tm, s_ds, unit="", fmt=".0f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("sign")
+        ax.set_yticks([-1, 0, 1])
+        ax.set_ylim(-1.2, 1.2)
         ax.set_title("Net Weight Sign (out + / in −)")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/net_weight_sign.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/net_weight_sign.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "max_load_per_m" in p.plot and t_months and net_per_m_hist:
         load_t_per_m = [max(0.0, v)/p.g_local/1000.0 for v in net_per_m_hist]
         tm, y_ds = downsample(t_months, load_t_per_m)
-        fig = plt.figure(); ax = fig.gca()
-        ax.plot(tm, y_ds, label="Maximum Load per Meter [tonne/m]")
-        annotate_last(ax, tm, y_ds)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("tonne/m")
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.plot(tm, y_ds, label="Maximum Load per Meter [t/m]")
+        annotate_last(ax, tm, y_ds, unit="t/m", fmt=".1f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("tonne/m")
         ax.set_title("Maximum Load Capacity per Meter")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/max_load_per_m.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/max_load_per_m.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "accel_excess" in p.plot and t_months and extras.get("a_out"):
         a_excess = [v - p.g_local for v in extras["a_out"]]
         tm, y_ds = _prep_xy_for_plot(t_months, a_excess)
-        fig = plt.figure(); ax = fig.gca()
+        fig = plt.figure()
+        ax = fig.gca()
         ax.plot(tm, y_ds, label="a_out - g [m/s²]")
-        annotate_last(ax, tm, y_ds)
+        annotate_last(ax, tm, y_ds, unit="m/s²", fmt=".2f")
         ax.axhline(0.0, linestyle="--", linewidth=1, label="zero net")
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("m/s²")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("m/s²")
         ax.set_title("Net Radial Acceleration (Outward Positive)")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/accel_excess.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/accel_excess.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "power" in p.plot and extras.get("power"):
         tm, y_ds = _prep_xy_for_plot(t_months, extras["power"])
-        fig = plt.figure(); ax = fig.gca()
+        fig = plt.figure()
+        ax = fig.gca()
         y_mw = [v/1e6 for v in y_ds]
-        ax.plot(tm, y_mw, label="P_site per LIM [MW]"); annotate_last(ax, tm, y_mw)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("MW")
-        ax.set_title("Per-site Input Power"); ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/power.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        ax.plot(tm, y_mw, label="P_site per LIM [MW]")
+        annotate_last(ax, tm, y_mw, unit="MW", fmt=".2f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("MW")
+        ax.set_title("Per-site Input Power")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/power.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "voltage" in p.plot and extras.get("voltage"):
         tm, y_ds = _prep_xy_for_plot(t_months, extras["voltage"])
-        fig = plt.figure(); ax = fig.gca()
-        ax.plot(tm, y_ds, label="V_site per phase [V]"); annotate_last(ax, tm, y_ds)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("V")
-        ax.set_title("Coil Inductive Voltage"); ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/voltage.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.plot(tm, y_ds, label="V_site per phase [V]")
+        annotate_last(ax, tm, y_ds, unit="V", fmt=".1f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("V")
+        ax.set_title("Coil Inductive Voltage")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/voltage.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "current_slip" in p.plot and (extras.get("current") or extras.get("v_slip")):
-        fig = plt.figure(); ax = fig.gca()
+        fig = plt.figure()
+        ax = fig.gca()
         if extras.get("current"):
             tm_i, i_ds = _prep_xy_for_plot(t_months, extras["current"])
-            ax.plot(tm_i, i_ds, label="I_peak [A]"); annotate_last(ax, tm_i, i_ds)
+            ax.plot(tm_i, i_ds, label="I_peak [A]")
+            annotate_last(ax, tm_i, i_ds, unit="A", fmt=".0f")
         if extras.get("v_slip"):
             tm_vs, vs_ds = _prep_xy_for_plot(t_months, extras["v_slip"])
-            ax.plot(tm_vs, vs_ds, label="v_slip [m/s]"); annotate_last(ax, tm_vs, vs_ds)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("A or m/s")
-        ax.set_title("Controller: Current & Slip"); ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/current_slip.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+            ax.plot(tm_vs, vs_ds, label="v_slip [m/s]")
+            annotate_last(ax, tm_vs, vs_ds, unit="m/s", fmt=".0f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("A or m/s")
+        ax.set_title("Controller: Current & Slip")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/current_slip.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
     if "relative_speed" in p.plot and extras.get("v_rel"):
         tm, y_ds = _prep_xy_for_plot(t_months, extras["v_rel"])
-        fig = plt.figure(); ax = fig.gca()
-        ax.plot(tm, y_ds, label="v_rel = v_cable - v_casing [m/s]"); annotate_last(ax, tm, y_ds)
-        ax.set_xlabel("time [30-day months]"); ax.set_ylabel("m/s")
-        ax.set_title("Relative Speed"); ax.legend(loc="upper left")
-        if p.save_plots: plt.savefig(f"{p.outdir.rstrip('/')}/relative_speed.png", dpi=150, bbox_inches="tight"); plt.close(fig)
-        else: plt.show()
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.plot(tm, y_ds, label="v_rel = v_cable - v_casing [m/s]")
+        annotate_last(ax, tm, y_ds, unit="m/s", fmt=".0f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("m/s")
+        ax.set_title("Relative Speed")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/relative_speed.png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
 
+# Logging
 def next_log_target(t: float) -> float:
-    if t < 60.0: return 1.0
-    if t < 3600.0: return 3600.0
-    if t < 86400.0: return 86400.0
-    if t < 604800.0: return 604800.0
+    if t < 1.0:
+        return 1.0
+    if t < 60.0:
+        return 60.0
+    if t < 3600.0:
+        return 3600.0
+    if t < 86400.0:
+        return 86400.0
+    if t < 604800.0:
+        return 604800.0
     month = 30.0 * 86400.0
     k = math.floor(t / month) + 1
     return k * month
@@ -371,17 +479,22 @@ def parse_args(argv=None) -> Params:
     ap.add_argument("--plot-skip-s", type=float, default=None, help="Seconds to skip at start of plots")
     args = ap.parse_args(argv)
     p = Params()
-    p.verbose = args.verbose; p.explain = args.explain
+    p.verbose = args.verbose
+    p.explain = args.explain
     p.plot = [s.strip() for s in args.plot.split(",")] if args.plot else []
-    p.save_plots = args.save_plots; p.outdir = args.outdir
-    if args.plot_skip_s is not None: p.plot_skip_s = args.plot_skip_s
-    if args.config: p = load_yaml(args.config, p)
+    p.save_plots = args.save_plots
+    p.outdir = args.outdir
+    if args.plot_skip_s is not None: 
+        p.plot_skip_s = args.plot_skip_s
+    if args.config: 
+        p = load_yaml(args.config, p)
     return p
 
 def simulate(p: Params) -> Dict:
     if p.verbose:
         banner(p)
-        if p.explain: explain_text()
+        if p.explain: 
+            explain_text()
 
     v_casing = p.v_orbit
     v_cable  = p.v_orbit
@@ -397,14 +510,27 @@ def simulate(p: Params) -> Dict:
     next_log = (p.log_interval if p.verbose and p.log=="interval"
                 else (next_log_target(0.0) if p.verbose and p.log=="coarse" else float("inf")))
 
-    ts=[0.0]; vch=[v_casing]; vbh=[v_cable]
-    Thist=[0.0]; NetPerMhist=[- (p.m_cable_per_m + p.m_casing_per_m)*p.g_local]
-    Phist=[]; Vhist=[]; Ihist=[]; Vsliphist=[]; Vrelhist=[]; Aouthist=[]
+    ts=[0.0]
+    vch=[v_casing]
+    vbh=[v_cable]
+    Thist=[0.0]
+    NetPerMhist=[- (p.m_cable_per_m + p.m_casing_per_m)*p.g_local]
+    Phist=[]
+    Vhist=[]
+    Ihist=[]
+    Vsliphist=[]
+    Vrelhist=[]
+    Aouthist=[]
 
-    min_T = (float("inf"), None); max_T = (-float("inf"), None)
-    min_net = (float("inf"), None); max_net = (-float("inf"), None)
+    min_T: Tuple[float, Optional[float]] = (float("inf"), None)
+    max_T: Tuple[float, Optional[float]] = (-float("inf"), None)
+    min_net: Tuple[float, Optional[float]] = (float("inf"), None)
+    max_net: Tuple[float, Optional[float]] = (-float("inf"), None)
 
-    t=0.0; steps=0; broke=False; reason=""
+    t=0.0
+    steps=0
+    broke=False
+    reason=""
     while t < p.max_time and (v_casing - p.v_casing_final) > p.tol_v:
         v_rel = max(v_cable - v_casing, 0.0)
 
@@ -417,7 +543,8 @@ def simulate(p: Params) -> Dict:
         if (P_site > p.lim.max_site_power) or (V_site > V_cap):
             want_i = max(p.lim.i_peak_min, i_peak * 0.98)
             want_vslip = max(p.lim.v_slip_min, v_slip * 0.98)
-        di = want_i - i_peak; dv = want_vslip - v_slip
+        di = want_i - i_peak
+        dv = want_vslip - v_slip
         i_peak += math.copysign(min(abs(di), p.lim.di_max_per_s * p.dt), di)
         v_slip += math.copysign(min(abs(dv), p.lim.dvslip_max_per_s * p.dt), dv)
         i_peak = min(max(i_peak, p.lim.i_peak_min), p.lim.i_peak_target)
@@ -439,24 +566,39 @@ def simulate(p: Params) -> Dict:
         T = max(0.0, net_per_m * p.r_orbit)
         sigma = T / p.cable_area_m2
         if sigma > p.sigma_break:
-            broke = True; reason = f"Cable failure: stress {sigma:.3e} > {p.sigma_break:.3e} Pa"
-            if p.verbose: print(reason); break
+            broke = True
+            reason = f"Cable failure: stress {sigma:.3e} > {p.sigma_break:.3e} Pa"
+            if p.verbose: 
+                print(reason)
+                break
 
         mpm_total = p.m_cable_per_m + p.m_casing_per_m
         a_out_mass_weighted = (p.m_cable_per_m*a_out_cable + p.m_casing_per_m*a_out_casing)/mpm_total
 
-        if T < min_T[0]: min_T = (T, t)
-        if T > max_T[0]: max_T = (T, t)
-        if net_per_m < min_net[0]: min_net = (net_per_m, t)
-        if net_per_m > max_net[0]: max_net = (net_per_m, t)
+        if T < min_T[0]: 
+            min_T = (T, t)
+        if T > max_T[0]: 
+            max_T = (T, t)
+        if net_per_m < min_net[0]: 
+            min_net = (net_per_m, t)
+        if net_per_m > max_net[0]: 
+            max_net = (net_per_m, t)
 
-        t += p.dt; steps += 1
+        t += p.dt
+        steps += 1
 
         if steps % 10 == 0:
-            ts.append(t); vch.append(v_casing); vbh.append(v_cable)
-            Thist.append(T); NetPerMhist.append(net_per_m)
-            Phist.append(P_site); Vhist.append(V_site); Ihist.append(i_peak)
-            Vsliphist.append(v_slip); Vrelhist.append(v_rel); Aouthist.append(a_out_mass_weighted)
+            ts.append(t)
+            vch.append(v_casing)
+            vbh.append(v_cable)
+            Thist.append(T)
+            NetPerMhist.append(net_per_m)
+            Phist.append(P_site)
+            Vhist.append(V_site)
+            Ihist.append(i_peak)
+            Vsliphist.append(v_slip)
+            Vrelhist.append(v_rel)
+            Aouthist.append(a_out_mass_weighted)
 
         if p.verbose and t >= next_log:
             print(f"t={t:12.2f} s | months={t/SEC_PER_MONTH:7.2f} | "
@@ -499,7 +641,9 @@ def simulate(p: Params) -> Dict:
     return out
 
 def main(argv=None) -> int:
-    p = parse_args(argv); simulate(p); return 0
+    p = parse_args(argv)
+    simulate(p)
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main())

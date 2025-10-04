@@ -46,6 +46,7 @@ verbose: true
 explain: true
 log: coarse
 plot_skip_s: 1200
-plot: ["velocities","tension","weight","power","voltage","current_slip","net_weight","accel","relative_speed"]
+plot: ["velocities","stress","net_weight_sign","max_load_per_m","accel_excess","power","voltage","current_slip","relative_speed"]
+
 save_plots: false
 outdir: "."
