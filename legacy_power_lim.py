@@ -520,7 +520,7 @@ def annotate_final(data_list, unit="", fmt=".1f"):
     # MAIN LOOP. CALCULATE DEPLOYMENT TIME
     # -------------------------------------------------
 """
-def get_deployment_time(v_slip, i_peak_now, param_str1, param_str2):
+def get_deployment_time(v_slip, i_peak_now, param_str1):
     # loop variables
     dt = DT1        # initial number of seconds per loop
     i_target = i_peak_now # set initial value of i_min
@@ -577,7 +577,6 @@ def get_deployment_time(v_slip, i_peak_now, param_str1, param_str2):
     sample_time_max = SAMPLE_TIME_MAX
 
     param_str1 = f"{SAMPLE_TIME_STR}\n{param_str1}"
-    param_str2 = param_str2
     exit_msg = "PASSED"
     make_graphs = MAKE_GRAPHS
 
@@ -906,7 +905,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1, param_str2):
         with open("_orbital_ring_options_03.txt", "a") as file:
             file.writelines(lines)
 
-    return [tick_count, f"{param_str1}\n{param_str2} ", make_graphs, time]
+    return [tick_count, f"{param_str1} ", make_graphs, time]
 
 def main() -> None:
     v_slip = 50
