@@ -246,7 +246,7 @@ def _prep_xy_for_plot(x_months, y_series, max_points=5000):
     return downsample(xx, yy, max_points=max_points)
 
 def annotate_last(ax, x, y, unit: str = "", fmt: str = ".0f",
-                  dx: int = -40, dy: int = 10, fontsize: int = 11) -> None:
+                  dx: int = -40, dy: int = -40, fontsize: int = 11) -> None:
     """
     Annotate the last point of a series with value + unit.
 

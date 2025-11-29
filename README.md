@@ -1,120 +1,175 @@
 # Orbital Ring Deployment Simulator
 
-This repository contains:
-- **`orbital_ring.py`** — _current simulator_ (recommended): LIM-based deployment with coil geometry, voltage/current/power caps, controller ramps, and improved plotting/units.
-- **`legacy_power_lim.py`** — _original reference code_ (unchanged except for the rename).
+This repository contains a physics-based simulator for deploying an orbital ring using linear induction motors (LIMs). The model includes coil geometry, voltage/current/power limits, controller ramps, thermal behavior, net outward weight, tension, and full cumulative energy accounting.
 
-A minimal CI "smoke" run verifies that `orbital_ring.py` executes and emits JSON.
-
-[![CI (smoke)](https://github.com/kjpaul/orbitalring/actions/workflows/ci.yml/badge.svg)](../../actions)
+It accompanies the *Astronomy's Shocking Twist* technical volumes on large-scale space infrastructure.
 
 ---
 
-## Quick Start
+# **How to Run the Simulator**
+
+The simulator requires a YAML configuration file. **You must pass it using `--config`**. Positional arguments (e.g., `python orbital_ring.py example.yaml`) are **not supported**.
+
+## **1. Install Dependencies**
+
 ```bash
 pip install pyyaml matplotlib
-python orbital_ring.py --config example_lim_config.yaml \
-  --plot velocities,stress,max_load_per_m,total_ke
 ```
 
-- Add `--save-plots` to write PNGs (no GUI display).
-- `--verbose --explain` prints governing equations and periodic status (1 s → 1 h → 1 d → 1 wk → monthly).
+## **2. Basic Run**
 
-> **Altitude setpoint:** 250 km (equator).  
-> `v_orbit = 7754.866 m/s`, `v_casing_final = 483.331 m/s`, `g = 9.073 m/s²`.
+```bash
+python orbital_ring.py --config example_lim_config.yaml
+```
+
+This runs the full simulation and prints a JSON result summary to stdout.
+
+## **3. Plotting**
+
+To display specific plots:
+```bash
+python orbital_ring.py --config example_lim_config.yaml --plot velocities,stress
+```
+
+To save PNGs instead of showing them:
+```bash
+python orbital_ring.py --config example_lim_config.yaml \
+    --plot velocities,stress --save-plots
+```
+
+You may include any set of comma-separated plot names.
+
+## **4. Full Example Run**
+
+```bash
+python orbital_ring.py \
+    --config example_lim_config.yaml \
+    --plot velocities,stress,max_load_per_m,total_ke \
+    --save-plots \
+    --outdir results
+```
+
+## **5. Helpful Developer Flags**
+
+Verbose output including governing equations:
+```bash
+python orbital_ring.py --config example_lim_config.yaml --verbose --explain
+```
+
+Skip the first N seconds of simulation when plotting:
+```bash
+python orbital_ring.py --config example_lim_config.yaml --plot-skip-s 10000
+```
 
 ---
 
-## Configuration
+# **Configuration File Overview**
 
-Edit `example_lim_config.yaml`. Key groups:
+All simulation parameters are stored in a YAML file such as `example_lim_config.yaml`.
 
-- **Mass model:** `m_cable_per_m`, `m_casing_per_m`, `cable_area_m2`, `sigma_break`.
-- **LIM geometry & limits:** `n_turns`, `tau_p`, `w_coil`, `gap`, `pitch_count`, `spacing`, `volts_max_user`, `max_site_power`, etc.
-- **Controller ramps:** `di_max_per_s`, `dvslip_max_per_s`.
-- **Run controls:** `dt`, `max_time`, `plot`, `save_plots`, `plot_skip_s`.
+### **Key Parameter Groups**
+
+**Mass Model**
+- `m_cable_per_m` — cable linear mass [kg/m]
+- `m_casing_per_m` — casing linear mass [kg/m]
+- `cable_area_m2` — cable load-bearing cross-section [m²]
+- `sigma_break` — breaking stress [Pa]
+
+**LIM Geometry & Limits**
+- `n_turns`, `tau_p`, `w_coil`, `gap`, `pitch_count`, `spacing`
+- `volts_max_user`, `max_site_power`
+- Coil tape, fill factor, thermal emissivities
+
+**Controller Ramps**
+- `di_max_per_s` — max dI/dt
+- `dvslip_max_per_s` — max change in slip-speed per second
+
+**Run Controls**
+- `dt` — timestep
+- `max_time` — total simulated time (s)
+- `plot` — list of enabled plots
+- `plot_skip_s` — skip early transient data
+- `save_plots`, `outdir`
 
 ---
 
-## Plots (opt-in via `--plot`)
+# **Available Plots**
 
-| Plot name | Description |
+Enable any of these with `--plot name1,name2,...` or define them in the YAML file.
+
+| Plot Name | Description |
 |-----------|-------------|
-| `velocities` | Casing/cable speeds (m/s) with end labels |
-| `stress` | Cable stress T/A in **GPa** |
-| `max_load_per_m` | max(0, w′)/g in **t/m** (maximum supported load per meter) |
-| `accel_excess` | Mass-weighted (a_out − g) in **m/s²** (positive = net outward) |
-| `net_weight_sign` | Indicator −1, 0, +1 (line is **red** if any inward intervals occur) |
-| `power` | Per-site input power in **MW** |
-| `voltage` | Coil inductive voltage in **V** |
-| `current_slip` | Peak current (A) and slip velocity (m/s) |
-| `relative_speed` | v_cable − v_casing in **m/s** |
-| `site_energy` | Cumulative total energy per LIM site in **TJ** (includes all losses) |
-| `total_energy` | Cumulative total energy all sites in **EJ** (includes all losses) |
-| `site_ke` | Cumulative kinetic energy per LIM site in **TJ** (thrust power only) |
-| `total_ke` | Cumulative kinetic energy all sites in **EJ** (thrust power only) |
+| `velocities` | Casing & cable speeds (m/s) with end labels |
+| `stress` | Cable stress T/A in GPa |
+| `max_load_per_m` | max(0, w′)/g in t/m (maximum supported load/m) |
+| `accel_excess` | Mass-weighted (a_out − g) in m/s² |
+| `net_weight_sign` | Indicator −1/0/+1 (line turns red if inward force occurs) |
+| `power` | Per-site input electrical power (MW) |
+| `voltage` | Coil inductive voltage (V) |
+| `current_slip` | Peak coil current (A) and slip velocity (m/s) |
+| `relative_speed` | v_cable − v_casing (m/s) |
+| `site_energy` | Cumulative site electrical energy (TJ), incl. losses |
+| `total_energy` | Cumulative electrical energy all sites (EJ) |
+| `site_ke` | Cumulative kinetic energy per site (TJ), thrust-only |
+| `total_ke` | Cumulative kinetic energy all sites (EJ), thrust-only |
 
 ---
 
-## Output Metrics
+# **Output Metrics**
 
-The simulator outputs JSON with key results:
+The simulator prints a JSON object containing key results:
 
-| Metric | Description |
-|--------|-------------|
+| Metric | Meaning |
+|--------|---------|
 | `site_energy_TJ_2LIMs` | Total electrical energy per site (TJ), including losses |
-| `total_energy_EJ_all` | Total electrical energy all sites (EJ), including losses |
-| `site_ke_TJ_2LIMs` | Kinetic energy per site (TJ), thrust power only |
-| `total_ke_EJ_all` | Kinetic energy all sites (EJ), thrust power only |
+| `total_energy_EJ_all` | Electrical energy all sites (EJ), including losses |
+| `site_ke_TJ_2LIMs` | Mechanical kinetic energy per site (TJ), thrust only |
+| `total_ke_EJ_all` | Mechanical kinetic energy all sites (EJ), thrust only |
 
-The "ke" (kinetic energy) metrics track only the mechanical work done accelerating the cable and decelerating the casing (F × v_rel), excluding eddy current losses, hysteresis, cryogenic overhead, and inverter inefficiencies.
-
----
-
-## Energy Physics
-
-The simulation confirms a key result from Newton's third law applied to momentum and energy:
-
-- **Cable gains:** ~29.8 EJ of kinetic energy (accelerating from v_orbit to v_cable)
-- **Casing loses:** ~15.0 EJ of kinetic energy (decelerating from v_orbit to v_casing_final)
-- **LIMs supply:** ~14.8 EJ (the difference)
-
-Newton's third law guarantees equal and opposite *impulses*, not equal energy changes. The LIM acts at the interface between cable and casing, transferring momentum (and the energy carried by that momentum) from the casing to the cable. The LIMs only supply the 14.8 EJ shortfall—not the sum of both energy changes.
-
-The `total_ke_EJ_all` output confirms this: integrating thrust power (F × v_rel) over the full deployment yields **14.8 EJ**.
+**Energy separation:**
+- Electrical input power → thrust + eddy + hysteresis + cryo + inefficiencies
+- `ke` metrics integrate only **F × v_rel**, the mechanical work done
 
 ---
 
-## Physics Summary
+# **Physics Summary**
 
-Net outward "weight" per meter (N/m):
+### **Net Outward Weight per Meter**
 
-$$w' = m'_\text{cable}\left(\frac{v_\text{cable}^2}{r} - g\right) + m'_\text{casing}\left(\frac{v_\text{casing}^2}{r} - g\right)$$
+$$w' = m'_{cable}\left(\frac{v_{cable}^2}{r} - g\right) + m'_{casing}\left(\frac{v_{casing}^2}{r} - g\right)$$
 
-Hoop tension proxy (only when w′ > 0):
+### **Hoop Tension (when w′ > 0)**
 
-$$T \approx w' \cdot r, \qquad \sigma = T/A_\text{cable} \quad (\text{break at } 25\ \text{GPa})$$
+$$T \approx w' r, \qquad \sigma = T/A_{cable}$$
 
-LIM thrust power (mechanical work into cable/casing):
+Breaking stress assumed at **25 GPa**.
 
-$$P_\text{thrust} = F \times v_\text{rel}$$
+### **Mechanical Work from LIM Thrust**
 
-Total site power includes thrust + eddy losses + hysteresis + cryo, divided by inverter and LIM efficiencies. See comments in `orbital_ring.py` for the exact formulae.
+$$P_{thrust} = F v_{rel}$$
+
+The LIM transfers momentum between casing and cable:
+- Cable gains ~29.8 EJ
+- Casing loses ~15.0 EJ
+- LIMs supply the ~14.8 EJ difference (not the sum)
+
+This matches `total_ke_EJ_all` from the simulator.
 
 ---
 
-## Repository Layout
+# **Repository Layout**
+
 ```
 orbitalring/
-├── orbital_ring.py            # ← current simulator you should run
-├── legacy_power_lim.py        # ← original code for reference
-├── example_lim_config.yaml
-├── .github/workflows/ci.yml   # smoke test (PyYAML + short run)
-└── README.md                  # you are here
+├── orbital_ring.py            # main simulator
+├── legacy_power_lim.py        # reference version
+├── example_lim_config.yaml    # sample configuration
+├── .github/workflows/ci.yml   # smoke test
+└── README.md
 ```
 
 ---
 
-## Related
+# **Related**
 
-This simulator accompanies the book *[Astronomy's Shocking Twist](https://orbitalring.space)* series exploring orbital ring megastructure engineering.
+This simulation toolkit supports the engineering material presented in the *Astronomy's Shocking Twist* series on orbital ring megastructures.
