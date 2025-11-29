@@ -72,8 +72,7 @@ M_CABLE_M = 99_198                         # orbital ring cable mass per meter (
 M_LOAD_M = 12_000                            # orbital ring casing + load mass per meter (m)
 
 # lable data for plots
-PARAM_STR1 = f"τ={TAU_P} m, N={N_TURNS}, Tape={W_TAPE*1000} mm, d={LIM_SPACING} m"
-PARAM_STR2 = f"V_Slip_max={V_SLIP_MAX} m/s"
+PARAM_STR1 = f"τ={TAU_P} m, N={N_TURNS}, V_Slip_max={V_SLIP_MAX} m/s, d={LIM_SPACING} m"
 
 # -------------------------------------------------
 # BASIC CONSTANTS & USER TUNABLE DESIGN PARAMETERS
@@ -912,7 +911,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1, param_str2):
 def main() -> None:
     v_slip = 50
     i_peaks = 50
-    param = get_deployment_time(v_slip, i_peaks, PARAM_STR1, PARAM_STR2)
+    param = get_deployment_time(v_slip, i_peaks, PARAM_STR1)
 
     if param[2]:
         param_str = param[1]
