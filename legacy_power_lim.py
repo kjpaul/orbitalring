@@ -20,8 +20,7 @@ MONTH = 30 * DAY
 
 # graph variables
 SAMPLE_PERIOD = 1             # sample step time must me >= DT
-SAMPLE_TIME_MAX = YR          # length of sample
-TICKS = 6                      # ticks on x-axis of graphs
+SAMPLE_TIME_MAX = 5 * YR      # length of sample (must be longer than deployment)
 WRITE_FILE = True
 MAKE_GRAPHS = True
 SAMPLE_TIME_STR = "-- 100 tonne cable, 12 tonne load" # graph title
@@ -917,11 +916,8 @@ def main() -> None:
         total_time = param[3]
 
         x_lable = SAMPLE_TIME_STR
-        #ticks = param[0]
-        ticks = TICKS
-
-        print("ticks: ",ticks)
         
+        """
         # 1 Current in Amps
         tick_pos, tick_labels = make_month_ticks(list_i_peak, total_time)
         plt.scatter(range(len(list_i_peak)), list_i_peak, c="blue")
@@ -986,8 +982,7 @@ def main() -> None:
         annotate_final(list_thrust, unit="N", fmt=".0f")
         plt.show()
 
-
-        #"""
+        
         # 6 P_Eddy
         tick_pos, tick_labels = make_month_ticks(list_p_eddy, total_time)
         plt.scatter(range(len(list_p_eddy)), list_p_eddy, c="darkblue")
@@ -999,8 +994,6 @@ def main() -> None:
         annotate_final(list_p_eddy, unit="W", fmt=".0f")
         plt.show()
 
-
-        #"""
 
         # 7 V_Rel
         tick_pos, tick_labels = make_month_ticks(list_v_rel, total_time)
@@ -1122,6 +1115,8 @@ def main() -> None:
         annotate_final(list_temp_plate_ave, unit="K", fmt=".0f")
         plt.show()
 
+        #"""
+
         # Site Kinetic Energy (TJ)
         tick_pos, tick_labels = make_month_ticks(list_E_site_ke, total_time)
         plt.scatter(range(len(list_E_site_ke)), [e/1e12 for e in list_E_site_ke], c="green")
@@ -1144,7 +1139,6 @@ def main() -> None:
         annotate_final([e/1e18 for e in list_E_total_ke], unit="EJ", fmt=".2f")
         plt.show()
 
-        #"""
 
 if __name__ == "__main__":
     main()
