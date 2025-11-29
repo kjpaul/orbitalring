@@ -67,14 +67,14 @@ class LIM:
 
 @dataclass
 class Params:
-    m_cable_per_m: float = 26_300.0
-    m_casing_per_m: float = 5_000.0
+    m_cable_per_m: float = 99_198.0
+    m_casing_per_m: float = 12_000.0
     r_orbit: float = R_ORBIT
     l_orbit: float = L_ORBIT
     g_local: float = G_LOCAL
     v_orbit: float = V_ORBIT
     v_casing_final: float = V_CASING_FINAL
-    cable_area_m2: float = 15.0
+    cable_area_m2: float = 56.9
     sigma_break: float = 25e9
     lim: LIM = field(default_factory=LIM)
     dt: float = 1.0
@@ -206,6 +206,12 @@ def site_voltage_estimate(i_peak: float, v_rel: float, v_slip: float, p: Params)
     L_coil = (p.lim.n_turns**2) * MU0 * (a_coil(p) / p.lim.gap) * p.lim.k_fill
     return (2.0 * math.pi * f_sup * L_coil * i_peak) / math.sqrt(3.0)
 
+def site_thrust_power(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
+    """Pure mechanical thrust power (F × v_rel) — the kinetic energy rate into cable/casing."""
+    F = site_thrust(i_peak, v_rel, v_slip, p)
+    v_rel_eff = max(v_rel, 0.1)
+    return F * v_rel_eff
+
 def site_power_estimate(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
     F = site_thrust(i_peak, v_rel, v_slip, p)
     v_rel_eff = max(v_rel, 0.1)
@@ -299,7 +305,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots:
-            plt.savefig(f"{p.outdir.rstrip('/')}/velocities.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/velocities.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -317,7 +323,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/stress.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/stress.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -340,7 +346,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/net_weight_sign.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/net_weight_sign.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -358,7 +364,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/max_load_per_m.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/max_load_per_m.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -377,7 +383,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/accel_excess.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/accel_excess.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -394,11 +400,78 @@ def maybe_plot(
         ax.set_title("Per-site Input Power")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/power.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/power.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
 
+    if "site_energy" in p.plot and extras.get("site_energy"):
+        tm, y_ds = _prep_xy_for_plot(t_months, extras["site_energy"])
+        fig = plt.figure()
+        ax = fig.gca()
+        y_gj = [v/1e12 for v in y_ds]
+        ax.plot(tm, y_gj, label="Cumulative energy per LIM [TJ]")
+        annotate_last(ax, tm, y_gj, unit="TJ", fmt=".1f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("TJ")
+        ax.set_title("Cumulative Energy per LIM Site")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/site_energy.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
+
+    if "total_energy" in p.plot and extras.get("total_energy"):
+        tm, y_ds = _prep_xy_for_plot(t_months, extras["total_energy"])
+        fig = plt.figure()
+        ax = fig.gca()
+        y_pj = [v/1e18 for v in y_ds]
+        ax.plot(tm, y_pj, label="Total energy all LIMs [EJ]")
+        annotate_last(ax, tm, y_pj, unit="EJ", fmt=".2f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("EJ")
+        ax.set_title("Total Cumulative Energy (All LIM Sites)")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/total_energy.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
+
+    if "site_ke" in p.plot and extras.get("site_ke"):
+        tm, y_ds = _prep_xy_for_plot(t_months, extras["site_ke"])
+        fig = plt.figure()
+        ax = fig.gca()
+        y_tj = [v/1e12 for v in y_ds]
+        ax.plot(tm, y_tj, label="Kinetic energy per site [TJ]", color="green")
+        annotate_last(ax, tm, y_tj, unit="TJ", fmt=".1f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("TJ")
+        ax.set_title("Cumulative Kinetic Energy per LIM Site (Thrust Only)")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/site_ke.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
+
+    if "total_ke" in p.plot and extras.get("total_ke"):
+        tm, y_ds = _prep_xy_for_plot(t_months, extras["total_ke"])
+        fig = plt.figure()
+        ax = fig.gca()
+        y_ej = [v/1e18 for v in y_ds]
+        ax.plot(tm, y_ej, label="Total kinetic energy all LIMs [EJ]", color="green")
+        annotate_last(ax, tm, y_ej, unit="EJ", fmt=".2f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("EJ")
+        ax.set_title("Total Cumulative Kinetic Energy (Thrust Only, All Sites)")
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/total_ke.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
     if "voltage" in p.plot and extras.get("voltage"):
         tm, y_ds = _prep_xy_for_plot(t_months, extras["voltage"])
         fig = plt.figure()
@@ -410,7 +483,7 @@ def maybe_plot(
         ax.set_title("Coil Inductive Voltage")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/voltage.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/voltage.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -431,7 +504,7 @@ def maybe_plot(
         ax.set_title("Controller: Current & Slip")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/current_slip.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/current_slip.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -447,7 +520,7 @@ def maybe_plot(
         ax.set_title("Relative Speed")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/relative_speed.png", dpi=150, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/relative_speed.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -521,6 +594,14 @@ def simulate(p: Params) -> Dict:
     Vsliphist=[]
     Vrelhist=[]
     Aouthist=[]
+    E_site_energy=0.0
+    E_total_energy=0.0
+    E_site_ke=0.0       # Kinetic energy only (thrust power, no losses)
+    E_total_ke=0.0      # Total kinetic energy all sites
+    E_site_hist=[]  # Track site energy over time
+    E_total_hist=[]  # Track total energy over time
+    E_site_ke_hist=[]   # Track site KE over time
+    E_total_ke_hist=[]  # Track total KE over time
 
     min_T: Tuple[float, Optional[float]] = (float("inf"), None)
     max_T: Tuple[float, Optional[float]] = (-float("inf"), None)
@@ -531,6 +612,8 @@ def simulate(p: Params) -> Dict:
     steps=0
     broke=False
     reason=""
+    mths=1
+    mth=60*60*24*30
     while t < p.max_time and (v_casing - p.v_casing_final) > p.tol_v:
         v_rel = max(v_cable - v_casing, 0.0)
 
@@ -557,6 +640,16 @@ def simulate(p: Params) -> Dict:
 
         a_out_cable  = (v_cable  * v_cable)  / p.r_orbit
         a_out_casing = (v_casing * v_casing) / p.r_orbit
+
+        # Accumulate energy: Energy = Power × Time
+        # Each site has 2 LIMs, so multiply by 2
+        E_site_energy += P_site * 2.0 * p.dt
+        E_total_energy += P_site * sites * 2.0 * p.dt
+        
+        # Accumulate kinetic energy only (thrust power, no losses)
+        P_thrust_site = site_thrust_power(i_peak, v_rel, v_slip, p)
+        E_site_ke += P_thrust_site * 2.0 * p.dt
+        E_total_ke += P_thrust_site * sites * 2.0 * p.dt
 
         net_per_m = (
             p.m_cable_per_m  * (a_out_cable  - p.g_local) +
@@ -599,13 +692,23 @@ def simulate(p: Params) -> Dict:
             Vsliphist.append(v_slip)
             Vrelhist.append(v_rel)
             Aouthist.append(a_out_mass_weighted)
+            E_site_hist.append(E_site_energy)
+            E_total_hist.append(E_total_energy)
+            E_site_ke_hist.append(E_site_ke)
+            E_total_ke_hist.append(E_total_ke)
 
         if p.verbose and t >= next_log:
-            print(f"t={t:12.2f} s | months={t/SEC_PER_MONTH:7.2f} | "
-                  f"v_casing={v_casing:9.3f} | v_cable={v_cable:10.3f} | "
+            print(f"t={t:12.2f} s | months={t/SEC_PER_MONTH:5.2f} | "
+                  f"v_casing={v_casing:9.3f} | v_cable={v_cable:9.3f} | "
                   f"Ip={i_peak:6.1f} A | v_slip={v_slip:7.1f} m/s | "
-                  f"P_site~{P_site/1e6:6.1f} MW | V_site~{V_site:7.1f} V | V_cap~{V_cap:7.1f} V")
+                  f"P_site~{P_site/1e6:4.1f} MW | V_site~{V_site:6.1f} V")
             next_log = (next_log + p.log_interval) if p.log=="interval" else next_log_target(next_log)
+
+        if not p.verbose and t > mth * mths:
+            mths += 1
+            sys.stdout.write(".")
+            sys.stdout.flush()
+
 
     if p.verbose:
         print("Time loop complete." + (" (BROKE)" if broke else ""))
@@ -625,8 +728,14 @@ def simulate(p: Params) -> Dict:
             "reason": reason,
             "tension_min_N": min_T[0], "tension_min_at_s": min_T[1],
             "tension_max_N": max_T[0], "tension_max_at_s": max_T[1],
+            "stress_min_MPa": min_T[0]/p.cable_area_m2/1e6,
+            "stress_max_GPa": max_T[0]/p.cable_area_m2/1e9,
             "net_weight_per_m_min_Npm": min_net[0], "net_weight_min_at_s": min_net[1],
-            "net_weight_per_m_max_Npm": max_net[0], "net_weight_max_at_s": max_net[1]
+            "net_weight_per_m_max_Npm": max_net[0], "net_weight_max_at_s": max_net[1],
+            "site_energy_TJ_2LIMs": E_site_energy/1e12,
+            "total_energy_EJ_all": E_total_energy/1e18,
+            "site_ke_TJ_2LIMs": E_site_ke/1e12,
+            "total_ke_EJ_all": E_total_ke/1e18,
         }
     }
     print(json.dumps(out, indent=2))
@@ -635,7 +744,8 @@ def simulate(p: Params) -> Dict:
         p, ts, vch, vbh, Thist, NetPerMhist,
         extras={
             "power": Phist, "voltage": Vhist, "current": Ihist, "v_slip": Vsliphist,
-            "v_rel": Vrelhist, "a_out": Aouthist
+            "v_rel": Vrelhist, "a_out": Aouthist, "site_energy": E_site_hist, "total_energy": E_total_hist,
+            "site_ke": E_site_ke_hist, "total_ke": E_total_ke_hist
         }
     )
     return out
