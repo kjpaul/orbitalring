@@ -1,0 +1,52 @@
+# example_lim_config.yaml
+m_cable_per_m: 99198.0
+m_casing_per_m: 12000.0
+cable_area_m2: 56.9
+sigma_break: 2.5e10
+lim:
+  n_turns: 8
+  spacing: 500.0
+  tau_p: 50.0
+  w_coil: 1.0
+  gap: 0.20
+  pitch_count: 3
+  casing_outer_w: 10.0
+  d_kapton_mm: 0.01
+  k_fill: 0.1667
+  ic: 800.0
+  w_tape: 0.012
+  alpha_angle_deg: 20.0
+  volts_max_user: 2000.0
+  v_slip_min: 10.0
+  v_slip_max: 460.0
+  i_peak_target: 650.0
+  i_peak_min: 10.0
+  slip_min: 0.01
+  v_rel_min: 10.0
+  inv_eff: 0.90
+  lim_eff: 0.95
+  max_site_power: 8.0e6
+  t_plate: 0.040
+  rho_alu_e: 2.86e-8
+  em_alu: 0.85
+  em_heat_sink: 0.90
+  cryo_eff: 0.05
+  heat_sink_l: 30.0
+  q_sun_1au: 1361.0
+  q_earth_day: 650.0
+  q_shielding: 0.005
+  thrust_coeff: 1.0
+  di_max_per_s: 1.0      # max current ramp [A/s]
+  dvslip_max_per_s: 2.0  # max slip-speed ramp [m/s per s]
+
+dt: 1.0
+max_time: 2.0e8
+tol_v: 1.0e-3
+verbose: true
+explain: true
+log: coarse
+plot_skip_s: 0
+plot: ["velocities","stress","net_weight_sign","max_load_per_m","accel_excess","power","site_energy","total_energy","site_ke","total_ke","voltage","current_slip","relative_speed"]
+
+save_plots: true
+outdir: "."
