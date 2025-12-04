@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import sys
+import os
 import math
 import json
 from dataclasses import dataclass, field, asdict
@@ -27,32 +28,34 @@ G_LOCAL = 9.073
 L_ORBIT = 2*math.pi*R_ORBIT
 V_ORBIT = 7_754.866
 V_CASING_FINAL = 483.331
+GRAPH_DIR = "graphs"
 
 @dataclass
 class LIM:
+    n_turns: int = 8
+    i_peak_min: float = 1.0
+    v_slip_min: float = 1.0
+    v_slip_max: float = 460.0
+    spacing: float = 500.0
     tau_p: float = 50.0
     w_coil: float = 1.0
     gap: float = 0.20
+    volts_max_user: float = 2000.0
+    i_peak_target: float = 650.0
+    slip_min: float = 0.01
+    v_rel_min: float = 10.0
+    max_site_power: float = 8.0e6
+    dvslip_max_per_s: float = 2.0
+    t_plate: float = 0.040
     pitch_count: int = 3
-    spacing: float = 500.0
     casing_outer_w: float = 10.0
-    n_turns: int = 8
     d_kapton_mm: float = 0.01
-    k_fill: float = 0.1667
+    k_fill: float = 0.625
     ic: float = 800.0
     w_tape: float = 0.012
     alpha_angle_deg: float = 20.0
-    volts_max_user: float = 2000.0
-    v_slip_min: float = 10.0
-    v_slip_max: float = 460.0
-    i_peak_target: float = 650.0
-    i_peak_min: float = 10.0
-    slip_min: float = 0.01
-    v_rel_min: float = 10.0
     inv_eff: float = 0.90
     lim_eff: float = 0.95
-    max_site_power: float = 8.0e6
-    t_plate: float = 0.040
     rho_alu_e: float = 2.86e-8
     em_alu: float = 0.85
     em_heat_sink: float = 0.90
@@ -62,7 +65,6 @@ class LIM:
     q_earth_day: float = 650.0
     q_shielding: float = 0.005
     di_max_per_s: float = 1.0
-    dvslip_max_per_s: float = 2.0
     thrust_coeff: float = 1.0
 
 @dataclass
@@ -88,6 +90,7 @@ class Params:
     plot: List[str] = field(default_factory=list)
     save_plots: bool = False
     outdir: str = "."
+    graph_dir: str = GRAPH_DIR
 
 def ring_mass(per_m: float, p: Params) -> float:
     return per_m * p.l_orbit
@@ -212,6 +215,54 @@ def site_thrust_power(i_peak: float, v_rel: float, v_slip: float, p: Params) -> 
     v_rel_eff = max(v_rel, 0.1)
     return F * v_rel_eff
 
+def site_eddy_loss(i_peak: float, v_slip: float, p: Params) -> float:
+    """Eddy current losses in aluminum reaction plate [W]. Depends on f_slip."""
+    B = b_plate_peak(i_peak, p)
+    f_sl = f_from_v(v_slip, p)
+    t_eff = eff_plate_depth(f_sl, p)
+    V_eddy = plate_eddy_volume(f_sl, p)
+    return (math.pi**2 / (6.0 * p.lim.rho_alu_e)) * (B*B) * (t_eff**2) * (f_sl**2) * V_eddy
+
+def site_hysteresis_loss(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
+    """Hysteresis losses in HTS coils [W]. Depends on f_supply."""
+    Bc = b_coil_peak(i_peak, p)
+    q = Bc * p.lim.ic * p.lim.w_tape * math.sin(math.radians(p.lim.alpha_angle_deg))
+    L_HTS_COIL = 2.0 * (p.lim.w_coil + p.lim.tau_p) * p.lim.n_turns
+    f_sup = f_from_v(v_rel + v_slip, p)
+    return q * L_HTS_COIL * f_sup * 3 * p.lim.pitch_count
+
+def site_cryo_heat_load(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
+    """Heat load that must be removed by cryogenic system [W].
+    Includes hysteresis losses in HTS + radiative absorption. 
+    Does NOT include eddy losses (those heat the Al plate which radiates to space)."""
+    P_hyst = site_hysteresis_loss(i_peak, v_rel, v_slip, p)
+    Q_abs_m = (p.lim.q_sun_1au + p.lim.q_earth_day) * p.lim.casing_outer_w * p.lim.q_shielding
+    Q_abs_site = Q_abs_m * p.lim.spacing
+    return P_hyst + Q_abs_site
+
+def site_cryo_power(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
+    """Electrical power required by cryocooler to remove heat load [W]."""
+    Q_cryo = site_cryo_heat_load(i_peak, v_rel, v_slip, p)
+    return Q_cryo / p.lim.cryo_eff  # cryo_eff is COP, so power = heat/COP
+
+def reaction_plate_temperature(P_eddy: float, p: Params) -> float:
+    """Equilibrium temperature of reaction plate radiating P_eddy to space [K].
+    
+    Assumes plate radiates from both sides (top and bottom).
+    Area = 2 × (pitch_count × τp) × w_coil + heat_sink contribution
+    """
+    STEFAN_BOLTZMANN = 5.67e-8  # W/(m²·K⁴)
+    # Active plate area (both sides)
+    A_active = 2.0 * l_active(p) * p.lim.w_coil
+    # Heat sink area (both sides of extended radiator)
+    A_heatsink = 2.0 * p.lim.heat_sink_l * p.lim.w_coil
+    A_total = A_active + A_heatsink
+    # Stefan-Boltzmann: P = ε σ A T⁴ → T = (P / (ε σ A))^0.25
+    if P_eddy <= 0 or A_total <= 0:
+        return 300.0  # Default ambient
+    T_eq = (P_eddy / (p.lim.em_alu * STEFAN_BOLTZMANN * A_total)) ** 0.25
+    return T_eq
+
 def site_power_estimate(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
     F = site_thrust(i_peak, v_rel, v_slip, p)
     v_rel_eff = max(v_rel, 0.1)
@@ -289,6 +340,8 @@ def maybe_plot(
     tension = tension[i0:] if tension else tension
     net_per_m_hist = net_per_m_hist[i0:] if net_per_m_hist else net_per_m_hist
     t_months = [t/SEC_PER_MONTH for t in ts]
+    dir_path = f"{p.outdir.rstrip('/')}/{p.graph_dir}"
+    os.makedirs(dir_path, exist_ok=True)
 
     if "velocities" in p.plot and t_months:
         tm, vc_ds = downsample(t_months, vc)
@@ -305,7 +358,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots:
-            plt.savefig(f"{p.outdir.rstrip('/')}/velocities.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/velocities.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -323,7 +376,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/stress.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/stress.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -346,7 +399,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/net_weight_sign.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/net_weight_sign.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -364,7 +417,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/max_load_per_m.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/max_load_per_m.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -383,7 +436,7 @@ def maybe_plot(
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/accel_excess.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/accel_excess.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -400,7 +453,7 @@ def maybe_plot(
         ax.set_title("Per-site Input Power")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/power.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/power.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -417,7 +470,7 @@ def maybe_plot(
         ax.set_title("Cumulative Energy per LIM Site")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/site_energy.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/site_energy.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -434,7 +487,7 @@ def maybe_plot(
         ax.set_title("Total Cumulative Energy (All LIM Sites)")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/total_energy.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/total_energy.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -451,7 +504,7 @@ def maybe_plot(
         ax.set_title("Cumulative Kinetic Energy per LIM Site (Thrust Only)")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/site_ke.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/site_ke.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -468,7 +521,7 @@ def maybe_plot(
         ax.set_title("Total Cumulative Kinetic Energy (Thrust Only, All Sites)")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/total_ke.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/total_ke.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -483,7 +536,7 @@ def maybe_plot(
         ax.set_title("Coil Inductive Voltage")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/voltage.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/voltage.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -504,7 +557,7 @@ def maybe_plot(
         ax.set_title("Controller: Current & Slip")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/current_slip.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/current_slip.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -520,7 +573,114 @@ def maybe_plot(
         ax.set_title("Relative Speed")
         ax.legend(loc="upper left")
         if p.save_plots: 
-            plt.savefig(f"{p.outdir.rstrip('/')}/relative_speed.png", dpi=300, bbox_inches="tight")
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/relative_speed.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
+
+    # Loss breakdown plot: eddy currents and hysteresis (separate axes - they don't scale together)
+    if "losses" in p.plot and (extras.get("P_eddy") or extras.get("P_hyst")):
+        fig, ax1 = plt.subplots()
+        ax2 = ax1.twinx()
+        
+        if extras.get("P_eddy"):
+            tm_e, pe_ds = _prep_xy_for_plot(t_months, extras["P_eddy"])
+            pe_kw = [v/1e3 for v in pe_ds]
+            line1 = ax1.plot(tm_e, pe_kw, label="Eddy current (Al plate)", color="red")
+            ax1.set_ylabel("Eddy Current Losses [kW]", color="red")
+            ax1.tick_params(axis='y', labelcolor="red")
+            if pe_kw:
+                ax1.annotate(f"{pe_kw[-1]:.1f} kW", xy=(tm_e[-1], pe_kw[-1]),
+                            xytext=(-50, 10), textcoords="offset points", fontsize=10,
+                            color="red", bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7))
+        
+        if extras.get("P_hyst"):
+            tm_h, ph_ds = _prep_xy_for_plot(t_months, extras["P_hyst"])
+            ph_w = [v for v in ph_ds]  # Keep in Watts since it's small
+            line2 = ax2.plot(tm_h, ph_w, label="Hysteresis (HTS coils)", color="blue")
+            ax2.set_ylabel("Hysteresis Losses [W]", color="blue")
+            ax2.tick_params(axis='y', labelcolor="blue")
+            if ph_w:
+                ax2.annotate(f"{ph_w[-1]:.1f} W", xy=(tm_h[-1], ph_w[-1]),
+                            xytext=(-50, -20), textcoords="offset points", fontsize=10,
+                            color="blue", bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7))
+        
+        ax1.set_xlabel("time [30-day months]")
+        ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+        fig.suptitle("LIM Losses per Site\n(Note: different scales - eddy ~kW, hysteresis ~W)")
+        
+        # Combined legend
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc="upper left")
+        
+        fig.tight_layout()
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/losses.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
+
+    # Cryogenic system heat load
+    if "cryo" in p.plot and extras.get("Q_cryo"):
+        tm, y_ds = _prep_xy_for_plot(t_months, extras["Q_cryo"])
+        fig = plt.figure()
+        ax = fig.gca()
+        y_kw = [v/1e3 for v in y_ds]
+        ax.plot(tm, y_kw, label="Cryo heat load [kW]", color="cyan")
+        annotate_last(ax, tm, y_kw, unit="kW", fmt=".2f")
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("Heat Load [kW]")
+        ax.set_title("Cryogenic System Heat Load per Site\n(Hysteresis + radiative absorption; eddy losses radiate from plate)")
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/cryo.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
+
+    # Reaction plate temperature
+    if "plate_temp" in p.plot and extras.get("T_plate"):
+        tm, y_ds = _prep_xy_for_plot(t_months, extras["T_plate"])
+        fig = plt.figure()
+        ax = fig.gca()
+        ax.plot(tm, y_ds, label="Plate equilibrium temp [K]", color="orange")
+        T_max = max(y_ds) if y_ds else 0
+        annotate_last(ax, tm, y_ds, unit="K", fmt=".0f")
+        ax.axhline(T_max, linestyle="--", linewidth=1, color="red", alpha=0.5)
+        ax.text(tm[0] if tm else 0, T_max + 5, f"Max: {T_max:.0f} K ({T_max-273:.0f} °C)", 
+                fontsize=10, color="red", alpha=0.8)
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("Temperature [K]")
+        ax.set_title("Reaction Plate Equilibrium Temperature\n(Radiating eddy current heat to space)")
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/plate_temp.png", dpi=300, bbox_inches="tight")
+            plt.close(fig)
+        else: 
+            plt.show()
+
+    # Frequency plot: f_supply and f_slip
+    if "frequency" in p.plot and (extras.get("f_supply") or extras.get("f_slip")):
+        fig = plt.figure()
+        ax = fig.gca()
+        if extras.get("f_supply"):
+            tm_s, fs_ds = _prep_xy_for_plot(t_months, extras["f_supply"])
+            ax.plot(tm_s, fs_ds, label="f_supply [Hz]", color="purple")
+            annotate_last(ax, tm_s, fs_ds, unit="Hz", fmt=".1f", dx=-50, dy=10)
+        if extras.get("f_slip"):
+            tm_sl, fsl_ds = _prep_xy_for_plot(t_months, extras["f_slip"])
+            ax.plot(tm_sl, fsl_ds, label="f_slip [Hz]", color="green")
+            annotate_last(ax, tm_sl, fsl_ds, unit="Hz", fmt=".2f", dx=-50, dy=-30)
+        ax.set_xlabel("time [30-day months]")
+        ax.set_ylabel("Frequency [Hz]")
+        ax.set_title("Supply and Slip Frequencies\nf_supply = (v_rel + v_slip)/(2τp),  f_slip = v_slip/(2τp)")
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax.legend(loc="upper left")
+        if p.save_plots: 
+            plt.savefig(f"{p.outdir.rstrip('/')}/{p.graph_dir}/frequency.png", dpi=300, bbox_inches="tight")
             plt.close(fig)
         else: 
             plt.show()
@@ -602,6 +762,12 @@ def simulate(p: Params) -> Dict:
     E_total_hist=[]  # Track total energy over time
     E_site_ke_hist=[]   # Track site KE over time
     E_total_ke_hist=[]  # Track total KE over time
+    P_eddy_hist=[]      # Eddy current losses [W]
+    P_hyst_hist=[]      # Hysteresis losses [W]
+    Q_cryo_hist=[]      # Cryo heat load [W]
+    T_plate_hist=[]     # Reaction plate temperature [K]
+    f_supply_hist=[]    # Supply frequency [Hz]
+    f_slip_hist=[]      # Slip frequency [Hz]
 
     min_T: Tuple[float, Optional[float]] = (float("inf"), None)
     max_T: Tuple[float, Optional[float]] = (-float("inf"), None)
@@ -696,6 +862,19 @@ def simulate(p: Params) -> Dict:
             E_total_hist.append(E_total_energy)
             E_site_ke_hist.append(E_site_ke)
             E_total_ke_hist.append(E_total_ke)
+            # Loss tracking
+            P_eddy = site_eddy_loss(i_peak, v_slip, p)
+            P_hyst = site_hysteresis_loss(i_peak, v_rel, v_slip, p)
+            Q_cryo = site_cryo_heat_load(i_peak, v_rel, v_slip, p)
+            T_plate = reaction_plate_temperature(P_eddy, p)
+            f_sup = f_from_v(v_rel + v_slip, p)
+            f_sl = f_from_v(v_slip, p)
+            P_eddy_hist.append(P_eddy)
+            P_hyst_hist.append(P_hyst)
+            Q_cryo_hist.append(Q_cryo)
+            T_plate_hist.append(T_plate)
+            f_supply_hist.append(f_sup)
+            f_slip_hist.append(f_sl)
 
         if p.verbose and t >= next_log:
             print(f"t={t:12.2f} s | months={t/SEC_PER_MONTH:5.2f} | "
@@ -745,7 +924,9 @@ def simulate(p: Params) -> Dict:
         extras={
             "power": Phist, "voltage": Vhist, "current": Ihist, "v_slip": Vsliphist,
             "v_rel": Vrelhist, "a_out": Aouthist, "site_energy": E_site_hist, "total_energy": E_total_hist,
-            "site_ke": E_site_ke_hist, "total_ke": E_total_ke_hist
+            "site_ke": E_site_ke_hist, "total_ke": E_total_ke_hist,
+            "P_eddy": P_eddy_hist, "P_hyst": P_hyst_hist, "Q_cryo": Q_cryo_hist,
+            "T_plate": T_plate_hist, "f_supply": f_supply_hist, "f_slip": f_slip_hist
         }
     )
     return out

@@ -1,6 +1,6 @@
 # flake8: noqa
 """
-    Calculations for "How to Build an Orbital Ring" by Paul de Jong
+    Calculations for "Orbital Ring Engineering" by Paul G de Jong
 """
 
 import sys
@@ -39,7 +39,7 @@ V_SLIP_MIN = 10
 TAU_P = 50.0                                # pole-pitch (m)
 W_COIL = 1.0                                # LIM width (m)
 LIM_SPACING = 500                           # distance at which LIMs are place (m)
-D_KAPTON = 0.01                             # Kapton tape thickness in mm (mm)
+D_KAPTON = 0.07                             # Kapton tape thickness in mm (mm)
 K_FILL = 0.002 / (0.002 + D_KAPTON)         # 0.002 is HTS thickness (int)
 KAPTON_SAFE_V = 1e5 * D_KAPTON              # Kapton breakdown 2e5 V/mm safe = 1e5 V/mm (V)
 KAPTON_V = (N_TURNS - 1) * KAPTON_SAFE_V    # Max voltage based on D_KAPTON (V)
@@ -901,7 +901,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     tick_count = round(time / YR)
 
     if WRITE_FILE:
-        with open("_orbital_ring_options_03.txt", "a") as file:
+        with open("./output/_orbital_ring_options_03.txt", "a") as file:
             file.writelines(lines)
 
     return [tick_count, f"{param_str1} ", make_graphs, time]
