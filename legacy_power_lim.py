@@ -249,7 +249,10 @@ def get_supply_frequency(v_wave):
     magnetic fields
 """
 def get_b_plate_peak(i_peak):
-    return MU0 * N_TURNS * i_peak / GAP
+    """Magnetic field at reaction plate surface for rectangular current sheet."""
+    return (2 * MU0 * N_TURNS * i_peak / (math.pi * W_COIL)) * math.atan(W_COIL / (2 * GAP))
+#def get_b_plate_peak(i_peak):
+#    return MU0 * N_TURNS * i_peak / GAP
 
 
 def get_b_coil_peak(i_peak):

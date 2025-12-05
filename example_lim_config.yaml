@@ -4,25 +4,27 @@ m_cable_per_m: 99198.0
 m_casing_per_m: 12000.0
 cable_area_m2: 56.9
 sigma_break: 2.5e10
-graph_dir: "graphs/8-turns-b"
+graph_dir: "graphs/100-turns-sp500"
 lim:
-  n_turns: 8
-  spacing: 500.0
+  n_turns: 100
+  v_slip_max: 200.0
+  t_plate: 0.080
   tau_p: 50.0
+  gap: 0.05
+  w_coil: 2.0
+  volts_max_user: 200_000.0
+  spacing: 250.0
   pitch_count: 3
-  d_kapton_mm: 0.5
-  k_fill: 0.625
-  w_coil: 1.0
-  gap: 0.20
+  thrust_coeff: 1
+  d_kapton_mm: 1.0
+  e_allow_kv_per_mm: 10.0  # design limit, not lab breakdown
+  k_fill: 0.449
   v_slip_min: 1.0
-  v_slip_max: 460.0
   i_peak_target: 650.0
   i_peak_min: 1.0
   slip_min: 0.01
   v_rel_min: 1.0
   max_site_power: 8.0e6
-  volts_max_user: 2000.0
-  t_plate: 0.040
   casing_outer_w: 10.0
   ic: 800.0
   w_tape: 0.012
@@ -37,7 +39,6 @@ lim:
   q_sun_1au: 1361.0
   q_earth_day: 650.0
   q_shielding: 0.005
-  thrust_coeff: 1.0
   di_max_per_s: 1.0      # max current ramp [A/s]
   dvslip_max_per_s: 2.0  # max slip-speed ramp [m/s per s]
 

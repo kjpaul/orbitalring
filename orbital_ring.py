@@ -40,7 +40,7 @@ class LIM:
     tau_p: float = 50.0
     w_coil: float = 1.0
     gap: float = 0.20
-    volts_max_user: float = 2000.0
+    volts_max_user: float = 10000.0
     i_peak_target: float = 650.0
     slip_min: float = 0.01
     v_rel_min: float = 10.0
@@ -49,7 +49,8 @@ class LIM:
     t_plate: float = 0.040
     pitch_count: int = 3
     casing_outer_w: float = 10.0
-    d_kapton_mm: float = 0.01
+    d_kapton_mm: float = 0.038
+    e_allow_kv_per_mm: float = 10.0  # design limit, not lab breakdown
     k_fill: float = 0.625
     ic: float = 800.0
     w_tape: float = 0.012
@@ -155,8 +156,8 @@ def banner(p: Params):
     print("Totals (kg): cable={:.3e} casing={:.3e} total={:.3e}".format(Mc, Ms, Mc+Ms))
     print("LIM: tau_p={:.2f} m  w={:.2f} m  gap={:.3f} m  turns={}  spacing={} m  pitches={}".format(
         p.lim.tau_p, p.lim.w_coil, p.lim.gap, p.lim.n_turns, int(p.lim.spacing), p.lim.pitch_count))
-    print("LIM: volts_max_user={:.0f} V  i_target={:.1f} A  v_slip=[{:.1f},{:.1f}] m/s  P_site_max={:.2e} W".format(
-        p.lim.volts_max_user, p.lim.i_peak_target, p.lim.v_slip_min, p.lim.v_slip_max, p.lim.max_site_power))
+    print("LIM: volts_max_allowed={:.0f} V  i_target={:.1f} A  v_slip=[{:.1f},{:.1f}] m/s  P_site_max={:.2e} W".format(
+        volts_max_allowed(p), p.lim.i_peak_target, p.lim.v_slip_min, p.lim.v_slip_max, p.lim.max_site_power))
     print()
 
 def explain_text():
@@ -181,11 +182,20 @@ def lim_sites(p: Params) -> int: return int(round(p.l_orbit / p.lim.spacing))
 def l_active(p: Params) -> float: return p.lim.tau_p * p.lim.pitch_count
 def a_coil(p: Params) -> float: return p.lim.tau_p * p.lim.w_coil
 def l_p(p: Params) -> float: return math.pi/2.0 * p.lim.tau_p
-def kapton_safe_v(p: Params) -> float: return 1e5 * p.lim.d_kapton_mm
+def kapton_safe_v(p: Params) -> float:
+    # Design field in V/m:
+    e_allow = p.lim.e_allow_kv_per_mm * 1e6  # (kV/mm → V/m)
+    d_ins   = p.lim.d_kapton_mm * 1e-3       # mm → m
+    return e_allow * d_ins                   # allowed peak ΔV per turn
 def volts_max_allowed(p: Params) -> float:
     kapton_v = max(0, p.lim.n_turns-1) * kapton_safe_v(p)
     return min(p.lim.volts_max_user, kapton_v if kapton_v > 0 else p.lim.volts_max_user)
-def b_plate_peak(i_peak: float, p: Params) -> float: return MU0 * p.lim.n_turns * i_peak / p.lim.gap
+def b_plate_peak(i_peak: float, p: Params) -> float:
+    """Magnetic field at reaction plate surface for rectangular current sheet."""
+    W = p.lim.w_coil
+    g = p.lim.gap
+    return (2 * MU0 * p.lim.n_turns * i_peak / (math.pi * W)) * math.atan(W / (2 * g))
+# def b_plate_peak(i_peak: float, p: Params) -> float: return MU0 * p.lim.n_turns * i_peak / p.lim.gap
 def b_coil_peak(i_peak: float, p: Params) -> float:
     return MU0 * p.lim.n_turns * i_peak / (math.pi * (p.lim.w_coil + p.lim.tau_p))
 def f_from_v(v: float, p: Params) -> float: return max(v, 1e-9) / (2.0 * p.lim.tau_p)
@@ -197,17 +207,49 @@ def set_r_r(f_slip: float, p: Params) -> float: return (p.lim.rho_alu_e * l_p(p)
 def slip_ratio(v_slip: float, v_rel: float, p: Params) -> float:
     return f_from_v(v_slip, p) / max(f_from_v(v_rel + v_slip, p), 1e-9)
 
+def goodness_factor(f_slip: float, p: Params) -> float:
+    """LIM goodness factor G - ratio of magnetizing to rotor impedance."""
+    omega_slip = 2.0 * math.pi * max(f_slip, 1e-9)
+    delta_eff = eff_plate_depth(f_slip, p)
+    sigma_alu = 1.0 / p.lim.rho_alu_e
+    return (omega_slip * MU0 * sigma_alu * delta_eff * p.lim.tau_p) / math.pi
+
 def site_thrust(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
+    """
+    LIM thrust using equivalent circuit model.
+    
+    F = (B²/2μ₀) × A_active × (2sG)/(1 + s²G²)
+    
+    where G is the goodness factor and s is slip ratio.
+    """
     B = b_plate_peak(i_peak, p)
     s = slip_ratio(v_slip, v_rel, p)
-    rr = set_r_r(f_from_v(v_slip, p), p)
-    V_eddy = plate_eddy_volume(f_from_v(v_slip, p), p)
-    return p.lim.thrust_coeff * (B*B) * (s/(1.0 + s*s)) * (V_eddy / max(rr, 1e-12))
+    f_slip = f_from_v(v_slip, p)
+    G = goodness_factor(f_slip, p)
+    
+    # Magnetic pressure times active area
+    A_active = p.lim.w_coil * l_active(p)
+    F_max = (B * B / (2.0 * MU0)) * A_active
+    
+    # Slip-dependent efficiency factor
+    eta_slip = (2.0 * s * G) / (1.0 + s * s * G * G)
+    
+    return F_max * eta_slip
 
 def site_voltage_estimate(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
     f_sup = f_from_v(v_rel + v_slip, p)
-    L_coil = (p.lim.n_turns**2) * MU0 * (a_coil(p) / p.lim.gap) * p.lim.k_fill
-    return (2.0 * math.pi * f_sup * L_coil * i_peak) / math.sqrt(3.0)
+    if f_sup <= 0.0:
+        return 0.0
+    omega = 2.0 * math.pi * f_sup
+
+    B_peak = b_plate_peak(i_peak, p)
+    A_link = a_coil(p)  # = tau_p * w_coil
+
+    # Include k_fill to account for radial spread of winding
+    psi_peak = p.lim.n_turns * B_peak * A_link * p.lim.k_fill
+
+    V_phase_peak = omega * psi_peak
+    return V_phase_peak / math.sqrt(2.0)  # RMS
 
 def site_thrust_power(i_peak: float, v_rel: float, v_slip: float, p: Params) -> float:
     """Pure mechanical thrust power (F × v_rel) — the kinetic energy rate into cable/casing."""
@@ -905,6 +947,7 @@ def simulate(p: Params) -> Dict:
             "v_cable_end_angular_momentum_check": v_cable_AM,
             "failed": broke,
             "reason": reason,
+            "volts_max_allowed": volts_max_allowed(p),
             "tension_min_N": min_T[0], "tension_min_at_s": min_T[1],
             "tension_max_N": max_T[0], "tension_max_at_s": max_T[1],
             "stress_min_MPa": min_T[0]/p.cable_area_m2/1e6,
