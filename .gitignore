@@ -1,3 +1,9 @@
 .mypy_cache/
-old/
 updates/
+output/
+old/
+graphs_old/
+graphs/
+diagrams/
+claude/
+helper/
