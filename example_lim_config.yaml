@@ -1,55 +1,103 @@
-# example_lim_config.yaml
-# to run: python orbital_ring.py --config example_lim_config.yaml --plot velocities,stress --save-plots
+# example_lim_config_corrected.yaml
+# Orbital Ring Deployment Simulator - CORRECTED Configuration
+#
+# IMPORTANT: k_fill and d_kapton must be consistent!
+# This config uses 1mm Kapton → k_fill = 80/(80+1000) = 0.074
+
 m_cable_per_m: 99198.0
 m_casing_per_m: 12000.0
 cable_area_m2: 56.9
 sigma_break: 2.5e10
-graph_dir: "graphs/100-turns-sp500"
+graph_dir: "graphs/corrected"
+
 lim:
+  # Coil geometry
   n_turns: 100
-  v_slip_max: 200.0
-  t_plate: 0.080
-  tau_p: 50.0
-  gap: 0.05
-  w_coil: 2.0
-  volts_max_user: 200_000.0
-  spacing: 250.0
+  tau_p: 50.0               # Pole pitch [m]
+  w_coil: 2.0               # Coil width [m]
+  gap: 0.05                 # Air gap [m] (5 cm)
   pitch_count: 3
-  thrust_coeff: 1
-  d_kapton_mm: 1.0
-  e_allow_kv_per_mm: 10.0  # design limit, not lab breakdown
-  k_fill: 0.449
-  v_slip_min: 1.0
+  spacing: 250.0
+
+  # Electrical
   i_peak_target: 650.0
   i_peak_min: 1.0
+  ic: 800.0
+  volts_max_user: 200000.0
+  max_site_power: 8.0e6     # 8 MW per site
+
+  # Insulation - MUST BE CONSISTENT
+  # Option A: 1mm Kapton (more voltage headroom, lower k_fill)
+  d_kapton_mm: 1.0          # 1 mm Kapton insulation
+  d_hts_um: 80.0            # 80 μm HTS tape thickness
+  k_fill: 0.0702            # = 80/(80+1000+60) - CONSISTENT with 1mm Kapton
+  #
+  # Option B: Thin Kapton (higher k_fill, less voltage headroom)
+  # d_kapton_mm: 0.098      # 98 μm (38μm film + 60μm adhesive)
+  # d_hts_um: 80.0
+  # k_fill: 0.449           # = 80/(80+98)
+
+  e_allow_kv_per_mm: 10.0   # Design limit (breakdown is ~200 kV/mm)
+  w_tape: 0.012             # HTS tape width [m] (12 mm)
+
+  # Slip control
+  v_slip_min: 1.0
+  v_slip_max: 200.0
   slip_min: 0.01
   v_rel_min: 1.0
-  max_site_power: 8.0e6
+
+  # Reaction plate
+  d_plate: 0.080            # Plate thickness [m] (80 mm)
+  T_plate_min: 100.0        # Minimum temperature [K]
+  heat_sink_l: 30.0
   casing_outer_w: 10.0
-  ic: 800.0
-  w_tape: 0.012
-  alpha_angle_deg: 20.0
-  inv_eff: 0.90
-  lim_eff: 0.95
-  rho_alu_e: 2.86e-8
+
+  # Aluminum properties (temperature-dependent)
+  rho_alu_e_20C: 2.65e-8    # Resistivity at 20°C [Ω·m]
+  alpha_alu_e: 0.00366      # Temperature coefficient [1/K]
+
+  # Thermal
   em_alu: 0.85
   em_heat_sink: 0.90
-  cryo_eff: 0.05
-  heat_sink_l: 30.0
+
+  # External heat
   q_sun_1au: 1361.0
   q_earth_day: 650.0
   q_shielding: 0.005
-  di_max_per_s: 1.0      # max current ramp [A/s]
-  dvslip_max_per_s: 2.0  # max slip-speed ramp [m/s per s]
 
+  # Cryogenic
+  cryo_eff: 0.05            # Cryocooler overhead multiplier
+
+  # Efficiencies
+  inv_eff: 0.90
+  lim_eff: 0.95
+
+  # Controller ramp rates
+  di_max_per_s: 1.0
+  dvslip_max_per_s: 2.0
+
+  # Hysteresis
+  alpha_angle_deg: 20.0
+
+# Simulation
 dt: 1.0
 max_time: 1.0e9
 tol_v: 1.0e-3
 verbose: true
 explain: true
-log: coarse
+debug: false
+
+# Plotting
 plot_skip_s: 0
-plot: ["velocities","stress","net_weight_sign","max_load_per_m","accel_excess","power","site_energy","total_energy","site_ke","total_ke","voltage","current_slip","relative_speed","frequency","plate_temp","cryo","losses"]
+plot:
+  - velocities
+  - power
+  - voltage
+  - current_slip
+  - relative_speed
+  - plate_temp
+  - losses
+  - stress
 
 save_plots: true
 outdir: "."
