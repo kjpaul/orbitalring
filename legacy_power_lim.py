@@ -33,20 +33,20 @@ DT3 = 10    #
 # -------------------------------------------------
 # VARIABLE PARAMETERS, TO BE SET EXTERNALLY
 # -------------------------------------------------
-N_TURNS = 200                               # turns per phase coil (int)
-V_SLIP_MAX = 50                            # 
+N_TURNS = 100                               # turns per phase coil (int)
+V_SLIP_MAX = 200                            # 
 V_SLIP_MIN = 10
 TAU_P = 50.0                                # pole-pitch (m)
 W_COIL = 2.0                                # LIM width (m)
 LIM_SPACING = 500                           # distance at which LIMs are place (m)
 HTS_D = 80                                # HTS thickness in micrometers
-D_KAPTON = 50                              # Kapton tape thickness in micrometers
+D_KAPTON = 500                              # Kapton tape thickness in micrometers
 D_KAPTON_GLUE = 60                        # Kapton tape adhesive layer micrometers
 K_FILL = HTS_D / (HTS_D + D_KAPTON + D_KAPTON_GLUE) # 0.002 is HTS thickness (int)
 KAPTON_SAFE_V = 50e3 * D_KAPTON              # Kapton breakdown 2e5 V/mm safe 25% = 50 kV/mm (V)
 # KAPTON_V = (N_TURNS - 1) * KAPTON_SAFE_V    # Max voltage based on D_KAPTON (V)
-VOLTS_MAX = min(100000, KAPTON_SAFE_V)      # set a reasonable limit on voltage (V)
-THRUST_TARGET = 1000                        # 
+VOLTS_ABS_LIMIT = 100e3                         # absolute voltage limit 100 kV. 
+VOLTS_MAX = min(VOLTS_ABS_LIMIT, KAPTON_SAFE_V) # lowest of either Kapton limit or absolute V limit. (V)
 I_C = 800                                   # HTS, field & temperature dependant Ic (A)
 I_PEAK = 700                                # I_peak, typically ~75% of Ic (A)
 I_TARGET = 650
@@ -666,7 +666,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             p_cryo = get_p_cryo(heat_t, alu_temp_out)
 
         lim_site_power = (2 * p_total_lim + p_cryo) * (2 - INV_EFF)
-        #if thrust < THRUST_TARGET:
+
         if lim_site_power < MAX_SITE_POWER * 0.9:
             if i_peak_now < I_TARGET:
                 i_peak_now += (I_TARGET - i_peak_now) * 0.001
