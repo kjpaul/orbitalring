@@ -26,24 +26,26 @@ MAKE_GRAPHS = True
 SAMPLE_TIME_STR = "-- 100 tonne cable, 12 tonne load" # graph title
 SKIP = 40                      # if 1 = no skip
 V_REL_LOCK = 5
-DT1 = 1  # First day
-DT2 = 1    # Data collection
-DT3 = 1    #
+DT1 = 10  # First day
+DT2 = 10    # Data collection
+DT3 = 10    #
 
 # -------------------------------------------------
 # VARIABLE PARAMETERS, TO BE SET EXTERNALLY
 # -------------------------------------------------
-N_TURNS = 8                                 # turns per phase coil (int)
-V_SLIP_MAX = 460                            # 
+N_TURNS = 200                               # turns per phase coil (int)
+V_SLIP_MAX = 50                            # 
 V_SLIP_MIN = 10
 TAU_P = 50.0                                # pole-pitch (m)
-W_COIL = 1.0                                # LIM width (m)
+W_COIL = 2.0                                # LIM width (m)
 LIM_SPACING = 500                           # distance at which LIMs are place (m)
-D_KAPTON = 0.07                             # Kapton tape thickness in mm (mm)
-K_FILL = 0.002 / (0.002 + D_KAPTON)         # 0.002 is HTS thickness (int)
-KAPTON_SAFE_V = 1e5 * D_KAPTON              # Kapton breakdown 2e5 V/mm safe = 1e5 V/mm (V)
-KAPTON_V = (N_TURNS - 1) * KAPTON_SAFE_V    # Max voltage based on D_KAPTON (V)
-VOLTS_MAX = min(2000, KAPTON_V)            # set a reasonable limit on voltage (V)
+HTS_D = 80                                # HTS thickness in micrometers
+D_KAPTON = 50                              # Kapton tape thickness in micrometers
+D_KAPTON_GLUE = 60                        # Kapton tape adhesive layer micrometers
+K_FILL = HTS_D / (HTS_D + D_KAPTON + D_KAPTON_GLUE) # 0.002 is HTS thickness (int)
+KAPTON_SAFE_V = 50e3 * D_KAPTON              # Kapton breakdown 2e5 V/mm safe 25% = 50 kV/mm (V)
+# KAPTON_V = (N_TURNS - 1) * KAPTON_SAFE_V    # Max voltage based on D_KAPTON (V)
+VOLTS_MAX = min(100000, KAPTON_SAFE_V)      # set a reasonable limit on voltage (V)
 THRUST_TARGET = 1000                        # 
 I_C = 800                                   # HTS, field & temperature dependant Ic (A)
 I_PEAK = 700                                # I_peak, typically ~75% of Ic (A)
@@ -51,8 +53,8 @@ I_TARGET = 650
 I_MIN = 10                                  # lower limit on current. Reduce slip instead. (A)
 SLIP_MIN = 0.01
 P_HEAT_MAX = 100000
-GAP = 0.2                                   # coil-to-plate gap (m)
-T_PLATE = 0.040                             # aluminium thickness (m)
+GAP = 0.20                                   # coil-to-plate gap (m)
+T_PLATE = 0.200                             # aluminium thickness (m)
 W_TAPE = 0.012                              # HTS tape width is 3mm (m)
 ALPHA_ANGLE_DEG = 20                        # magnetic penettration angle of HTS in coils (deg)
 HEAT_SINK_L = 30                            # shorter heat sink mean higher ave reaction plate temp.
@@ -71,7 +73,7 @@ M_CABLE_M = 99_198                         # orbital ring cable mass per meter (
 M_LOAD_M = 12_000                            # orbital ring casing + load mass per meter (m)
 
 # lable data for plots
-PARAM_STR1 = f"τ={TAU_P} m, N={N_TURNS}, V_Slip_max={V_SLIP_MAX} m/s, d={LIM_SPACING} m"
+PARAM_STR1 = f"τp={TAU_P} m, N={N_TURNS}, V_Slip_max={V_SLIP_MAX} m/s, d={LIM_SPACING} m"
 
 # -------------------------------------------------
 # BASIC CONSTANTS & USER TUNABLE DESIGN PARAMETERS
@@ -80,7 +82,7 @@ V_ORBIT = 7754.866                          # 250 km orbital velocity (m/s)
 GEO_250_ORBIT = 483.331                     # 250 km ground stationary velocity (m/s)
 MU0 = 4 * math.pi * 1e-7                    # permeability of a vacuum (kg m s^-2 A^-2)
 SIGMA = 5.670374e-8                         # Stephan-Boltzmann constant (kg s^-3 K^-4)
-RHO_ALU_E = 2.86e-8                         # resistivity of Al at 300K (Ωm)
+RHO_ALU_E_106K = 8.35e-9                    # resistivity of Al at 106K (Ωm) (FIX THIS LATER--SHOULD BE CALCULATED)
 RHO_ALU_M3 = 2700                           # mass per m^3 of aluminium (kg/m^3)
 L_ACTIVE = TAU_P * PITCH_COUNT              # length of LIM (m)
 A_LIM = L_ACTIVE * W_COIL                   # area under LIM (m^2)
@@ -102,12 +104,12 @@ Q_SHEILDING = 0.005     # percentage of heat radiation that passes through multi
 Q_ABS_M = (Q_SUN_1AU + Q_EARTH_DAY) * CASING_OUTER_W * Q_SHEILDING # external heat absorbed by ring (W/m)
 Q_ABS_LIM = Q_ABS_M * LIM_SPACING # external heat absorbed by ring (W)
 T_FREE_SPACE = 2.7      # temperature of free space (K)
-CRYO_EFF = 0.05         # Cryo efficiency: 0.05 -> 20 W are needed for Cryo per W of heat (1/W)
+CRYO_EFF = 0.031         # Cryo efficiency: 0.031 -> 32 W are needed for Cryo per W of heat (1/W)
 C_P_ALU = 900           # heat capacity or aluminium (J/kg K)
 H_CONV_LN2 = 90         # Convective Heat Transfer Coefficient LN2 (W m^-2 K^-1)
 T2_LN2_BOIL = 77.4      # boiling point of liquid nitroger at 1 atm (K)
 T1_LN2_CRYO = 70        # temperature of LN2 as it leaves cryogenic system (K)
-T_N2_HOT = 200          # N2 temperature as it leave the compressor and enters the radiator (K)
+T_N2_HOT = 300          # N2 temperature as it leave the compressor and enters the radiator (K)
 T_MAX_Reaction_Plate = 500  # maximum temp for aluminium reaction plate (K)
 K_ALU = 205             # thermal conductivity of aluminium (W/m*K)
 C_P_LN2 = 2040          # Specific heat capacity of LN2 (J/kg*K)
@@ -122,8 +124,8 @@ MAX_HEATSINK_AREA = (LIM_SPACING) * 2 * W_COIL # the heatsink extends under the 
 TEST = True
 
 # Derived helper: mathematically derived constant appearing in equations below
-K_B = math.sqrt((24 * RHO_ALU_E * TAU_P**2) / (math.pi**2 * T_PLATE**2))
-C_E = (math.pi**2 * T_PLATE**2) / (6 * RHO_ALU_E)
+K_B = math.sqrt((24 * RHO_ALU_E_106K * TAU_P**2) / (math.pi**2 * T_PLATE**2))
+C_E = (math.pi**2 * T_PLATE**2) / (6 * RHO_ALU_E_106K)
 C_H = (MU0 / (2 * math.pi * I_C**2)) * K_FILL
 K_F = W_COIL * L_ACTIVE / (2 * MU0)
 L_P = math.pi / 2 * TAU_P
@@ -132,7 +134,7 @@ L_P = math.pi / 2 * TAU_P
 #L_TURN = MU0 * (TAU_P + W_COIL) * (math.log(2 * (TAU_P + W_COIL) / W_TAPE) - 1.5)  # inductance one turn (H) 
 #L_COIL = K_FILL * N_TURNS * L_TURN                                            # inductance for coil (H)
 A_COIL = TAU_P * W_COIL
-L_COIL = N_TURNS**2 * MU0 * (A_COIL / GAP) * K_FILL
+L_COIL = MU0 * N_TURNS**2 * A_COIL / W_COIL * K_FILL * (2 / math.pi) * math.atan(W_COIL/(2 * GAP))
 
 
 PARAM_LIST = {
@@ -268,9 +270,9 @@ def get_plate_eddy_loss(v_slip, i_peak):
     b_plate = get_b_plate_peak(i_peak)
     f_slip = get_slip_frequency(v_slip)
     eff_t_plate = get_eff_plate_depth(f_slip)
-    ce = math.pi**2 / (6 * RHO_ALU_E)
+    ce = math.pi**2 / (6 * RHO_ALU_E_106K)
     v_plate_eddy = get_plate_eddy_volume(f_slip)
-    # return ((math.pi**2 * b_plate**2 * t_plate**2 * f_slip**2) / (6 * RHO_ALU_E)) * v_plate_eddy
+    # return ((math.pi**2 * b_plate**2 * t_plate**2 * f_slip**2) / (6 * RHO_ALU_E_106K)) * v_plate_eddy
     return ce * b_plate**2 * eff_t_plate**2 * f_slip**2 * v_plate_eddy
 
 
@@ -278,7 +280,7 @@ def get_skin_depth_eddy(f_slip):
     # Skin depth penetration of eddy currents in reaction plate
     if f_slip <= 0:
         f_slip = get_slip_frequency(V_SLIP_MIN)
-    return math.sqrt((2 * RHO_ALU_E) / (2 * math.pi * MU0 * f_slip))
+    return math.sqrt((RHO_ALU_E_106K) / (math.pi * MU0 * f_slip))
 
 
 def get_eff_plate_depth(f_slip):
@@ -310,14 +312,14 @@ def get_thrust_power(thr, vrel):
 def get_coil_volts(i_peak_now, f_supply, b_plate):
     if i_peak_now == 0:
         return 0
-    return 2 * math.pi * f_supply * L_COIL * i_peak_now / math.sqrt(3)
+    return 2 * math.pi * f_supply * L_COIL * i_peak_now / math.sqrt(2)
     #phi_max = b_plate * W_COIL * TAU_P
     #return 4.44 * N_TURNS * f_supply * phi_max # 2*pi/sqrt(2) ~ 4.44
 
 
 def set_r_r(f_slip):
     t_plate = get_eff_plate_depth(f_slip)
-    return (RHO_ALU_E * L_P) / (t_plate * TAU_P)
+    return (RHO_ALU_E_106K * L_P) / (t_plate * TAU_P)
 
 
 """
@@ -378,7 +380,7 @@ def get_LN2_mass_flow_rate(Q_heat, T1=T1_LN2_CRYO):
     return Q_heat / (C_P_LN2 * (T2_LN2_BOIL - T1) + L_V_LN2)
 
 
-def get_cop_actual(T_cold, T_hot=T_N2_HOT, eff=0.05):
+def get_cop_actual(T_cold, T_hot=T_N2_HOT, eff=CRYO_EFF):
     # effective coefficient of performance (COP) of the cryogenic system (num)
     # eff is the overall efficiency of the cryogenic system. 0.05 = 1/20 ratio of performance (num)
     if T_hot == T_cold:
@@ -386,7 +388,7 @@ def get_cop_actual(T_cold, T_hot=T_N2_HOT, eff=0.05):
     return (T_cold/(T_hot - T_cold))*eff
 
 
-def get_p_cryo(p_heat, T_hot=T_N2_HOT, T_cold=T2_LN2_BOIL, eff=0.05):
+def get_p_cryo(p_heat, T_hot=T_N2_HOT, T_cold=T2_LN2_BOIL, eff=CRYO_EFF):
     # gives power needed to opperate cryogenic system (W)
     # Q is the amount of heat (W)
     # T1 & T2 cold & hot resp. (K)
@@ -411,7 +413,7 @@ def get_p_load(p_heat):
     sink_l = min(LIM_SPACING, HEAT_SINK_L) # the coils are 99.99% open space, so heatsink extends under them.
     duty = L_ACTIVE / (sink_l + L_ACTIVE)
     p_ave = p_heat * duty
-    p_load = p_ave + 0.5 * Q_ABS_LIM
+    p_load = p_ave + 0.5 * Q_ABS_LIM # Q_ABS_LIM is the daytime heat from the environment
     return p_load
 
 
@@ -484,7 +486,7 @@ def get_total_for_ring(x):
 
 
 def get_progress(vcase):
-    return round((vcase - GEO_250_ORBIT) / (V_ORBIT - GEO_250_ORBIT) * 100, 2)
+    return round((1 - (vcase - GEO_250_ORBIT) / (V_ORBIT - GEO_250_ORBIT)) * 100, 2)
 
 
 def make_month_ticks(data_list, total_time):
@@ -535,6 +537,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     vcasing = V_ORBIT
     time = 0
     yrs = 0
+    mts = 0
     second = 0
     minute = 60
     hours = 1
@@ -679,7 +682,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
 
         # Starting values for table, ignore 0. Only run once.
         if time == 1: 
-            power_track.append(["START", round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append(["START", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
 
         if time > sample_time and time < sample_time_max:
             sample_time += sample_period
@@ -712,41 +715,41 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
 
         # collect data at various early intervals
         if time > second and time < 60:
-            power_track.append([f"{round(time)} sec", round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time)} sec", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             second += 5
         if time > minute and time < HR:
-            power_track.append([f"{round(time/60)} min", round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/60)} min", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             if minute == 60:
                 minute += 60*4
             else:
                 minute += 60*5
         if time > hours * HR and time < 24 * HR:
-            power_track.append([f"{round(time/HR)} hrs", round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/HR)} hrs", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             hours += 1
         if time > days * DAY and time < 31 * DAY:
-            power_track.append([f"{round(time/DAY)} day", round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/DAY)} day", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             days += 1
 
         # show progress to stdout and collect data monthly
         if time > months * MONTH:
-            power_track.append([f"{round(time/MONTH)} mth", round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/MONTH)} mth", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             months += 1
             # show progress to screen once a month
-            sys.stdout.write(".")
+            #sys.stdout.write(".")
             sys.stdout.flush()
 
         # show yearly progress to stdout
-        if time > yrs * YR:
-            years = str(yrs)+" "
-            sys.stdout.write(years)
+        if time > mts * MONTH:
+            mthstr = str(mts)+" "
+            sys.stdout.write(mthstr)
             prog = get_progress(vcasing)
-            if yrs == 0:
+            if mts == 0:
                 print(f"dt =  {dt}")
-                print(f"............Years  | Prog  | Volts | I_Peak |  V_Slip  |  Slip  |F_Supply|  Eddy | Hyst  |LIM Power  | Site Power| Thrust")
-                print(f"............{years} yrs, {prog:.2f}%, {volts_lim:.2f} V, {i_peak_now:.2f} A, {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:.2f} Hz, {p_eddy:.2f} W, {p_hyst:.2f} W, {p_total_lim/1e6:.3f} MW, {lim_site_power/1e6:.3f} MW, {thrust:.3f} N")
+                print(f"Months | Prog |   Volts   | I_Peak  |  V_Slip  |  Slip  |F_Supply|  Eddy  |  Hyst  |LIM Power  | Site Power| Thrust")
+                print(f"{mthstr} mts, {prog:.2f}%, {volts_lim:.2f} V, {i_peak_now:.2f} A, {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:.2f} Hz, {p_eddy:.2f} W, {p_hyst:.2f} W, {p_total_lim/1e6:.3f} MW, {lim_site_power/1e6:.3f} MW, {thrust:.3f} N")
             else:
-                print(f"yrs, {prog:.2f}%, {volts_lim:.2f} V, {i_peak_now:.2f} A, {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:.2f} Hz, {p_eddy:.2f} W, {p_hyst:.2f} W, {p_total_lim/1e6:.3f} MW, {lim_site_power/1e6:.3f} MW, {thrust:.3f} N")
-            yrs += 1
+                print(f"mts, {prog:.2f}%, {volts_lim:.2f} V, {i_peak_now:.2f} A, {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:.2f} Hz, {p_eddy:.2f} W, {p_hyst:.2f} W, {p_total_lim/1e6:.3f} MW, {lim_site_power/1e6:.3f} MW, {thrust:.3f} N")
+            mts += 1
  
         # collect min-max data
         if v_rel != 0:
@@ -843,8 +846,8 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     print(f"{exit_msg}\t\t{time/YR:.2f} yrs")
     # post loop data collection
-    power_track.append([f"{round(time/YR,2)} yrs", round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
-    power_track.append(["Time", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "LIM Power", "Site Power"])
+    power_track.append([f"{round(time/YR,2)} yrs", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+    power_track.append(["Time", "V_Shell", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "LIM Power", "Site Power"])
 
     str2 = f"Deployment time: {time / DAY:.2f} days, {time / YR:.2f} years"
     str3 = f"Cable velocity: {vcable:.2f} m/s"
@@ -910,9 +913,14 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     return [tick_count, f"{param_str1} ", make_graphs, time]
 
 def main() -> None:
+    show = []
+    if len(sys.argv) > 1:
+        show = sys.argv
     v_slip = 50
     i_peaks = 50
     param = get_deployment_time(v_slip, i_peaks, PARAM_STR1)
+
+
 
     if param[2]:
         param_str = param[1]
@@ -920,227 +928,246 @@ def main() -> None:
 
         x_lable = SAMPLE_TIME_STR
         
-        """
+        #"""
+
         # 1 Current in Amps
-        tick_pos, tick_labels = make_month_ticks(list_i_peak, total_time)
-        plt.scatter(range(len(list_i_peak)), list_i_peak, c="blue")
-        plt.xlabel("Months")
-        plt.ylabel("Current in Amps")
-        plt.legend(["Amps"])
-        plt.title(f"Current {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_i_peak, unit="A", fmt=".0f")
-        plt.show()
+        if "current" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_i_peak, total_time)
+            plt.scatter(range(len(list_i_peak)), list_i_peak, c="blue")
+            plt.xlabel("Months")
+            plt.ylabel("Current in Amps")
+            plt.legend(["Amps"])
+            plt.title(f"Current {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_i_peak, unit="A", fmt=".0f")
+            plt.show()
 
 
 
         # 2 Volts
-        tick_pos, tick_labels = make_month_ticks(list_volts, total_time)
-        plt.scatter(range(len(list_volts)), list_volts, c="red")
-        plt.xlabel("Months")
-        plt.xlabel("Voltage")
-        plt.ylabel("Voltage")
-        plt.legend(["Volts"])
-        plt.title(f"Volts {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_volts, unit="V", fmt=".0f")
-        plt.show()
+        if "volts" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_volts, total_time)
+            plt.scatter(range(len(list_volts)), list_volts, c="red")
+            plt.xlabel("Months")
+            plt.xlabel("Voltage")
+            plt.ylabel("Voltage")
+            plt.legend(["Volts"])
+            plt.title(f"Volts {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_volts, unit="V", fmt=".0f")
+            plt.show()
 
 
         # 3 V_Slip Velocity
-        tick_pos, tick_labels = make_month_ticks(list_v_slip, total_time)
-        plt.scatter(range(len(list_v_slip)), list_v_slip, c="green")
-        plt.xlabel("Slip Velocity")
-        plt.ylabel("Slip Velocity in m/s")
-        plt.legend(["Slip Velocity"])
-        plt.title(f"V_Slip {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_v_slip, unit="m/s", fmt=".0f")
-        plt.show()
+        if "v_slip" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_v_slip, total_time)
+            plt.scatter(range(len(list_v_slip)), list_v_slip, c="green")
+            plt.xlabel("Slip Velocity")
+            plt.ylabel("Slip Velocity in m/s")
+            plt.legend(["Slip Velocity"])
+            plt.title(f"V_Slip {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_v_slip, unit="m/s", fmt=".0f")
+            plt.show()
         
 
         # 4 Skin Calc & Eff
-        tick_pos, tick_labels = make_month_ticks(list_skin_depth_calc, total_time)
-        plt.scatter(range(len(list_skin_depth_calc)), list_skin_depth_calc, c="darkgreen")
-        plt.scatter(range(len(list_skin_depth_eff)), list_skin_depth_eff, c="magenta")
-        plt.xlabel("Skin Depth (Calc & Eff)")
-        plt.ylabel("Skin Depth/Plate Thickness in mm")
-    #    plt.yticks([0,1,2,3,4,5,6])
-        plt.legend(["Skin Depth Calc", "Skin Depth Eff"])
-        plt.title(f"Effective Reaction Plate Plate Thickness in mm {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_skin_depth_eff, unit="mm", fmt=".1f")
-        annotate_final(list_skin_depth_calc, unit="mm", fmt=".1f")
-        plt.show()
+        if "skin" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_skin_depth_calc, total_time)
+            plt.scatter(range(len(list_skin_depth_calc)), list_skin_depth_calc, c="darkgreen")
+            plt.scatter(range(len(list_skin_depth_eff)), list_skin_depth_eff, c="magenta")
+            plt.xlabel("Skin Depth (Calc & Eff)")
+            plt.ylabel("Skin Depth/Plate Thickness in mm")
+            #    plt.yticks([0,1,2,3,4,5,6])
+            plt.legend(["Skin Depth Calc", "Skin Depth Eff"])
+            plt.title(f"Effective Reaction Plate Plate Thickness in mm {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_skin_depth_eff, unit="mm", fmt=".1f")
+            annotate_final(list_skin_depth_calc, unit="mm", fmt=".1f")
+            plt.show()
 
 
         # 5 Thrust
-        tick_pos, tick_labels = make_month_ticks(list_thrust, total_time)
-        plt.scatter(range(len(list_thrust)), list_thrust, c="purple")
-        plt.xlabel("Thrust")
-        plt.ylabel("Thrust in Newtons")
-        plt.legend(["Thrust"])
-        plt.title(f"Thrust {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_thrust, unit="N", fmt=".0f")
-        plt.show()
+        if "thrust" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_thrust, total_time)
+            plt.scatter(range(len(list_thrust)), list_thrust, c="purple")
+            plt.xlabel("Thrust")
+            plt.ylabel("Thrust in Newtons")
+            plt.legend(["Thrust"])
+            plt.title(f"Thrust {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_thrust, unit="N", fmt=".0f")
+            plt.show()
 
         
         # 6 P_Eddy
-        tick_pos, tick_labels = make_month_ticks(list_p_eddy, total_time)
-        plt.scatter(range(len(list_p_eddy)), list_p_eddy, c="darkblue")
-        plt.xlabel("Eddy Currents")
-        plt.ylabel("Eddy Currents in Watts")
-        plt.legend(["Eddy Currents"])
-        plt.title(f"Eddy Currents in Reaction Plate {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_p_eddy, unit="W", fmt=".0f")
-        plt.show()
+        if "p_eddy" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_p_eddy, total_time)
+            plt.scatter(range(len(list_p_eddy)), list_p_eddy, c="darkblue")
+            plt.xlabel("Eddy Currents")
+            plt.ylabel("Eddy Currents in Watts")
+            plt.legend(["Eddy Currents"])
+            plt.title(f"Eddy Currents in Reaction Plate {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_p_eddy, unit="W", fmt=".0f")
+            plt.show()
 
 
         # 7 V_Rel
-        tick_pos, tick_labels = make_month_ticks(list_v_rel, total_time)
-        plt.scatter(range(len(list_v_rel)), list_v_rel, c="olive")
-        plt.xlabel("Relative Velocity")
-        plt.ylabel("Relative Velocity Cable/Casing")
-        plt.legend(["V_Rel"])
-        plt.title(f"V_Rel {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_v_rel, unit="m/s", fmt=".0f")
-        plt.show()
+        if "v_rel" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_v_rel, total_time)
+            plt.scatter(range(len(list_v_rel)), list_v_rel, c="olive")
+            plt.xlabel("Relative Velocity")
+            plt.ylabel("Relative Velocity Cable/Casing")
+            plt.legend(["V_Rel"])
+            plt.title(f"V_Rel {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_v_rel, unit="m/s", fmt=".0f")
+            plt.show()
 
 
         # 8 F_Slip Frequency
-        tick_pos, tick_labels = make_month_ticks(list_f_slip, total_time)
-        plt.scatter(range(len(list_f_slip)), list_f_slip, c="orange")
-        plt.xlabel("Slip Frequency")
-        plt.ylabel("F Slip Frequency Hz")
-    #S    plt.yticks([0,10,20,30,40,50,60,70,80,90,100])
-        plt.legend(["F Slip Frequency Hz"])
-        plt.title(f"F Slip Frequency Hz {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_f_slip, unit="Hz", fmt=".1f")
-        plt.show()
+        if "f_slip" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_f_slip, total_time)
+            plt.scatter(range(len(list_f_slip)), list_f_slip, c="orange")
+            plt.xlabel("Slip Frequency")
+            plt.ylabel("F Slip Frequency Hz")
+            #S    plt.yticks([0,10,20,30,40,50,60,70,80,90,100])
+            plt.legend(["F Slip Frequency Hz"])
+            plt.title(f"F Slip Frequency Hz {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_f_slip, unit="Hz", fmt=".1f")
+            plt.show()
 
 
         # 9 Slip
-        tick_pos, tick_labels = make_month_ticks(list_slip, total_time)
-        plt.scatter(range(len(list_slip)), list_slip, c="cyan")
-        plt.xlabel("Slip")
-        plt.ylabel("Slip %")
-    #S    plt.yticks([0,10,20,30,40,50,60,70,80,90,100])
-        plt.legend(["Slip %"])
-        plt.title(f"Slip {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_slip, unit="%", fmt=".1f")
-        plt.show()
+        if "slip" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_slip, total_time)
+            plt.scatter(range(len(list_slip)), list_slip, c="cyan")
+            plt.xlabel("Slip")
+            plt.ylabel("Slip %")
+            #S    plt.yticks([0,10,20,30,40,50,60,70,80,90,100])
+            plt.legend(["Slip %"])
+            plt.title(f"Slip {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_slip, unit="%", fmt=".1f")
+            plt.show()
 
 
         # 10 Thrust Power
-        tick_pos, tick_labels = make_month_ticks(list_thrust_power, total_time)
-        plt.scatter(range(len(list_thrust_power)), list_thrust_power, c="navy")
-        plt.xlabel("Thrust Power")
-        plt.ylabel("Thrust Power in Watts")
-        plt.legend(["Thrust Power"])
-        plt.title(f"Thrust Power {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final([p/1e6 for p in list_thrust_power], unit="MW", fmt=".2f")
-        plt.show()
+        if "p_thrust" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_thrust_power, total_time)
+            plt.scatter(range(len(list_thrust_power)), list_thrust_power, c="navy")
+            plt.xlabel("Thrust Power")
+            plt.ylabel("Thrust Power in Watts")
+            plt.legend(["Thrust Power"])
+            plt.title(f"Thrust Power {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final([p/1e6 for p in list_thrust_power], unit="MW", fmt=".2f")
+            plt.show()
 
 
         # 11 B Peak
-        tick_pos, tick_labels = make_month_ticks(list_b_peak, total_time)
-        plt.scatter(range(len(list_b_peak)), list_b_peak, c="brown")
-        plt.xlabel("Magnetic Field")
-        plt.ylabel("Magnetic Field in Tesla")
-        plt.legend(["B Peak Reaction Plate"])
-        plt.title(f"Magnetic Field at Reaction Plate {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_b_peak, unit="T", fmt=".4f")
-        plt.show()
+        if "b_peak" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_b_peak, total_time)
+            plt.scatter(range(len(list_b_peak)), list_b_peak, c="brown")
+            plt.xlabel("Magnetic Field")
+            plt.ylabel("Magnetic Field in Tesla")
+            plt.legend(["B Peak Reaction Plate"])
+            plt.title(f"Magnetic Field at Reaction Plate {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_b_peak, unit="T", fmt=".4f")
+            plt.show()
 
 
         # 13 Hysteresis
-        tick_pos, tick_labels = make_month_ticks(list_p_hyst, total_time)
-        plt.scatter(range(len(list_p_hyst)), list_p_hyst, c="brown")
-        plt.xlabel("Hysteresis Losses")
-        plt.ylabel("Hysteresis Losses in Watts")
-        plt.legend(["Hysteresis Losses"])
-        plt.title(f"Hysteresis Losses {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_skin_depth_calc, unit="mm", fmt=".1f")
-        plt.show()
+        if "hyst" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_p_hyst, total_time)
+            plt.scatter(range(len(list_p_hyst)), list_p_hyst, c="brown")
+            plt.xlabel("Hysteresis Losses")
+            plt.ylabel("Hysteresis Losses in Watts")
+            plt.legend(["Hysteresis Losses"])
+            plt.title(f"Hysteresis Losses {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_skin_depth_calc, unit="mm", fmt=".1f")
+            plt.show()
 
 
         # 14 Cryo Power
-        tick_pos, tick_labels = make_month_ticks(list_p_cryo, total_time)
-        plt.scatter(range(len(list_p_cryo)), list_p_cryo, c="teal")
-        plt.xlabel("Cryogenic Power")
-        plt.ylabel("Cryogenic Power in Watts")
-        plt.legend(["Cryogenic Power"])
-        plt.title(f"Cryogenic Power {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_p_cryo, unit="W", fmt=".0f")
-        plt.show()
+        if "cryo" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_p_cryo, total_time)
+            plt.scatter(range(len(list_p_cryo)), list_p_cryo, c="teal")
+            plt.xlabel("Cryogenic Power")
+            plt.ylabel("Cryogenic Power in Watts")
+            plt.legend(["Cryogenic Power"])
+            plt.title(f"Cryogenic Power {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_p_cryo, unit="W", fmt=".0f")
+            plt.show()
 
 
         # 15 Power Used
-        tick_pos, tick_labels = make_month_ticks(list_p_lim_site, total_time)
-        plt.scatter(range(len(list_p_lim_site)), list_p_lim_site, c="#2F4F4F")
-        plt.xlabel("Power Used")
-        plt.ylabel("Power Used in Watts")
-        plt.legend(["Power Used"])
-        plt.title(f"Power Used {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_p_lim_site, unit="W", fmt=".0f")
-        plt.show()
+        if "power" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_p_lim_site, total_time)
+            plt.scatter(range(len(list_p_lim_site)), list_p_lim_site, c="#2F4F4F")
+            plt.xlabel("Power Used")
+            plt.ylabel("Power Used in Watts")
+            plt.legend(["Power Used"])
+            plt.title(f"Power Used {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_p_lim_site, unit="W", fmt=".0f")
+            plt.show()
 
         # 15 LIM Power
-        tick_pos, tick_labels = make_month_ticks(list_p_lim, total_time)
-        plt.scatter(range(len(list_p_lim)), list_p_lim, c="#2F4F4F")
-        plt.xlabel("LIM Power" )
-        plt.ylabel("LIM Power in Watts")
-        plt.legend(["LIM Power"])
-        plt.title(f"LIM Power {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_p_lim, unit="W", fmt=".0f")
-        plt.show()
+        if "lim_power" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_p_lim, total_time)
+            plt.scatter(range(len(list_p_lim)), list_p_lim, c="#2F4F4F")
+            plt.xlabel("LIM Power" )
+            plt.ylabel("LIM Power in Watts")
+            plt.legend(["LIM Power"])
+            plt.title(f"LIM Power {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_p_lim, unit="W", fmt=".0f")
+            plt.show()
 
         # 1 Reaction Plate Temperature in Kelvin
-        tick_pos, tick_labels = make_month_ticks(list_temp_plate_ave, total_time)
-        plt.scatter(range(len(list_temp_plate_ave)), list_temp_plate_ave, c="lime")
-        plt.xlabel("Reaction Plate Temperature")
-        plt.ylabel("Reaction Plate Temperature in Kelvin")
-    #    plt.yticks([0,1,2,3,4,5,6])
-        plt.legend(["Reaction Plate Temperature"])
-        plt.title(f"Reaction Plate Temperature in Kelvin {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final(list_temp_plate_ave, unit="K", fmt=".0f")
-        plt.show()
+        if "plate_temp" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_temp_plate_ave, total_time)
+            plt.scatter(range(len(list_temp_plate_ave)), list_temp_plate_ave, c="lime")
+            plt.xlabel("Reaction Plate Temperature")
+            plt.ylabel("Reaction Plate Temperature in Kelvin")
+            #    plt.yticks([0,1,2,3,4,5,6])
+            plt.legend(["Reaction Plate Temperature"])
+            plt.title(f"Reaction Plate Temperature in Kelvin {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final(list_temp_plate_ave, unit="K", fmt=".0f")
+            plt.show()
 
         #"""
 
         # Site Kinetic Energy (TJ)
-        tick_pos, tick_labels = make_month_ticks(list_E_site_ke, total_time)
-        plt.scatter(range(len(list_E_site_ke)), [e/1e12 for e in list_E_site_ke], c="green")
-        plt.xlabel("Site Kinetic Energy")
-        plt.ylabel("Site Kinetic Energy in TJ")
-        plt.legend(["Site KE (thrust only)"])
-        plt.title(f"Cumulative Kinetic Energy per Site {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final([e/1e12 for e in list_E_site_ke], unit="TJ", fmt=".1f")
-        plt.show()
+        if "ke_site" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_E_site_ke, total_time)
+            plt.scatter(range(len(list_E_site_ke)), [e/1e12 for e in list_E_site_ke], c="green")
+            plt.xlabel("Site Kinetic Energy")
+            plt.ylabel("Site Kinetic Energy in TJ")
+            plt.legend(["Site KE (thrust only)"])
+            plt.title(f"Cumulative Kinetic Energy per Site {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final([e/1e12 for e in list_E_site_ke], unit="TJ", fmt=".1f")
+            plt.show()
 
         # Total Kinetic Energy (EJ)
-        tick_pos, tick_labels = make_month_ticks(list_E_total_ke, total_time)
-        plt.scatter(range(len(list_E_total_ke)), [e/1e18 for e in list_E_total_ke], c="darkgreen")
-        plt.xlabel("Total Kinetic Energy")
-        plt.ylabel("Total Kinetic Energy in EJ")
-        plt.legend(["Total KE (thrust only)"])
-        plt.title(f"Cumulative Kinetic Energy All Sites {param_str}")
-        plt.xticks(tick_pos, tick_labels)
-        annotate_final([e/1e18 for e in list_E_total_ke], unit="EJ", fmt=".2f")
-        plt.show()
+        if "ke_all" in show or "all" in show:
+            tick_pos, tick_labels = make_month_ticks(list_E_total_ke, total_time)
+            plt.scatter(range(len(list_E_total_ke)), [e/1e18 for e in list_E_total_ke], c="darkgreen")
+            plt.xlabel("Total Kinetic Energy")
+            plt.ylabel("Total Kinetic Energy in EJ")
+            plt.legend(["Total KE (thrust only)"])
+            plt.title(f"Cumulative Kinetic Energy All Sites {param_str}")
+            plt.xticks(tick_pos, tick_labels)
+            annotate_final([e/1e18 for e in list_E_total_ke], unit="EJ", fmt=".2f")
+            plt.show()
 
 
 if __name__ == "__main__":
