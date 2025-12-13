@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-LIM Parameter Optimization Tool (with Power Limit)
-===================================================
+LIM Parameter Optimization Tool (v4 - Adaptive Slip Strategy)
+==============================================================
 For: "Ion Propulsion Engineering" by Paul de Jong
 
-This version correctly includes the POWER LIMIT constraint, which
-dominates at high v_rel (end of deployment).
+This version explores the adaptive slip velocity strategy:
+- When THRUST LIMITED: Use higher slip for stability
+- When POWER LIMITED: Reduce slip to increase efficiency
 
-Key insight: The system transitions from thrust-limited (early) to 
-power-limited (late) during deployment. The crossover happens when
-the unconstrained thrust power exceeds the supply limit.
+Key insight: At low slip, efficiency is much higher, so more of your
+limited electrical power becomes useful thrust instead of heat.
 
 ================================================================================
 """
@@ -21,9 +21,9 @@ from typing import Dict, List, Tuple
 # ==============================================================================
 # PHYSICAL CONSTANTS
 # ==============================================================================
-MU0 = 4 * math.pi * 1e-7          # Permeability of free space: 1.257e-6 H/m
-RHO_AL_106K = 8.35e-9             # Resistivity of aluminum at 106K: 8.35e-9 Ω·m
-SIGMA_AL_106K = 1.0 / RHO_AL_106K # Conductivity: 1.20e8 S/m
+MU0 = 4 * math.pi * 1e-7
+RHO_AL_106K = 8.35e-9
+SIGMA_AL_106K = 1.0 / RHO_AL_106K
 
 
 # ==============================================================================
@@ -31,90 +31,71 @@ SIGMA_AL_106K = 1.0 / RHO_AL_106K # Conductivity: 1.20e8 S/m
 # ==============================================================================
 @dataclass
 class LIMParams:
-    """
-    LIM Design Parameters
-    """
-    # Coil geometry
-    N: int = 100              # Turns per coil
-    W: float = 2.0            # Coil width perpendicular to motion (m)
-    tau_p: float = 50.0       # Pole pitch (m)
-    pitch_count: int = 3      # Number of pole pitches per LIM
-    
-    # Gap and reaction plate
-    gap: float = 0.05         # Air gap (m)
-    t_plate: float = 0.08     # Reaction plate thickness (m)
+    """LIM Design Parameters"""
+    # Geometry
+    N: int = 100
+    W: float = 2.0
+    tau_p: float = 50.0
+    pitch_count: int = 3
+    gap: float = 0.05
+    t_plate: float = 0.08
     
     # Electrical
-    I_target: float = 650.0   # Target peak current (A) - controller tries to reach this
-    v_slip: float = 200.0     # Slip velocity (m/s)
+    I_target: float = 650.0
+    v_slip: float = 200.0       # Default/max slip velocity
+    v_slip_min: float = 50.0    # Minimum slip velocity for control stability
     
-    # HTS tape construction
-    d_HTS: float = 80e-6      # HTS tape thickness: 80 μm
-    d_kapton: float = 1e-3    # Kapton insulation: 1 mm
+    # Tape construction
+    d_HTS: float = 80e-6
+    d_kapton: float = 1e-3
     
-    # Safety limits
-    I_c: float = 800.0        # HTS critical current (A)
-    E_kapton_safe: float = 100e6  # Safe Kapton field: 100 kV/mm
-    
-    # POWER LIMIT - this is the key constraint!
-    P_limit_site: float = 8e6     # Power limit per LIM site = 8 MW
-    # Site has 2 LIMs, so per-LIM limit is P_limit_site / 2
+    # Limits
+    I_c: float = 800.0
+    E_kapton_safe: float = 100e6
+    P_limit_site: float = 8e6
     
     @property
     def P_limit_lim(self) -> float:
-        """Power limit per single LIM (W)"""
         return self.P_limit_site / 2
     
     @property
     def k_fill(self) -> float:
-        """Fill factor"""
         return self.d_HTS / (self.d_HTS + self.d_kapton)
     
     @property
     def A_coil(self) -> float:
-        """Single coil area (m²)"""
         return self.tau_p * self.W
     
     @property
     def A_active(self) -> float:
-        """Total active LIM area (m²)"""
         return self.tau_p * self.pitch_count * self.W
     
     @property
     def V_kapton_limit(self) -> float:
-        """Maximum coil voltage from Kapton (V) - total coil, not per layer"""
         return self.E_kapton_safe * self.d_kapton
 
 
 # ==============================================================================
-# CORE PHYSICS FUNCTIONS
+# CORE PHYSICS
 # ==============================================================================
 
 def calc_B_field(p: LIMParams, I: float) -> float:
-    """
-    Magnetic field at reaction plate (T)
-    
-    B = (2μ₀NI)/(πW) × arctan(W/2g)
-    """
+    """Magnetic field at reaction plate (T)"""
     arctan_factor = math.atan(p.W / (2 * p.gap))
     return (2 * MU0 * p.N * I / (math.pi * p.W)) * arctan_factor
 
 
 def calc_inductance(p: LIMParams) -> float:
-    """
-    Coil inductance (H)
-    
-    L = (2μ₀N²×A_coil×k_fill)/(πW) × arctan(W/2g)
-    """
+    """Coil inductance (H)"""
     arctan_factor = math.atan(p.W / (2 * p.gap))
     return (2 * MU0 * p.N**2 * p.A_coil * p.k_fill / (math.pi * p.W)) * arctan_factor
 
 
-def calc_frequencies(p: LIMParams, v_rel: float) -> dict:
-    """Calculate slip and supply frequencies"""
-    v_wave = v_rel + p.v_slip
+def calc_frequencies(p: LIMParams, v_rel: float, v_slip: float) -> dict:
+    """Calculate frequencies for given slip velocity"""
+    v_wave = v_rel + v_slip
     f_supply = v_wave / (2 * p.tau_p)
-    f_slip = p.v_slip / (2 * p.tau_p)
+    f_slip = v_slip / (2 * p.tau_p)
     slip = f_slip / f_supply if f_supply > 0 else 0
     return {
         'v_wave': v_wave,
@@ -124,14 +105,10 @@ def calc_frequencies(p: LIMParams, v_rel: float) -> dict:
     }
 
 
-def calc_voltage(p: LIMParams, v_rel: float, I: float) -> float:
-    """
-    RMS coil voltage (V)
-    
-    V_rms = ωLI / √2
-    """
+def calc_voltage(p: LIMParams, v_rel: float, v_slip: float, I: float) -> float:
+    """RMS coil voltage (V)"""
     L = calc_inductance(p)
-    freq = calc_frequencies(p, v_rel)
+    freq = calc_frequencies(p, v_rel, v_slip)
     omega = 2 * math.pi * freq['f_supply']
     return omega * L * I / math.sqrt(2)
 
@@ -154,467 +131,396 @@ def calc_goodness_factor(p: LIMParams, f_slip: float) -> float:
 
 
 def calc_slip_efficiency(slip: float, G: float) -> float:
-    """Slip efficiency η_slip = 2sG / (1 + s²G²)"""
+    """Slip efficiency η = 2sG / (1 + s²G²)"""
     if G <= 0:
         return 0
     sG = slip * G
     return 2 * sG / (1 + sG**2)
 
 
-def calc_thrust(p: LIMParams, v_rel: float, I: float) -> float:
-    """
-    Thrust force (N)
-    
-    F = (B²/2μ₀) × A_active × η_slip
-    """
+def calc_thrust(p: LIMParams, v_rel: float, v_slip: float, I: float) -> float:
+    """Thrust force (N)"""
     B = calc_B_field(p, I)
-    freq = calc_frequencies(p, v_rel)
+    freq = calc_frequencies(p, v_rel, v_slip)
     G = calc_goodness_factor(p, freq['f_slip'])
     eta = calc_slip_efficiency(freq['slip'], G)
-    
     magnetic_pressure = B**2 / (2 * MU0)
     return magnetic_pressure * p.A_active * eta
 
 
+def calc_eddy_losses(p: LIMParams, v_slip: float, I: float) -> float:
+    """
+    Approximate eddy current losses in reaction plate (W)
+    
+    P_eddy ∝ B² × f² × volume
+    """
+    B = calc_B_field(p, I)
+    f_slip = v_slip / (2 * p.tau_p)
+    delta = calc_skin_depth(f_slip)
+    delta_eff = min(delta, p.t_plate)
+    
+    # P = (π²/6ρ) × B² × δ² × f² × V
+    ce = math.pi**2 / (6 * RHO_AL_106K)
+    V_eddy = p.W * p.A_active * delta_eff
+    
+    return ce * B**2 * delta_eff**2 * f_slip**2 * V_eddy
+
+
 # ==============================================================================
-# POWER-LIMITED OPERATION
+# ADAPTIVE CONTROL STRATEGIES
 # ==============================================================================
 
-def calc_power_limited_current(p: LIMParams, v_rel: float) -> float:
+def evaluate_fixed_slip(p: LIMParams, v_rel: float) -> Dict:
     """
-    Calculate the current needed to stay within power limit.
+    STRATEGY 1: Fixed slip velocity
     
-    At high v_rel, unconstrained thrust would exceed power limit.
-    Controller must reduce current to maintain P = F × v_rel ≤ P_limit.
-    
-    Since F ∝ I², we have P ∝ I² × v_rel
-    So I_limited = I_target × sqrt(P_limit / P_unconstrained)
+    Controller keeps v_slip constant, reduces current when power-limited.
+    This is the baseline/simple approach.
     """
-    # First, calculate unconstrained thrust at target current
-    F_unconstrained = calc_thrust(p, v_rel, p.I_target)
+    v_slip = p.v_slip
+    
+    # Calculate unconstrained thrust
+    F_unconstrained = calc_thrust(p, v_rel, v_slip, p.I_target)
     P_unconstrained = F_unconstrained * v_rel
     
+    # Determine if power-limited
     if P_unconstrained <= p.P_limit_lim:
-        # Not power limited - use target current
-        return p.I_target
+        I_actual = p.I_target
+        power_limited = False
     else:
-        # Power limited - reduce current
-        # F ∝ I², so to reduce power by factor k, reduce I by sqrt(k)
-        reduction_factor = math.sqrt(p.P_limit_lim / P_unconstrained)
-        I_limited = p.I_target * reduction_factor
-        return I_limited
+        # Reduce current: F ∝ I², so I_new = I_target × sqrt(P_limit/P_unconstrained)
+        reduction = math.sqrt(p.P_limit_lim / P_unconstrained)
+        I_actual = p.I_target * reduction
+        power_limited = True
+    
+    # Calculate actual performance
+    F = calc_thrust(p, v_rel, v_slip, I_actual)
+    P_mech = F * v_rel
+    V = calc_voltage(p, v_rel, v_slip, I_actual)
+    P_eddy = calc_eddy_losses(p, v_slip, I_actual)
+    
+    freq = calc_frequencies(p, v_rel, v_slip)
+    G = calc_goodness_factor(p, freq['f_slip'])
+    eta = calc_slip_efficiency(freq['slip'], G)
+    
+    return {
+        'strategy': 'Fixed Slip',
+        'v_slip': v_slip,
+        'I_actual': I_actual,
+        'F_kN': F / 1000,
+        'P_mech_MW': P_mech / 1e6,
+        'P_eddy_kW': P_eddy / 1000,
+        'V_kV': V / 1000,
+        'eta_%': eta * 100,
+        'slip_%': freq['slip'] * 100,
+        'G': G,
+        'power_limited': power_limited,
+    }
+
+
+def evaluate_adaptive_slip(p: LIMParams, v_rel: float) -> Dict:
+    """
+    STRATEGY 2: Adaptive slip velocity
+    
+    When power-limited, REDUCE slip velocity to increase efficiency.
+    This extracts more thrust from the same power budget.
+    
+    Controller logic:
+    1. Start with max slip (p.v_slip)
+    2. If power-limited, reduce slip to improve efficiency
+    3. Stop at minimum slip (p.v_slip_min) for control stability
+    """
+    # First check if we're power-limited at max slip
+    F_max_slip = calc_thrust(p, v_rel, p.v_slip, p.I_target)
+    P_max_slip = F_max_slip * v_rel
+    
+    if P_max_slip <= p.P_limit_lim:
+        # Not power-limited - use max slip for stability
+        v_slip = p.v_slip
+        I_actual = p.I_target
+        power_limited = False
+    else:
+        # Power-limited - find optimal slip
+        # Try reducing slip to get more thrust from power budget
+        
+        best_thrust = 0
+        best_v_slip = p.v_slip_min
+        
+        # Search from min slip to max slip
+        for v_slip_test in range(int(p.v_slip_min), int(p.v_slip) + 1, 5):
+            # At this slip, what thrust can we get within power limit?
+            F_test = calc_thrust(p, v_rel, v_slip_test, p.I_target)
+            P_test = F_test * v_rel
+            
+            if P_test <= p.P_limit_lim:
+                # Can run at full current
+                I_test = p.I_target
+                F_actual = F_test
+            else:
+                # Must reduce current
+                reduction = math.sqrt(p.P_limit_lim / P_test)
+                I_test = p.I_target * reduction
+                F_actual = calc_thrust(p, v_rel, v_slip_test, I_test)
+            
+            if F_actual > best_thrust:
+                best_thrust = F_actual
+                best_v_slip = v_slip_test
+                best_I = I_test
+        
+        v_slip = best_v_slip
+        I_actual = best_I
+        power_limited = True
+    
+    # Calculate actual performance at chosen operating point
+    F = calc_thrust(p, v_rel, v_slip, I_actual)
+    P_mech = F * v_rel
+    V = calc_voltage(p, v_rel, v_slip, I_actual)
+    P_eddy = calc_eddy_losses(p, v_slip, I_actual)
+    
+    freq = calc_frequencies(p, v_rel, v_slip)
+    G = calc_goodness_factor(p, freq['f_slip'])
+    eta = calc_slip_efficiency(freq['slip'], G)
+    
+    return {
+        'strategy': 'Adaptive Slip',
+        'v_slip': v_slip,
+        'I_actual': I_actual,
+        'F_kN': F / 1000,
+        'P_mech_MW': P_mech / 1e6,
+        'P_eddy_kW': P_eddy / 1000,
+        'V_kV': V / 1000,
+        'eta_%': eta * 100,
+        'slip_%': freq['slip'] * 100,
+        'G': G,
+        'power_limited': power_limited,
+    }
 
 
 def find_crossover_velocity(p: LIMParams) -> float:
-    """
-    Find v_rel where system transitions from thrust-limited to power-limited.
-    
-    This is where P_unconstrained = P_limit
-    """
-    # Binary search
+    """Find v_rel where system transitions from thrust to power limited"""
     v_low, v_high = 10, 10000
-    
     while v_high - v_low > 1:
         v_mid = (v_low + v_high) / 2
-        F = calc_thrust(p, v_mid, p.I_target)
+        F = calc_thrust(p, v_mid, p.v_slip, p.I_target)
         P = F * v_mid
-        
         if P < p.P_limit_lim:
             v_low = v_mid
         else:
             v_high = v_mid
-    
     return v_mid
-
-
-# ==============================================================================
-# COMPREHENSIVE EVALUATION
-# ==============================================================================
-
-def evaluate_design(p: LIMParams, v_rel: float, enforce_power_limit: bool = True) -> Dict:
-    """
-    Evaluate LIM design at a given operating point.
-    
-    If enforce_power_limit=True (default), current is reduced to stay within
-    power budget at high v_rel. This matches real controller behavior.
-    """
-    # Determine operating current
-    if enforce_power_limit:
-        I_actual = calc_power_limited_current(p, v_rel)
-    else:
-        I_actual = p.I_target
-    
-    # Calculate all values at actual current
-    B = calc_B_field(p, I_actual)
-    L = calc_inductance(p)
-    V = calc_voltage(p, v_rel, I_actual)
-    F = calc_thrust(p, v_rel, I_actual)
-    P_mech = F * v_rel
-    
-    freq = calc_frequencies(p, v_rel)
-    G = calc_goodness_factor(p, freq['f_slip'])
-    eta = calc_slip_efficiency(freq['slip'], G)
-    delta = calc_skin_depth(freq['f_slip'])
-    
-    # Also calculate unconstrained values for comparison
-    F_unconstrained = calc_thrust(p, v_rel, p.I_target)
-    P_unconstrained = F_unconstrained * v_rel
-    
-    # Constraint checks
-    V_margin = (p.V_kapton_limit - V) / p.V_kapton_limit * 100
-    I_margin = (p.I_c - I_actual) / p.I_c * 100
-    P_margin = (p.P_limit_lim - P_mech) / p.P_limit_lim * 100
-    
-    is_power_limited = P_unconstrained > p.P_limit_lim
-    
-    return {
-        # Operating point
-        'I_actual_A': I_actual,
-        'I_target_A': p.I_target,
-        'I_reduction_%': (1 - I_actual / p.I_target) * 100,
-        
-        # Magnetic
-        'B_mT': B * 1000,
-        
-        # Electrical
-        'L_mH': L * 1000,
-        'V_kV': V / 1000,
-        'V_limit_kV': p.V_kapton_limit / 1000,
-        'V_margin_%': V_margin,
-        
-        # Frequency
-        'f_slip_Hz': freq['f_slip'],
-        'f_supply_Hz': freq['f_supply'],
-        'slip_%': freq['slip'] * 100,
-        
-        # Efficiency
-        'G': G,
-        'eta_%': eta * 100,
-        'delta_mm': delta * 1000,
-        
-        # Performance (actual, power-limited)
-        'F_kN': F / 1000,
-        'P_mech_MW': P_mech / 1e6,
-        'P_limit_MW': p.P_limit_lim / 1e6,
-        'P_margin_%': P_margin,
-        
-        # Unconstrained (what physics allows)
-        'F_unconstrained_kN': F_unconstrained / 1000,
-        'P_unconstrained_MW': P_unconstrained / 1e6,
-        
-        # Status
-        'power_limited': is_power_limited,
-        'voltage_ok': V_margin > 0,
-        'current_ok': I_margin > 0,
-        'feasible': V_margin > 0 and I_margin > 0,
-    }
-
-
-# ==============================================================================
-# OPTIMIZATION
-# ==============================================================================
-
-def find_optimal_N(p: LIMParams, v_rel: float, N_range: range = range(50, 501, 10)) -> Tuple[int, Dict]:
-    """
-    Find optimal turn count.
-    
-    With power limit enforced, higher N doesn't always help because
-    current gets reduced anyway. Find the N that maximizes thrust
-    while staying within ALL constraints.
-    """
-    best_N = N_range[0]
-    best_thrust = 0
-    best_result = None
-    
-    original_N = p.N
-    
-    for N in N_range:
-        p.N = N
-        result = evaluate_design(p, v_rel, enforce_power_limit=True)
-        
-        if result['feasible'] and result['F_kN'] > best_thrust:
-            best_thrust = result['F_kN']
-            best_N = N
-            best_result = result
-    
-    p.N = original_N
-    return best_N, best_result
 
 
 # ==============================================================================
 # OUTPUT FORMATTING
 # ==============================================================================
 
-def print_design_report(p: LIMParams, v_rel: float):
-    """Print comprehensive design report"""
-    result = evaluate_design(p, v_rel, enforce_power_limit=True)
+def print_comparison_table(results_fixed: List[Dict], results_adaptive: List[Dict], 
+                           v_rel_values: List[float]):
+    """Print side-by-side comparison of strategies"""
+    
+    print("\n" + "─" * 100)
+    print(f"{'v_rel':>8} │ {'FIXED SLIP':^40} │ {'ADAPTIVE SLIP':^40} │ {'Thrust':>8}")
+    print(f"{'(m/s)':>8} │ {'v_slip':>8} {'I':>6} {'F':>8} {'η':>6} {'P_eddy':>8} │ {'v_slip':>8} {'I':>6} {'F':>8} {'η':>6} {'P_eddy':>8} │ {'Gain':>8}")
+    print("─" * 100)
+    
+    for i, v in enumerate(v_rel_values):
+        rf = results_fixed[i]
+        ra = results_adaptive[i]
+        
+        gain = (ra['F_kN'] / rf['F_kN'] - 1) * 100 if rf['F_kN'] > 0 else 0
+        
+        mode_f = "*" if rf['power_limited'] else " "
+        mode_a = "*" if ra['power_limited'] else " "
+        
+        print(f"{v:>8.0f} │ {rf['v_slip']:>7.0f}{mode_f} {rf['I_actual']:>6.0f} {rf['F_kN']:>8.2f} {rf['eta_%']:>5.1f}% {rf['P_eddy_kW']:>7.0f} │ " +
+              f"{ra['v_slip']:>7.0f}{mode_a} {ra['I_actual']:>6.0f} {ra['F_kN']:>8.2f} {ra['eta_%']:>5.1f}% {ra['P_eddy_kW']:>7.0f} │ {gain:>+7.1f}%")
+    
+    print("─" * 100)
+    print("* = power limited")
+
+
+def print_strategy_report(p: LIMParams, v_rel: float):
+    """Print detailed comparison at a single operating point"""
+    
+    rf = evaluate_fixed_slip(p, v_rel)
+    ra = evaluate_adaptive_slip(p, v_rel)
     
     print()
     print("=" * 70)
-    print("LIM DESIGN REPORT")
+    print(f"STRATEGY COMPARISON at v_rel = {v_rel} m/s")
     print("=" * 70)
     
-    print("\n┌─ DESIGN PARAMETERS ──────────────────────────────────────────────────")
-    print(f"│ Turns per coil (N):           {p.N:>10}")
-    print(f"│ Coil width (W):               {p.W:>10.2f} m")
-    print(f"│ Pole pitch (τp):              {p.tau_p:>10.1f} m")
-    print(f"│ Air gap (g):                  {p.gap*100:>10.1f} cm")
-    print(f"│ Target current:               {p.I_target:>10.0f} A")
-    print(f"│ Slip velocity:                {p.v_slip:>10.0f} m/s")
-    print(f"│ Relative velocity:            {v_rel:>10.0f} m/s")
-    print(f"│ Fill factor:                  {p.k_fill*100:>10.1f} %")
+    print("\n┌─ FIXED SLIP STRATEGY ────────────────────────────────────────────────")
+    print(f"│ Slip velocity:                {rf['v_slip']:>10.0f} m/s")
+    print(f"│ Current:                      {rf['I_actual']:>10.0f} A")
+    print(f"│ Slip ratio:                   {rf['slip_%']:>10.2f} %")
+    print(f"│ Efficiency:                   {rf['eta_%']:>10.1f} %")
+    print(f"│ Thrust:                       {rf['F_kN']:>10.2f} kN")
+    print(f"│ Mechanical power:             {rf['P_mech_MW']:>10.2f} MW")
+    print(f"│ Eddy losses:                  {rf['P_eddy_kW']:>10.0f} kW")
+    print(f"│ Coil voltage:                 {rf['V_kV']:>10.2f} kV")
+    mode = "POWER LIMITED" if rf['power_limited'] else "THRUST LIMITED"
+    print(f"│ Mode:                         {mode:>10}")
     print("└──────────────────────────────────────────────────────────────────────")
     
-    print("\n┌─ LIMITS ─────────────────────────────────────────────────────────────")
-    print(f"│ Power limit (per LIM):        {p.P_limit_lim/1e6:>10.1f} MW")
-    print(f"│ Voltage limit (Kapton):       {p.V_kapton_limit/1000:>10.0f} kV")
-    print(f"│ Current limit (Ic):           {p.I_c:>10.0f} A")
+    print("\n┌─ ADAPTIVE SLIP STRATEGY ─────────────────────────────────────────────")
+    print(f"│ Slip velocity:                {ra['v_slip']:>10.0f} m/s")
+    print(f"│ Current:                      {ra['I_actual']:>10.0f} A")
+    print(f"│ Slip ratio:                   {ra['slip_%']:>10.2f} %")
+    print(f"│ Efficiency:                   {ra['eta_%']:>10.1f} %")
+    print(f"│ Thrust:                       {ra['F_kN']:>10.2f} kN")
+    print(f"│ Mechanical power:             {ra['P_mech_MW']:>10.2f} MW")
+    print(f"│ Eddy losses:                  {ra['P_eddy_kW']:>10.0f} kW")
+    print(f"│ Coil voltage:                 {ra['V_kV']:>10.2f} kV")
+    mode = "POWER LIMITED" if ra['power_limited'] else "THRUST LIMITED"
+    print(f"│ Mode:                         {mode:>10}")
     print("└──────────────────────────────────────────────────────────────────────")
     
-    # Highlight if power-limited
-    if result['power_limited']:
-        print("\n┌─ ⚠️  POWER LIMITED OPERATION ─────────────────────────────────────────")
-        print(f"│ Actual current:               {result['I_actual_A']:>10.0f} A")
-        print(f"│ Current reduction:            {result['I_reduction_%']:>10.1f} %")
-        print(f"│ Unconstrained thrust:         {result['F_unconstrained_kN']:>10.1f} kN")
-        print(f"│ Unconstrained power:          {result['P_unconstrained_MW']:>10.1f} MW")
-        print("└──────────────────────────────────────────────────────────────────────")
+    if ra['F_kN'] > rf['F_kN']:
+        gain = (ra['F_kN'] / rf['F_kN'] - 1) * 100
+        print(f"\n  → Adaptive slip gives {gain:.0f}% MORE THRUST for same power!")
+        print(f"  → Eddy losses reduced by {(1 - ra['P_eddy_kW']/rf['P_eddy_kW'])*100:.0f}%")
     else:
-        print("\n┌─ THRUST LIMITED OPERATION ────────────────────────────────────────────")
-        print(f"│ Operating at target current:  {result['I_actual_A']:>10.0f} A")
-        print(f"│ Power headroom:               {result['P_margin_%']:>10.1f} %")
-        print("└──────────────────────────────────────────────────────────────────────")
+        print(f"\n  → Both strategies give same result (thrust limited)")
     
-    print("\n┌─ ACTUAL PERFORMANCE ─────────────────────────────────────────────────")
-    print(f"│ Magnetic field (B):           {result['B_mT']:>10.1f} mT")
-    print(f"│ Inductance (L):               {result['L_mH']:>10.1f} mH")
-    print(f"│ Coil voltage:                 {result['V_kV']:>10.2f} kV")
-    print(f"│ Voltage margin:               {result['V_margin_%']:>10.1f} %")
-    print(f"│ Supply frequency:             {result['f_supply_Hz']:>10.1f} Hz")
-    print(f"│ Slip efficiency:              {result['eta_%']:>10.1f} %")
-    print(f"│ Thrust:                       {result['F_kN']:>10.2f} kN")
-    print(f"│ Mechanical power:             {result['P_mech_MW']:>10.2f} MW")
-    print("└──────────────────────────────────────────────────────────────────────")
-    
-    status = "✓ FEASIBLE" if result['feasible'] else "✗ CONSTRAINT VIOLATED"
-    mode = "POWER LIMITED" if result['power_limited'] else "THRUST LIMITED"
-    print(f"\n  Status: {status} ({mode})")
     print("=" * 70)
-
-
-def print_sweep_table(results: List[Dict], columns: List[str]):
-    """Print formatted results table"""
-    # Header
-    header = " │ ".join(f"{c:>12}" for c in columns)
-    separator = "─" * len(header)
-    print(separator)
-    print(header)
-    print(separator)
-    
-    # Rows
-    for r in results:
-        row = []
-        for c in columns:
-            val = r.get(c, 0)
-            if isinstance(val, bool):
-                row.append(f"{'Yes':>12}" if val else f"{'No':>12}")
-            elif isinstance(val, float):
-                if abs(val) < 0.01 and val != 0:
-                    row.append(f"{val:>12.2e}")
-                elif abs(val) > 10000:
-                    row.append(f"{val:>12.0f}")
-                else:
-                    row.append(f"{val:>12.2f}")
-            else:
-                row.append(f"{val:>12}")
-        print(" │ ".join(row))
-    
-    print(separator)
 
 
 # ==============================================================================
-# MAIN: OPTIMIZATION GUIDE
+# MAIN
 # ==============================================================================
 
 def main():
-    """Generate optimization guide with power limit"""
-    
     print("\n" + "=" * 70)
-    print("LIM PARAMETER OPTIMIZATION GUIDE (WITH POWER LIMIT)")
+    print("ADAPTIVE SLIP VELOCITY STRATEGY")
     print("For: Ion Propulsion Engineering")
     print("=" * 70)
     
-    # Base parameters matching your code
     p = LIMParams(
         N=100,
         W=2.0,
         tau_p=50.0,
         gap=0.05,
         I_target=650,
-        v_slip=200,
+        v_slip=200,          # Max slip (for stability when thrust-limited)
+        v_slip_min=50,       # Min slip (control limit when power-limited)
         d_kapton=1e-3,
-        E_kapton_safe=100e6,
-        P_limit_site=8e6,  # 8 MW per site = 4 MW per LIM
+        P_limit_site=8e6,
     )
     
-    # Find crossover velocity
     v_crossover = find_crossover_velocity(p)
     
-    print(f"\n┌─ SYSTEM LIMITS ──────────────────────────────────────────────────────")
-    print(f"│ Power limit per site:         {p.P_limit_site/1e6:>10.1f} MW")
-    print(f"│ Power limit per LIM:          {p.P_limit_lim/1e6:>10.1f} MW")
-    print(f"│ Voltage limit (Kapton):       {p.V_kapton_limit/1000:>10.0f} kV")
-    print(f"│ Current limit (Ic):           {p.I_c:>10.0f} A")
-    print(f"│")
-    print(f"│ Crossover velocity:           {v_crossover:>10.0f} m/s")
-    print(f"│   Below this: THRUST LIMITED (can use full current)")
-    print(f"│   Above this: POWER LIMITED (must reduce current)")
-    print("└──────────────────────────────────────────────────────────────────────")
+    print(f"""
+THE PROBLEM:
+When power-limited (v_rel > {v_crossover:.0f} m/s), the controller reduces current
+to stay within the {p.P_limit_lim/1e6:.0f} MW limit. But at high slip velocity, 
+efficiency is low (~8%), so most power goes to heating the reaction plate.
+
+THE SOLUTION:
+Reduce slip velocity when power-limited. Lower slip → higher efficiency.
+More of the limited power budget becomes useful thrust.
+
+CONSTRAINTS:
+- Max slip: {p.v_slip} m/s (used when thrust-limited, for stability)
+- Min slip: {p.v_slip_min} m/s (control stability limit)
+""")
     
-    # ==== Show base design at different deployment stages ====
+    # ==== Deployment progression comparison ====
     print("\n" + "=" * 70)
-    print("1. DEPLOYMENT PROGRESSION (with power limit enforced)")
+    print("1. DEPLOYMENT PROGRESSION: Fixed vs Adaptive Slip")
+    print("=" * 70)
+    
+    v_rel_values = [100, 250, 500, 1000, 1500, 2000, 3000, 4000, 6000, 8000]
+    
+    results_fixed = [evaluate_fixed_slip(p, v) for v in v_rel_values]
+    results_adaptive = [evaluate_adaptive_slip(p, v) for v in v_rel_values]
+    
+    print_comparison_table(results_fixed, results_adaptive, v_rel_values)
+    
+    # ==== Detailed comparison at key points ====
+    print("\n" + "=" * 70)
+    print("2. DETAILED COMPARISON AT KEY OPERATING POINTS")
+    print("=" * 70)
+    
+    print("\n--- Early Deployment (v_rel = 500 m/s) - THRUST LIMITED ---")
+    print_strategy_report(p, 500)
+    
+    print("\n--- Mid Deployment (v_rel = 2000 m/s) - POWER LIMITED ---")
+    print_strategy_report(p, 2000)
+    
+    print("\n--- Late Deployment (v_rel = 8000 m/s) - POWER LIMITED ---")
+    print_strategy_report(p, 8000)
+    
+    # ==== Total deployment benefit ====
+    print("\n" + "=" * 70)
+    print("3. CUMULATIVE BENEFIT OVER DEPLOYMENT")
+    print("=" * 70)
+    
+    # Integrate thrust over velocity to estimate momentum transfer
+    total_impulse_fixed = 0
+    total_impulse_adaptive = 0
+    total_eddy_fixed = 0
+    total_eddy_adaptive = 0
+    
+    v_step = 100
+    for v in range(100, 8001, v_step):
+        rf = evaluate_fixed_slip(p, v)
+        ra = evaluate_adaptive_slip(p, v)
+        
+        # Impulse ∝ F × time, and time ∝ 1/F for same delta-v
+        # So compare F directly at each velocity
+        total_impulse_fixed += rf['F_kN']
+        total_impulse_adaptive += ra['F_kN']
+        total_eddy_fixed += rf['P_eddy_kW']
+        total_eddy_adaptive += ra['P_eddy_kW']
+    
+    benefit = (total_impulse_adaptive / total_impulse_fixed - 1) * 100
+    eddy_reduction = (1 - total_eddy_adaptive / total_eddy_fixed) * 100
+    
+    print(f"""
+Summing thrust contributions across deployment (v_rel = 100 to 8000 m/s):
+
+  Fixed slip total:      {total_impulse_fixed:>10.1f} kN (relative units)
+  Adaptive slip total:   {total_impulse_adaptive:>10.1f} kN (relative units)
+  
+  THRUST IMPROVEMENT:    {benefit:>+10.1f} %
+  
+  Fixed slip eddy heat:  {total_eddy_fixed:>10.0f} kW (relative units)
+  Adaptive slip heat:    {total_eddy_adaptive:>10.0f} kW (relative units)
+  
+  HEAT REDUCTION:        {eddy_reduction:>+10.1f} %
+""")
+    
+    # ==== Implementation notes ====
+    print("\n" + "=" * 70)
+    print("4. IMPLEMENTATION NOTES")
     print("=" * 70)
     print(f"""
-As v_rel increases during deployment:
-- Frequency increases → voltage increases
-- Thrust capacity increases (higher efficiency at lower slip ratio)
-- BUT power limit caps the actual thrust at high v_rel
+CONTROL LOGIC:
 
-The controller reduces current to stay within the {p.P_limit_lim/1e6:.0f} MW limit.
-""")
-    
-    v_rel_values = [100, 250, 500, 1000, 2000, 4000, 6000, 8000]
-    results = []
-    for v in v_rel_values:
-        result = evaluate_design(p, v, enforce_power_limit=True)
-        result['v_rel'] = v
-        results.append(result)
-    
-    print(f"N = {p.N}, gap = {p.gap*100:.0f} cm, I_target = {p.I_target} A:")
-    print_sweep_table(results, ['v_rel', 'I_actual_A', 'f_supply_Hz', 'V_kV', 
-                                 'eta_%', 'F_kN', 'P_mech_MW', 'power_limited'])
-    
-    # ==== Show effect of N with power limit ====
-    print("\n" + "=" * 70)
-    print("2. EFFECT OF TURN COUNT (N) - with power limit")
-    print("=" * 70)
-    print("""
-With power limit enforced, increasing N has DIMINISHING RETURNS:
-- Higher N means higher unconstrained thrust
-- But controller reduces current to stay within power limit
-- So actual thrust is capped regardless of N
+1. Measure v_rel (cable-casing relative velocity)
+2. Calculate unconstrained thrust at max slip ({p.v_slip} m/s)
+3. If P_thrust < P_limit ({p.P_limit_lim/1e6:.0f} MW):
+   - Run at max slip ({p.v_slip} m/s) for stability
+   - Use full target current ({p.I_target} A)
+4. Else (power-limited):
+   - Reduce slip velocity toward {p.v_slip_min} m/s
+   - Maintain current at {p.I_target} A if possible
+   - Only reduce current if still over power limit at min slip
 
-This is different from voltage-limited case!
-""")
-    
-    print(f"\nAt v_rel = 8000 m/s (end of deployment, POWER LIMITED):")
-    N_values = [50, 100, 150, 200, 250, 300]
-    results = []
-    original_N = p.N
-    for N in N_values:
-        p.N = N
-        result = evaluate_design(p, 8000, enforce_power_limit=True)
-        result['N'] = N
-        results.append(result)
-    p.N = original_N
-    
-    print_sweep_table(results, ['N', 'I_actual_A', 'B_mT', 'V_kV', 
-                                 'F_kN', 'P_mech_MW', 'power_limited'])
-    
-    print(f"\nAt v_rel = 200 m/s (early deployment, THRUST LIMITED):")
-    results = []
-    for N in N_values:
-        p.N = N
-        result = evaluate_design(p, 200, enforce_power_limit=True)
-        result['N'] = N
-        results.append(result)
-    p.N = original_N
-    
-    print_sweep_table(results, ['N', 'I_actual_A', 'B_mT', 'V_kV', 
-                                 'F_kN', 'P_mech_MW', 'power_limited'])
-    
-    # ==== Slip velocity effect ====
-    print("\n" + "=" * 70)
-    print("3. EFFECT OF SLIP VELOCITY - with power limit")
-    print("=" * 70)
-    print("""
-Lower slip velocity → higher efficiency → more thrust per amp.
-But at high v_rel, you're power-limited anyway, so the benefit is capped.
+BENEFITS:
+- More thrust from same power budget
+- Less heating of reaction plate
+- Faster deployment
 
-The real benefit of lower slip is at EARLY deployment where you're
-thrust-limited and every bit of efficiency helps.
-""")
-    
-    print(f"\nAt v_rel = 200 m/s (THRUST LIMITED):")
-    v_slip_values = [50, 100, 150, 200, 300, 400]
-    results = []
-    original_v_slip = p.v_slip
-    for vs in v_slip_values:
-        p.v_slip = vs
-        result = evaluate_design(p, 200, enforce_power_limit=True)
-        result['v_slip'] = vs
-        results.append(result)
-    p.v_slip = original_v_slip
-    
-    print_sweep_table(results, ['v_slip', 'slip_%', 'eta_%', 'F_kN', 
-                                 'P_mech_MW', 'power_limited'])
-    
-    print(f"\nAt v_rel = 8000 m/s (POWER LIMITED):")
-    results = []
-    for vs in v_slip_values:
-        p.v_slip = vs
-        result = evaluate_design(p, 8000, enforce_power_limit=True)
-        result['v_slip'] = vs
-        results.append(result)
-    p.v_slip = original_v_slip
-    
-    print_sweep_table(results, ['v_slip', 'slip_%', 'eta_%', 'F_kN', 
-                                 'P_mech_MW', 'power_limited'])
-    
-    # ==== Full design reports ====
-    print("\n" + "=" * 70)
-    print("4. DETAILED DESIGN REPORTS")
-    print("=" * 70)
-    
-    print("\n--- Early Deployment (v_rel = 200 m/s) ---")
-    print_design_report(p, 200)
-    
-    print("\n--- Mid Deployment (v_rel = 2000 m/s) ---")
-    print_design_report(p, 2000)
-    
-    print("\n--- End Deployment (v_rel = 8000 m/s) ---")
-    print_design_report(p, 8000)
-    
-    # ==== Summary ====
-    print("\n" + "=" * 70)
-    print("OPTIMIZATION SUMMARY")
-    print("=" * 70)
-    print(f"""
-KEY INSIGHT: The system has TWO operating regimes:
+RISKS:
+- Low slip is harder to control
+- Disturbances could push into regenerative braking
+- Need robust slip feedback control
 
-1. THRUST LIMITED (v_rel < {v_crossover:.0f} m/s)
-   - Controller runs at target current ({p.I_target} A)
-   - More turns (N) → more thrust
-   - Voltage is the binding constraint
-   
-2. POWER LIMITED (v_rel > {v_crossover:.0f} m/s)  
-   - Controller reduces current to stay within {p.P_limit_lim/1e6:.0f} MW
-   - More turns (N) → controller reduces current more → same thrust
-   - Power supply is the binding constraint
-
-PRACTICAL IMPLICATIONS:
-
-- Early deployment: Maximize N to get more thrust (voltage permitting)
-- Late deployment: N doesn't matter much - you're power limited anyway
-- The crossover at {v_crossover:.0f} m/s is when most of the momentum transfer
-  shifts from "thrust-limited acceleration" to "power-limited cruising"
-
-RECOMMENDED APPROACH:
-1. Choose N based on voltage limit at end of deployment
-2. Accept that late deployment will be power-limited
-3. Focus optimization on early deployment performance
-4. Consider whether power limit can be increased (more solar panels?)
+RECOMMENDED MINIMUM SLIP: {p.v_slip_min} m/s
+- Provides {100/calc_goodness_factor(p, p.v_slip_min/(2*p.tau_p)):.1f}× safety margin above optimal slip
+- Still practical for control systems
 """)
 
 
