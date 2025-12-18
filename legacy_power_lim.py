@@ -38,6 +38,7 @@ V_SLIP_MAX = 200                            #
 V_SLIP_MIN = 10
 TAU_P = 50.0                                # pole-pitch (m)
 W_COIL = 2.0                                # LIM width (m)
+GAP = 0.20                                   # coil-to-plate gap (m)
 LIM_SPACING = 500                           # distance at which LIMs are place (m)
 HTS_D = 80                                # HTS thickness in micrometers
 D_KAPTON = 500                              # Kapton tape thickness in micrometers
@@ -53,7 +54,6 @@ I_TARGET = 650
 I_MIN = 10                                  # lower limit on current. Reduce slip instead. (A)
 SLIP_MIN = 0.01
 P_HEAT_MAX = 100000
-GAP = 0.20                                   # coil-to-plate gap (m)
 T_PLATE = 0.200                             # aluminium thickness (m)
 W_TAPE = 0.012                              # HTS tape width is 3mm (m)
 ALPHA_ANGLE_DEG = 20                        # magnetic penettration angle of HTS in coils (deg)
@@ -296,15 +296,59 @@ def get_plate_eddy_volume(f_slip):
 """
     thrust and power
 """
+def get_thrust_force_max(b_plate):
+    """Hard upper bound on thrust from magnetic energy density.
+
+    F_max = (B^2 / (2*mu0)) * A  [N]
+    where A is the active coupling area under the LIM.
+    """
+    return (b_plate ** 2) * A_LIM / (2 * MU0)
+
+
+def get_thrust_power_max(b_plate, v_slip):
+    """Hard upper bound on transferable power from magnetic energy flux.
+
+    P_max = (B^2 / (2*mu0)) * A * v_slip  [W]
+    """
+    return (b_plate ** 2) * A_LIM * v_slip / (2 * MU0)
+
+
+def get_slip_efficiency(slip):
+    """Dimensionless coupling/efficiency factor vs slip.
+
+    Shape: eta = 2*s / (1 + s^2), peaks at eta=1 when s=1.
+    Enforces eta -> 0 as s -> 0 and as s -> inf, and caps to [0,1].
+    """
+    if slip <= 0:
+        return 0.0
+    eta = (2.0 * slip) / (1.0 + slip ** 2)
+    if eta < 0.0:
+        return 0.0
+    if eta > 1.0:
+        return 1.0
+    return eta
+
+
 def get_f_thrust(f_slip, f_supply, i_peak):
+    """Thrust model (dimensionally consistent, physically bounded).
+
+        s = f_slip / f_supply
+        F_max = (B^2 / (2*mu0)) * A
+        F = eta(s) * F_max
+
+    This deliberately avoids runaway results when secondary back-reaction is not
+    solved self-consistently.
+    """
+    if i_peak <= 0 or f_supply <= 0:
+        return 0.0
+
     b_plate = get_b_plate_peak(i_peak)
-    rr = set_r_r(f_slip)
+
     slip = get_slip_f(f_slip, f_supply)
-    v_plate_eddy = get_plate_eddy_volume(f_slip)
-    # return ((b_plate**2 * slip) / rr) * v_plate_eddy * f_slip
-    return ((b_plate**2 * slip/(1+slip**2)) / rr) * v_plate_eddy
+    if slip < 0:
+        slip = 0.0
 
-
+    return get_slip_efficiency(slip) * get_thrust_force_max(b_plate)
 def get_thrust_power(thr, vrel):
     return thr * vrel
 
