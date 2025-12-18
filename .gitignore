@@ -7,3 +7,5 @@ graphs/
 diagrams/
 claude/
 helper/
+*.png
+*.bak
