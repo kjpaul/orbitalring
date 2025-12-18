@@ -40,14 +40,11 @@ TAU_P = 50.0                                # pole-pitch (m)
 W_COIL = 2.0                                # LIM width (m)
 GAP = 0.20                                   # coil-to-plate gap (m)
 LIM_SPACING = 500                           # distance at which LIMs are place (m)
-HTS_D = 80                                # HTS thickness in micrometers
-D_KAPTON = 500                              # Kapton tape thickness in micrometers
-D_KAPTON_GLUE = 60                        # Kapton tape adhesive layer micrometers
-K_FILL = HTS_D / (HTS_D + D_KAPTON + D_KAPTON_GLUE) # 0.002 is HTS thickness (int)
-KAPTON_SAFE_V = 50e3 * D_KAPTON              # Kapton breakdown 2e5 V/mm safe 25% = 50 kV/mm (V)
-# KAPTON_V = (N_TURNS - 1) * KAPTON_SAFE_V    # Max voltage based on D_KAPTON (V)
-VOLTS_ABS_LIMIT = 100e3                         # absolute voltage limit 100 kV. 
-VOLTS_MAX = min(VOLTS_ABS_LIMIT, KAPTON_SAFE_V) # lowest of either Kapton limit or absolute V limit. (V)
+HTS_D = 80                                # HTS thickness in micrometers (kept for reference)
+# NOTE: We are intentionally NOT using a k_fill / Kapton packing model here.
+# The prior K_FILL + Kapton thickness logic was mixing insulation/geometry assumptions into inductance/limits
+# in a way that was not physically well-founded for this stage of the model.
+VOLTS_MAX = 100e3                         # absolute coil voltage limit (RMS), per your assumption (V)
 I_C = 800                                   # HTS, field & temperature dependant Ic (A)
 I_PEAK = 700                                # I_peak, typically ~75% of Ic (A)
 I_TARGET = 650
@@ -126,7 +123,6 @@ TEST = True
 # Derived helper: mathematically derived constant appearing in equations below
 K_B = math.sqrt((24 * RHO_ALU_E_106K * TAU_P**2) / (math.pi**2 * T_PLATE**2))
 C_E = (math.pi**2 * T_PLATE**2) / (6 * RHO_ALU_E_106K)
-C_H = (MU0 / (2 * math.pi * I_C**2)) * K_FILL
 K_F = W_COIL * L_ACTIVE / (2 * MU0)
 L_P = math.pi / 2 * TAU_P
 
@@ -134,7 +130,7 @@ L_P = math.pi / 2 * TAU_P
 #L_TURN = MU0 * (TAU_P + W_COIL) * (math.log(2 * (TAU_P + W_COIL) / W_TAPE) - 1.5)  # inductance one turn (H) 
 #L_COIL = K_FILL * N_TURNS * L_TURN                                            # inductance for coil (H)
 A_COIL = TAU_P * W_COIL
-L_COIL = MU0 * N_TURNS**2 * A_COIL / W_COIL * K_FILL * (2 / math.pi) * math.atan(W_COIL/(2 * GAP))
+L_COIL = MU0 * N_TURNS**2 * A_COIL / W_COIL * (2 / math.pi) * math.atan(W_COIL/(2 * GAP))
 
 
 PARAM_LIST = {
@@ -159,8 +155,6 @@ PARAM_LIST = {
     "CASING_OUTER_W": CASING_OUTER_W,
     "M_CABLE_M": M_CABLE_M,
     "M_LOAD_M": M_LOAD_M,
-    "D_KAPTON": D_KAPTON,
-    "K_FILL": round(K_FILL,3),
     "CRYO_EFF": CRYO_EFF,
     "EM_ALU": EM_ALU,
     "EM_HEAT_SINK": EM_HEAT_SINK,
@@ -265,8 +259,28 @@ def get_b_coil_peak(i_peak):
 """
     eddy currents & skin depth
 """
+def get_plate_eddy_loss_from_thrust(v_slip, thrust):
+    """Secondary (reaction plate) ohmic loss for one LIM, consistent with thrust.
+
+    In a linear induction motor, the power dissipated in the secondary corresponds to the slip power:
+        P_secondary = F * v_slip
+
+    This ties losses to the force model and prevents the classic runaway that occurs when the
+    secondary back-reaction is not solved self-consistently.
+
+    Returns: Watts per LIM
+    """
+    if v_slip <= 0 or thrust <= 0:
+        return 0.0
+    return thrust * v_slip
+
+
 def get_plate_eddy_loss(v_slip, i_peak):
-    # Eddy current losses in the reaction plate of one LIM
+    """LEGACY: retained for reference only (not used by default).
+
+    This thin-plate / sinusoidal-field scaling can greatly over-predict at low f_slip and cryogenic rho
+    unless it is solved self-consistently with field loading. Use get_plate_eddy_loss_from_thrust().
+    """
     b_plate = get_b_plate_peak(i_peak)
     f_slip = get_slip_frequency(v_slip)
     eff_t_plate = get_eff_plate_depth(f_slip)
@@ -354,11 +368,21 @@ def get_thrust_power(thr, vrel):
 
 
 def get_coil_volts(i_peak_now, f_supply, b_plate):
-    if i_peak_now == 0:
-        return 0
-    return 2 * math.pi * f_supply * L_COIL * i_peak_now / math.sqrt(2)
-    #phi_max = b_plate * W_COIL * TAU_P
-    #return 4.44 * N_TURNS * f_supply * phi_max # 2*pi/sqrt(2) ~ 4.44
+    """Induced coil voltage (RMS) from flux linkage (engineering estimate).
+
+    We model the per-phase induced EMF as:
+        V_rms = (omega * N * Phi_peak) / sqrt(2)  ≈ 4.44 * N * f * Phi_peak
+
+    with a simple linked flux estimate:
+        Phi_peak ≈ B_plate_peak * (W_COIL * TAU_P)
+
+    This is intentionally a *flux-linkage* voltage model (insulation/turn-to-turn stress),
+    not the reactive drop I*omega*L.
+    """
+    if i_peak_now <= 0 or f_supply <= 0:
+        return 0.0
+    phi_peak = b_plate * W_COIL * TAU_P
+    return 4.44 * N_TURNS * f_supply * phi_peak
 
 
 def set_r_r(f_slip):
@@ -574,7 +598,6 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     i_target = i_peak_now # set initial value of i_min
 
     print("VOLTS_MAX: ", VOLTS_MAX)
-    print("K_FILL: ", K_FILL)
 
     # variable with starting conditions
     vcable = V_ORBIT
@@ -642,88 +665,115 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     """
     while vcasing > GEO_250_ORBIT:
         # time varying parameters that need to be set per loop
+        #
+        # IMPORTANT: We enforce voltage and power limits *before* applying this timestep's acceleration.
+        # This prevents the early-time power spikes from "spending" illegal power for one step.
 
-        # electric phase velocity & slip
-        v_rel = get_v_rel(vcable, vcasing)
+        # --- Controller inner loop (a few quick iterations for self-consistency) ---
+        for _ctrl in range(6):
+            # Relative velocity between cable and casing (your v_rel definition)
+            v_rel = get_v_rel(vcable, vcasing)
 
-        v_wave = v_rel + v_slip
-        slip = get_slip(v_slip, v_rel)
+            # Travelling wave speed and slip kinematics
+            v_wave = v_rel + v_slip
+            slip = get_slip(v_slip, v_rel)
 
-        # frequency
-        f_slip = get_slip_frequency(v_slip)
-        f_supply = get_supply_frequency(v_wave)
+            # Frequencies
+            f_slip = get_slip_frequency(v_slip)
+            f_supply = get_supply_frequency(v_wave)
 
-        # magnetic field
-        #b_coil = get_b_coil_peak(i_peak_now)
-        b_plate = get_b_plate_peak(i_peak_now)
+            # Magnetic field at plate
+            b_plate = get_b_plate_peak(i_peak_now)
 
-        # eddy current penetration depth, volume and mass
-        skin_depth_eff = get_eff_plate_depth(f_slip)
-        skin_depth_calc = get_skin_depth_eddy(f_slip)
+            # Thrust and thrust power (per LIM)
+            thrust = get_f_thrust(f_slip, f_supply, i_peak_now)
+            p_thrust = get_thrust_power(thrust, v_rel)
 
-        # thrust one LIM
-        thrust = get_f_thrust(f_slip, f_supply, i_peak_now)
-        p_thrust = get_thrust_power(thrust, v_rel)
+            # Induced coil voltage (RMS) from flux linkage
+            volts_lim = get_coil_volts(i_peak_now, f_supply, b_plate)
 
-        # induced coil voltage is a critical limiting factor
-        #volts_lim = get_coil_volts(i_peak_now, p_thrust)
-        volts_lim = get_coil_volts(i_peak_now, f_supply, b_plate)
+            # Secondary and hysteresis losses (per LIM)
+            p_eddy = get_plate_eddy_loss_from_thrust(v_slip, thrust)
 
-        # get the new cable and casing velocities based on thrust * delta time
-        vcable = get_v_cable(vcable, thrust, dt)        # uses total mass and 
-        vcasing = get_v_casing(vcasing, thrust, dt)     # thrust for all LIMs
+            # Hard clamp: secondary power cannot exceed magnetic energy flux for same B
+            p_eddy_cap = get_thrust_power_max(b_plate, v_slip)
+            if p_eddy > p_eddy_cap:
+                p_eddy = p_eddy_cap
+
+            p_hyst = get_p_hyst_lim(f_supply, i_peak_now)
+
+            # Heating (per LIM) used for thermal and cryo sizing
+            p_heat = p_eddy + p_hyst
+
+            # Reaction plate temperature estimate
+            temp_plate_ave = get_plate_temp(v_rel, p_eddy)
+            delta_temp_lim = get_delta_t_lim(v_rel, f_slip, p_eddy)
+            alu_temp_out = temp_plate_ave + delta_temp_lim / 2
+
+            # Heat dissipation surfaces (per LIM)
+            p_heat_load = get_p_load(p_eddy)
+            min_heatsink_area = get_heatsink_area(p_heat_load, alu_temp_out)
+            min_T_ambient = get_T_min_ambient((2 * MAX_HEATSINK_AREA), p_heat_load)  # 2 heatsinks per LIM site
+
+            # Total LIM-side power bookkeeping (per LIM, then per site)
+            p_total_lim = (p_thrust + p_heat_load + p_hyst) * (2 - LIM_EFF)
+
+            # Cryo power is per LIM site (2 LIMs); include external absorbed heat via p_heat_load already.
+            if v_rel != 0:
+                heat_t = 2 * p_heat_load
+                p_cryo = get_p_cryo(heat_t, alu_temp_out)
+            else:
+                p_cryo = 0.0
+
+            lim_site_power = (2 * p_total_lim + p_cryo) * (2 - INV_EFF)
+
+            # --- Enforce limits by scaling current/slip ---
+            changed = False
+
+            # Voltage limit: volts_lim scales ~ I (because B ~ I and Phi ~ B)
+            if volts_lim > VOLTS_MAX:
+                scale_v = VOLTS_MAX / max(volts_lim, 1.0)
+                # keep scaling sane
+                scale_v = max(0.0, min(1.0, scale_v))
+                i_peak_now = max(I_MIN, i_peak_now * scale_v)
+                changed = True
+
+            # Thermal limit: conservative proportional throttling
+            if (temp_plate_ave > T_MAX_Reaction_Plate) or ((temp_plate_ave + delta_temp_lim) > T_MAX_Reaction_Plate):
+                i_peak_now = max(I_MIN, i_peak_now * 0.95)
+                v_slip = max(V_SLIP_MIN, v_slip * 0.95)
+                changed = True
+
+            # Site power limit: lim_site_power scales ~ I^2 (dominant terms), so use sqrt scaling
+            if lim_site_power > MAX_SITE_POWER:
+                scale_p = math.sqrt(MAX_SITE_POWER / max(lim_site_power, 1.0))
+                scale_p = max(0.0, min(1.0, scale_p))
+                i_new = max(I_MIN, i_peak_now * scale_p)
+                if i_new < i_peak_now:
+                    i_peak_now = i_new
+                    changed = True
+                # If current is already at minimum and still too much, reduce slip
+                if i_peak_now <= I_MIN * 1.0001 and v_slip > V_SLIP_MIN:
+                    v_slip = max(V_SLIP_MIN, v_slip * 0.95)
+                    changed = True
+
+            if not changed:
+                break
+
+        # --- Apply this timestep's acceleration using the LIMIT-COMPLIANT thrust ---
+        vcable = get_v_cable(vcable, thrust, dt)
+        vcasing = get_v_casing(vcasing, thrust, dt)
 
         # Accumulate kinetic energy (thrust power only, no losses)
         # Each site has 2 LIMs
         E_site_ke += p_thrust * 2.0 * dt
         E_total_ke += p_thrust * LIM_SITES * 2.0 * dt
 
-        # eddy current and hysteresis losses for one LIM
-        p_eddy = get_plate_eddy_loss(v_slip, i_peak_now)
-        p_hyst = get_p_hyst_lim(f_supply, i_peak_now)
-        p_heat = p_eddy + p_hyst
-
-        # equilibrium temperature of reaction plate
-        temp_plate_ave = get_plate_temp(v_rel, p_eddy)
-        # delta tempurture of reaction plate as it exits LIM
-        delta_temp_lim = get_delta_t_lim(v_rel, f_slip, p_eddy) 
-        alu_temp_out = temp_plate_ave + delta_temp_lim / 2
-        if temp_plate_ave > T_MAX_Reaction_Plate or (temp_plate_ave + delta_temp_lim) > T_MAX_Reaction_Plate:
-            i_peak_now *= 0.95  # Reduce current by 5%
-            v_slip *= 0.95
+        # Startup ramp (only if comfortably below limits)
         if time < HR:  # First hour
-            if temp_plate_ave < T_MAX_Reaction_Plate * 0.8 and volts_lim < VOLTS_MAX * 0.8:
-                i_peak_now += (I_TARGET - i_peak_now) * 0.01  # Gradual increase
+            if (temp_plate_ave < T_MAX_Reaction_Plate * 0.8 and volts_lim < VOLTS_MAX * 0.8 and lim_site_power < MAX_SITE_POWER * 0.8):
+                i_peak_now += (I_TARGET - i_peak_now) * 0.01
                 v_slip += (V_SLIP_MAX - v_slip) * 0.01
-
-        # calculate heat dissipation surfaces
-        p_heat_load = get_p_load(p_eddy)
-        min_heatsink_area = get_heatsink_area(p_heat_load, alu_temp_out)
-        min_T_ambient = get_T_min_ambient((2 * MAX_HEATSINK_AREA), p_heat_load) # 2 heatsinks per LIM site
-
-
-        # sum up all the losses for one LIM (cryo to be added)
-        p_total_lim = (p_thrust + p_heat_load + p_hyst) * (2 - LIM_EFF)
-
-        if v_rel != 0:
-            heat_t = 2 * p_heat_load         # heat from 2 LIMs + what is absobed from outside
-            p_cryo = get_p_cryo(heat_t, alu_temp_out)
-
-        lim_site_power = (2 * p_total_lim + p_cryo) * (2 - INV_EFF)
-
-        if lim_site_power < MAX_SITE_POWER * 0.9:
-            if i_peak_now < I_TARGET:
-                i_peak_now += (I_TARGET - i_peak_now) * 0.001
-            if v_slip < V_SLIP_MAX:
-                v_slip += (V_SLIP_MAX - v_slip) * 0.001
-                f_slip = get_slip_frequency(v_slip)
-        elif lim_site_power > MAX_SITE_POWER:
-            if i_peak_now > I_MIN:
-                i_peak_now *= 0.95
-            if v_slip > V_SLIP_MIN:
-                v_slip *= 0.95
-                f_slip = get_slip_frequency(v_slip)
-
         # Starting values for table, ignore 0. Only run once.
         if time == 1: 
             power_track.append(["START", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
@@ -731,6 +781,10 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
         if time > sample_time and time < sample_time_max:
             sample_time += sample_period
             skip -= 1
+            skin_depth_eff = get_eff_plate_depth(f_slip)
+            assert skin_depth_eff > 0.0
+            skin_depth_calc = get_skin_depth_eddy(f_slip)
+            assert skin_depth_calc > 0.0
             # collect data from graphs
             if skip == 0:
                 list_i_peak.append(i_peak_now)
@@ -960,8 +1014,8 @@ def main() -> None:
     show = []
     if len(sys.argv) > 1:
         show = sys.argv
-    v_slip = 50
-    i_peaks = 50
+    v_slip = V_SLIP_MAX
+    i_peaks = I_MIN
     param = get_deployment_time(v_slip, i_peaks, PARAM_STR1)
 
 
