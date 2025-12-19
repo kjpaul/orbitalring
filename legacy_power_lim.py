@@ -33,25 +33,51 @@ DT3 = 10    #
 # -------------------------------------------------
 # VARIABLE PARAMETERS, TO BE SET EXTERNALLY
 # -------------------------------------------------
-N_TURNS = 25                                # turns per phase coil (int)
+
+# -------------------------------------------------
+# HTS TAPE CONFIGURATION
+# -------------------------------------------------
+# HTS tape comes in standard widths: 12mm, 6mm, 4mm, 3mm
+# Critical current (Ic) scales linearly with tape width
+# Base Ic for 12mm tape at operating conditions: ~400A per layer
+HTS_TAPE_WIDTH_MM = 3                          # tape width in mm (12, 6, 4, or 3)
+HTS_TAPE_LAYERS = 2                             # number of tape layers (1 or 2)
+IC_PER_MM_PER_LAYER = 33.33                     # Ic per mm of tape width per layer (A/mm)
+                                                # 12mm × 33.33 A/mm = 400A per layer
+
+# Derived HTS parameters
+W_TAPE = HTS_TAPE_WIDTH_MM / 1000               # HTS tape width (m)
+I_C = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * HTS_TAPE_LAYERS  # Critical current (A)
+I_PEAK = 0.875 * I_C                            # I_peak, typically ~87.5% of Ic (A)
+I_TARGET = 0.8125 * I_C                         # I_target, typically ~81.25% of Ic (A)
+
+# -------------------------------------------------
+# LIM CONFIGURATION
+# -------------------------------------------------
+# Multiple LIMs can be placed on each side of the cable
+# Total LIMs per site = 2 × LIMS_PER_SIDE (symmetric on each side)
+LIMS_PER_SIDE = 3                               # LIMs on each side of cable (1, 2, 3, ...)
+LIMS_PER_SITE = 2 * LIMS_PER_SIDE               # Total LIMs per site
+
+# -------------------------------------------------
+# OTHER LIM PARAMETERS
+# -------------------------------------------------
+N_TURNS = 200                                # turns per phase coil (int)
 V_SLIP_MAX = 200.0                          # 
 V_SLIP_MIN = 20.0
 SLIP_MIN = 0.005
 TAU_P = 100.0                               # pole-pitch (m)
-W_COIL = 0.5                                # LIM width (m)
+W_COIL = 1.0                                # LIM width (m)
 A_COIL = TAU_P * W_COIL                     # coil area
 GAP = 0.20                                  # coil-to-plate gap (m)
 LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
 MAX_SITE_POWER = 16.0e6                     # power limit per LIM site (W)
-I_C = 800.0                                 # HTS, field & temperature dependant Ic (A)
-I_PEAK = 700.0                              # I_peak, typically ~75% of Ic (A)
-I_TARGET = 650.0
+# I_C, I_PEAK, I_TARGET, W_TAPE are now computed from HTS_TAPE_WIDTH_MM and HTS_TAPE_LAYERS above
 I_MIN = 10.0                                # lower limit on current. Reduce slip instead. (A)
 P_HEAT_MAX = 100000
 T_PLATE = 0.150                             # aluminium thickness (m)
 HTS_D = 80.0                                # HTS thickness in micrometers (kept for reference)
 VOLTS_MAX = 100e3                           # absolute peak coil voltage limit, per your assumption (V)
-W_TAPE = 0.012                              # HTS tape width is 12mm (m)
 ALPHA_ANGLE_DEG = 20.0                      # magnetic penettration angle of HTS in coils (deg)
 HEAT_SINK_L = LIM_SPACING                   # shorter heat sink mean higher ave reaction plate temp.
 
@@ -134,34 +160,45 @@ V_SLIP_FLOOR_START = 0.0    # allow v_slip to go near zero at startup to avoid m
 MAX_HEATSINK_AREA = (LIM_SPACING) * 2 * W_COIL # the heatsink extends under the coils, since they are 99.99 % open space. 
 
 PARAM_LIST = {
-    "THRUST_EFFICIENCY": THRUST_EFFICIENCY,
-    "N_TURNS": N_TURNS,
-    "V_SLIP_MAX": V_SLIP_MAX,
-    "V_SLIP_MIN": V_SLIP_MIN,
-    "TAU_P": TAU_P,
-    "I_TARGET": I_TARGET,
-    "I_MIN": I_MIN,
-    "W_COIL": W_COIL,
-    "LIM_SPACING": LIM_SPACING,
-    "VOLTS_MAX": VOLTS_MAX,
+    # HTS Configuration
+    "HTS_TAPE_WIDTH_MM": HTS_TAPE_WIDTH_MM,
+    "HTS_TAPE_LAYERS": HTS_TAPE_LAYERS,
+    "W_TAPE": W_TAPE,
     "I_C": I_C,
     "I_PEAK": I_PEAK,
-    "SLIP_MIN": SLIP_MIN,
-    "P_HEAT_MAX": P_HEAT_MAX,
-    "Q_ABS_LIM": Q_ABS_LIM,
+    "I_TARGET": I_TARGET,
+    # LIM Configuration
+    "LIMS_PER_SIDE": LIMS_PER_SIDE,
+    "LIMS_PER_SITE": LIMS_PER_SITE,
+    "N_TURNS": N_TURNS,
+    "TAU_P": TAU_P,
+    "W_COIL": W_COIL,
     "GAP": GAP,
+    "PITCH_COUNT": PITCH_COUNT,
+    "LIM_SPACING": LIM_SPACING,
+    # Operating limits
+    "THRUST_EFFICIENCY": THRUST_EFFICIENCY,
+    "V_SLIP_MAX": V_SLIP_MAX,
+    "V_SLIP_MIN": V_SLIP_MIN,
+    "SLIP_MIN": SLIP_MIN,
+    "I_MIN": I_MIN,
+    "VOLTS_MAX": VOLTS_MAX,
+    "P_HEAT_MAX": P_HEAT_MAX,
+    "MAX_SITE_POWER": MAX_SITE_POWER,
+    # Thermal
     "T_PLATE": T_PLATE,
     "ALPHA_ANGLE_DEG": ALPHA_ANGLE_DEG,
-    "PITCH_COUNT": PITCH_COUNT,
-    "CASING_OUTER_W": CASING_OUTER_W,
-    "M_CABLE_M": M_CABLE_M,
-    "M_LOAD_M": M_LOAD_M,
     "CRYO_EFF": CRYO_EFF,
     "EM_ALU": EM_ALU,
     "EM_HEAT_SINK": EM_HEAT_SINK,
     "HEAT_SINK_L": HEAT_SINK_L,
     "MAX_HEATSINK_AREA": MAX_HEATSINK_AREA,
     "V_REL_MIN": V_REL_MIN,
+    "Q_ABS_LIM": Q_ABS_LIM,
+    # Mass
+    "CASING_OUTER_W": CASING_OUTER_W,
+    "M_CABLE_M": M_CABLE_M,
+    "M_LOAD_M": M_LOAD_M,
 }
 
 # chart lists
@@ -730,14 +767,14 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             # HTS hysteresis (p_hyst) goes directly to cryo system, not this heatsink
             p_heat_load = get_p_load(p_eddy)
             min_heatsink_area = get_heatsink_area(p_heat_load, alu_temp_out)
-            min_T_ambient = get_T_min_ambient((2 * MAX_HEATSINK_AREA), p_heat_load)  # 2 heatsinks per LIM site
+            min_T_ambient = get_T_min_ambient((LIMS_PER_SITE * MAX_HEATSINK_AREA), p_heat_load)  # one heatsink per LIM
             
             # Cryo radiator calculation:
             # The cryo system removes heat_t from cold side (77K) using p_cryo electrical power
             # The radiator must reject Q_hot = heat_t + p_cryo to space
             # This is Q_cold × (1 + 1/COP) = Q_cold × (COP + 1) / COP
             if v_rel != 0:
-                heat_t = 2 * p_heat + Q_ABS_LIM  # Cold-side heat from 2 LIMs
+                heat_t = LIMS_PER_SITE * p_heat + Q_ABS_LIM  # Cold-side heat from all LIMs at site
                 p_cryo_temp = get_p_cryo(heat_t)
                 Q_hot_cryo = heat_t + p_cryo_temp  # Total heat to radiate to space
                 min_cryo_area = get_heatsink_area(Q_hot_cryo, T_N2_HOT, T_FREE_SPACE, EM_HEAT_SINK, 1.0)
@@ -747,14 +784,14 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             # Total LIM-side power bookkeeping (per LIM, then per site)
             p_total_lim = (p_thrust + p_heat_load + p_hyst) / max(LIM_EFF, 1e-6)
 
-            # Cryo power is per LIM site (2 LIMs); include external absorbed heat via p_heat_load already.
+            # Cryo power is per LIM site; include external absorbed heat via p_heat_load already.
             if v_rel != 0:
-                heat_t = 2 * p_heat + Q_ABS_LIM
+                heat_t = LIMS_PER_SITE * p_heat + Q_ABS_LIM
                 p_cryo = get_p_cryo(heat_t)
             else:
                 p_cryo = 0.0
 
-            lim_site_power = (2 * p_total_lim + p_cryo) / max(INV_EFF, 1e-6)
+            lim_site_power = (LIMS_PER_SITE * p_total_lim + p_cryo) / max(INV_EFF, 1e-6)
 
             # --- Enforce limits by scaling current/slip ---
             changed = False
@@ -804,9 +841,9 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
         vcasing = get_v_casing(vcasing, thrust, dt)
 
         # Accumulate kinetic energy (thrust power only, no losses)
-        # Each site has 2 LIMs
-        E_site_ke += p_thrust * 2.0 * dt
-        E_total_ke += p_thrust * LIM_SITES * 2.0 * dt
+        # Each site has LIMS_PER_SITE LIMs
+        E_site_ke += p_thrust * LIMS_PER_SITE * dt
+        E_total_ke += p_thrust * LIM_SITES * LIMS_PER_SITE * dt
 
         # Startup ramp (only if comfortably below limits)
         if time < HR:  # First hour
@@ -1050,7 +1087,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     print(str3)
     print(str4)
     print("Count = ", count)
-    print(f"Site KE (2 LIMs): {E_site_ke/1e12:.2f} TJ")
+    print(f"Site KE ({LIMS_PER_SITE} LIMs): {E_site_ke/1e12:.2f} TJ")
     print(f"Total KE (all sites): {E_total_ke/1e18:.4f} EJ")
     print(f"Minimum cryo radiator width: {cryo_radiator_width:.1f} m (area: {cryo_radiator_size_min:.0f} m²)")
 
