@@ -1,0 +1,128 @@
+# Orbital Ring Deployment - Thrust Model Configuration
+#
+# THREE THRUST MODELS AVAILABLE:
+# 
+# 1. "legacy" - Paul's original model (RECOMMENDED BASELINE)
+#    F = (B² × s/(1+s²) / R_r) × V_eddy
+#    - Simple equivalent circuit model
+#    - Does not account for field screening
+#    - Peak thrust at slip ratio s = 1
+#
+# 2. "goodness_standard" - Standard LIM goodness factor model
+#    F = (B²/2μ₀) × A × 2sG/(1+(sG)²)
+#    G = μ₀ × σ × v_sync × d / (π × gap)
+#    - Accounts for field screening by induced currents
+#    - More conservative (lower thrust) for high-G operation
+#    - Standard formula from LIM research literature
+#
+# 3. "goodness_original" - Incorrect formula (DO NOT USE)
+#    Kept only for comparison - gives unrealistically high thrust
+
+m_cable_per_m: 99198.0
+m_casing_per_m: 12000.0
+cable_area_m2: 56.9
+sigma_break: 2.5e10
+graph_dir: "graphs"
+
+lim:
+  # ========================================
+  # THRUST MODEL SELECTION
+  # ========================================
+  thrust_model: "legacy"      # Options: "legacy", "goodness_standard", "goodness_original"
+  thrust_coeff: 1.0           # Manual scaling factor (set <1 for conservative estimate)
+  
+  # ========================================
+  # Coil geometry
+  # ========================================
+  n_turns: 230
+  tau_p: 50.0                 # Pole pitch [m]
+  w_coil: 2.0                 # Coil width [m]
+  gap: 0.05                   # Air gap [m] (5 cm)
+  pitch_count: 3
+  spacing: 250.0
+
+  # ========================================
+  # Electrical
+  # ========================================
+  i_peak_target: 650.0
+  i_peak_min: 1.0
+  ic: 800.0
+  volts_max_user: 200000.0
+  max_site_power: 8.0e6
+
+  # ========================================
+  # Insulation
+  # ========================================
+  d_kapton_mm: 1.0
+  d_hts_um: 80.0
+  k_fill: 0.0702              # Consistent with 1mm Kapton
+  e_allow_kv_per_mm: 10.0
+  w_tape: 0.012
+
+  # ========================================
+  # Slip control
+  # ========================================
+  v_slip_min: 1.0
+  v_slip_max: 200.0
+  slip_min: 0.01
+  v_rel_min: 1.0
+
+  # ========================================
+  # Reaction plate
+  # ========================================
+  d_plate: 0.080              # Plate thickness [m] (2 cm)
+  T_plate_min: 77.0          # Minimum temperature [K]
+  heat_sink_l: 30.0
+  casing_outer_w: 10.0
+
+  # ========================================
+  # Aluminum properties
+  # ========================================
+  rho_alu_e_20C: 2.65e-8
+  alpha_alu_e: 0.00366
+
+  # ========================================
+  # Thermal
+  # ========================================
+  em_alu: 0.85
+  em_heat_sink: 0.90
+  q_sun_1au: 1361.0
+  q_earth_day: 650.0
+  q_shielding: 0.005
+
+  # ========================================
+  # Cryogenic & Efficiency
+  # ========================================
+  cryo_eff: 0.05
+  inv_eff: 0.90
+  lim_eff: 0.95
+
+  # ========================================
+  # Controller
+  # ========================================
+  di_max_per_s: 1.0
+  dvslip_max_per_s: 2.0
+
+  # ========================================
+  # Hysteresis
+  # ========================================
+  alpha_angle_deg: 20.0
+
+# ========================================
+# Simulation settings
+# ========================================
+dt: 1.0
+max_time: 1.0e9
+tol_v: 1.0e-3
+verbose: true
+explain: false
+debug: false
+
+plot:
+  - velocities
+  - thrust
+  - power
+  - efficiency
+  - goodness
+
+save_plots: true
