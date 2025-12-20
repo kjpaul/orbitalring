@@ -36,7 +36,7 @@ All parameters are defined as constants at the top of `legacy_power_lim.py`. The
 ```python
 HTS_TAPE_WIDTH_MM = 12      # Tape width: 12, 6, 4, or 3 mm
 HTS_TAPE_LAYERS = 2         # Number of tape layers: 1 or 2
-IC_PER_MM_PER_LAYER = 33.33 # Critical current per mm width per layer (A/mm)
+IC_PER_MM_PER_LAYER = 55    # Critical current per mm width per layer (A/mm)
 ```
 
 These automatically compute:
