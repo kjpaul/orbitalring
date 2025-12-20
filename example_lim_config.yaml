@@ -15,9 +15,9 @@ lim:
   n_turns: 100
   tau_p: 50.0               # Pole pitch [m]
   w_coil: 2.0               # Coil width [m]
-  gap: 0.05                 # Air gap [m] (5 cm)
+  gap: 0.20                 # Air gap [m] (5 cm)
   pitch_count: 3
-  spacing: 250.0
+  spacing: 500.0
 
   # Electrical
   i_peak_target: 650.0
