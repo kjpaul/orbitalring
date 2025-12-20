@@ -9,27 +9,6 @@ import tabulate as tabulate
 import matplotlib.pyplot as plt
 
 
-"""
-    Loop timing variables for graphs and data collection
-"""
-HR = 60 * 60
-DAY = HR * 24
-WEEK = 7 * DAY
-YR = round(DAY * 365.33)
-MONTH = 30 * DAY
-
-# graph variables
-SAMPLE_PERIOD = 1             # sample step time must me >= DT
-SAMPLE_TIME_MAX = 5 * YR      # length of sample (must be longer than deployment)
-WRITE_FILE = True
-MAKE_GRAPHS = True
-SAMPLE_TIME_STR = "-- 100 tonne cable, 12 tonne load" # graph title
-SKIP = 40                      # if 1 = no skip
-V_REL_LOCK = 5
-DT1 = 10  # First day
-DT2 = 10    # Data collection
-DT3 = 10    #
-
 # -------------------------------------------------
 # VARIABLE PARAMETERS, TO BE SET EXTERNALLY
 # -------------------------------------------------
@@ -39,11 +18,62 @@ DT3 = 10    #
 # -------------------------------------------------
 # HTS tape comes in standard widths: 12mm, 6mm, 4mm, 3mm
 # Critical current (Ic) scales linearly with tape width
-# Base Ic for 12mm tape at operating conditions: ~400A per layer
-HTS_TAPE_WIDTH_MM = 3                          # tape width in mm (12, 6, 4, or 3)
-HTS_TAPE_LAYERS = 2                             # number of tape layers (1 or 2)
-IC_PER_MM_PER_LAYER = 33.33                     # Ic per mm of tape width per layer (A/mm)
-                                                # 12mm × 33.33 A/mm = 400A per layer
+# Multiple LIMs can be placed on each side of the cable
+# Total LIMs per site = 2 × LIMS_PER_SIDE (symmetric on each side)
+N_TURNS = 15                                # turns per phase coil (int)
+LIMS_PER_SIDE = 1                           # LIMs on each side of cable (1, 2, 3, ...)
+HTS_TAPE_WIDTH_MM = 12                      # tape width in mm (12, 6, 4, or 3)
+HTS_TAPE_LAYERS = 2                         # number of tape layers (1 or 2)
+V_SLIP_MAX = 100.0                          # maximum slip velocity (m/s)
+V_SLIP_MIN = 5.0                            # minimum slip velocity (m/s)
+SLIP_RATIO_NORMAL = 0.02                    # target slip ratio at full current (2%)
+SLIP_RATIO_REDUCED = 0.01                   # target slip ratio when current-limited (1%)
+TAU_P = 100.0                               # pole-pitch (m)
+W_COIL = 0.5                                # LIM width (m)
+IC_PER_MM_PER_LAYER = 66.7                  # Ic per mm of tape width per layer, 66 max (A/mm)
+LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
+GAP = 0.10                                  # coil-to-plate gap (m)
+T_PLATE = 0.200                             # aluminium thickness (m)
+MAX_SITE_POWER = 16.0e6                     # power limit per LIM site (W)
+
+# graph and run-time variables 
+WRITE_FILE = True
+MAKE_GRAPHS = True
+SAMPLE_TIME_STR = "-- 100 tonne cable, 12 tonne load" # graph title
+SKIP = 100   # if 1 = no skip
+DT1 = 0.1   # loop dt for first day
+DT2 = 20    # loop dt until sample time max, which also ends data collection for graphs
+DT3 = 50    # loop dt until end
+
+HR = 60 * 60
+DAY = HR * 24
+WEEK = 7 * DAY
+YR = round(DAY * 365.33)
+MONTH = 30 * DAY
+SAMPLE_TIME_MAX = 5 * YR      # length of sample (must be longer than deployment)
+                                               
+# -------------------------------------------------
+# CONTROL / COUPLING PARAMETERS (tunable)
+# -------------------------------------------------
+# Thrust efficiency factor: multiplier on the idealized model F = s × F_max
+# The idealized model (THRUST_EFFICIENCY = 1.0) assumes resistive regime and is
+# likely conservative for this high magnetic Reynolds number LIM (R_m >> 1).
+# Values of 5-20 may be realistic based on shielding effects, but require
+# detailed analysis or FEM simulation to validate for this specific geometry.
+THRUST_EFFICIENCY = 1.0     # 1.0 = conservative idealized model
+
+# Slip control notes:
+# - V_SLIP_MIN ensures minimum thrust at low v_rel (startup regime)
+# - V_SLIP_MAX limits losses at high v_rel
+# - SLIP_RATIO_NORMAL (2%) used when current is at target
+# - SLIP_RATIO_REDUCED (1%) used when current is power-limited
+# - The slip target tapers between these based on current headroom
+
+SLIP_MIN = 0.005
+CURRENT_UPRATE = 1.01       # multiplicative current ramp per controller iteration when under limits
+POWER_HEADROOM = 0.98       # aim to use this fraction of MAX_SITE_POWER
+MAX_HEATSINK_AREA = (LIM_SPACING) * 2 * W_COIL # the heatsink extends under the coils, since they are 99.99 % open space. 
+A_COIL = TAU_P * W_COIL     # coil area
 
 # Derived HTS parameters
 W_TAPE = HTS_TAPE_WIDTH_MM / 1000               # HTS tape width (m)
@@ -52,38 +82,21 @@ I_PEAK = 0.875 * I_C                            # I_peak, typically ~87.5% of Ic
 I_TARGET = 0.8125 * I_C                         # I_target, typically ~81.25% of Ic (A)
 
 # -------------------------------------------------
-# LIM CONFIGURATION
-# -------------------------------------------------
-# Multiple LIMs can be placed on each side of the cable
-# Total LIMs per site = 2 × LIMS_PER_SIDE (symmetric on each side)
-LIMS_PER_SIDE = 3                               # LIMs on each side of cable (1, 2, 3, ...)
-LIMS_PER_SITE = 2 * LIMS_PER_SIDE               # Total LIMs per site
-
-# -------------------------------------------------
 # OTHER LIM PARAMETERS
 # -------------------------------------------------
-N_TURNS = 200                                # turns per phase coil (int)
-V_SLIP_MAX = 200.0                          # 
-V_SLIP_MIN = 20.0
-SLIP_MIN = 0.005
-TAU_P = 100.0                               # pole-pitch (m)
-W_COIL = 1.0                                # LIM width (m)
-A_COIL = TAU_P * W_COIL                     # coil area
-GAP = 0.20                                  # coil-to-plate gap (m)
-LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
-MAX_SITE_POWER = 16.0e6                     # power limit per LIM site (W)
 # I_C, I_PEAK, I_TARGET, W_TAPE are now computed from HTS_TAPE_WIDTH_MM and HTS_TAPE_LAYERS above
 I_MIN = 10.0                                # lower limit on current. Reduce slip instead. (A)
 P_HEAT_MAX = 100000
-T_PLATE = 0.150                             # aluminium thickness (m)
 HTS_D = 80.0                                # HTS thickness in micrometers (kept for reference)
 VOLTS_MAX = 100e3                           # absolute peak coil voltage limit, per your assumption (V)
 ALPHA_ANGLE_DEG = 20.0                      # magnetic penettration angle of HTS in coils (deg)
 HEAT_SINK_L = LIM_SPACING                   # shorter heat sink mean higher ave reaction plate temp.
+LIMS_PER_SITE = 2 * LIMS_PER_SIDE               # Total LIMs per site
 
 # Variables that could change, but probably won't
 PITCH_COUNT = 3                             # pitches per LIM (int)
 CASING_OUTER_W = 10.0                       # external width of orbital ring casing (m)
+LIM_PHASES = 3                              # power supply phases into LIMs (int)
 INV_EFF = 0.90                              # DC to AC inverter efficiency factor (int)
 LIM_EFF = 0.95                              # unaccounted for LIM losses efficiency factor (int)
 
@@ -108,14 +121,13 @@ RHO_ALU_E_70K = 4.853e-9                    # Al temp starts at 70 K(Ωm)
 RHO_ALU_M3 = 2700                           # mass per m^3 of aluminium (kg/m^3)
 L_ACTIVE = TAU_P * PITCH_COUNT              # length of LIM (m)
 A_LIM = L_ACTIVE * W_COIL                   # area under LIM (m^2)
-LIM_PHASES = 3                              # power supply phases into LIMs (int)
-L_HTS_COIL = 2 * (W_COIL + TAU_P) * N_TURNS  # HTS length in one coil (m)
+L_HTS_COIL = 2 * (W_COIL + TAU_P) * N_TURNS # HTS length in one coil (m)
 L_HTS_LIM = L_HTS_COIL * LIM_PHASES * PITCH_COUNT # HTS in one LIM (m)
-L_RING = 41645813.012                       # length of ring in meters (m)
-LIM_SITES = round(L_RING / LIM_SPACING)     # total number of LIMs (int)
+L_RING_250 = 41645813.012                   # length of ring in meters (m)
+LIM_SITES = round(L_RING_250 / LIM_SPACING) # total number of LIMs (int)
 ALPHA_TAPE = ALPHA_ANGLE_DEG * math.pi / 180 # field penetration angle of HTS (rad)
-M_CABLE_T = M_CABLE_M * L_RING              # orbital ring cable mass total (m)
-M_LOAD_T = M_LOAD_M * L_RING                # orbital ring casing + load mass total (m)
+M_CABLE_T = M_CABLE_M * L_RING_250          # orbital ring cable mass total (m)
+M_LOAD_T = M_LOAD_M * L_RING_250            # orbital ring casing + load mass total (m)
 
 # -------------------------------------------------
 # HEAT RELATED CONSTANTS
@@ -141,67 +153,56 @@ EM_HEAT_SINK = 0.9      # emisivity of heat sink surface (num)
 PA_LN2_70K = 0.4        # pressure that turns boiling point of LN2 to 70 K (atm)
 V_REL_MIN = 10          # fudge factor compensate of missleading initial heat at low v_rel (m/s)
 
-# -------------------------------------------------
-# CONTROL / COUPLING PARAMETERS (tunable)
-# -------------------------------------------------
-# Thrust efficiency factor: multiplier on the idealized model F = s × F_max
-# The idealized model (THRUST_EFFICIENCY = 1.0) assumes resistive regime and is
-# likely conservative for this high magnetic Reynolds number LIM (R_m >> 1).
-# Values of 5-20 may be realistic based on shielding effects, but require
-# detailed analysis or FEM simulation to validate for this specific geometry.
-THRUST_EFFICIENCY = 1.0     # 1.0 = conservative idealized model
-
-SLIP_TARGET = 0.01          # target slip ratio s = v_slip / v_wave (dimensionless), late-time aim
-SLIP_TARGET_START = 0.10    # higher slip allowed early to build force if desired
-SLIP_START_WINDOW = 1 * 5   # duration of startup slip schedule (s)
-CURRENT_UPRATE = 1.01       # multiplicative current ramp per controller iteration when under limits
-POWER_HEADROOM = 0.98       # aim to use this fraction of MAX_SITE_POWER
-V_SLIP_FLOOR_START = 0.0    # allow v_slip to go near zero at startup to avoid months of huge slip ratio
-MAX_HEATSINK_AREA = (LIM_SPACING) * 2 * W_COIL # the heatsink extends under the coils, since they are 99.99 % open space. 
 
 PARAM_LIST = {
     # HTS Configuration
-    "HTS_TAPE_WIDTH_MM": HTS_TAPE_WIDTH_MM,
-    "HTS_TAPE_LAYERS": HTS_TAPE_LAYERS,
-    "W_TAPE": W_TAPE,
-    "I_C": I_C,
-    "I_PEAK": I_PEAK,
-    "I_TARGET": I_TARGET,
+    "N_TURNS             #": N_TURNS,
+    "TAU_P               m": TAU_P,
+    "W_COIL              m": W_COIL,
+    "SLIP_RATIO_NORMAL   %": SLIP_RATIO_NORMAL * 100,
+    "SLIP_RATIO_REDUCED  %": SLIP_RATIO_REDUCED * 100,
+    "GAP                mm": GAP * 1000,
+    "HTS_TAPE_WIDTH_MM  mm": HTS_TAPE_WIDTH_MM,
+    "HTS_TAPE_LAYERS     #": HTS_TAPE_LAYERS,
+    "W_TAPE              m": W_TAPE,
+    "I_C                 A": round(I_C),
+    "I_PEAK              A": round(I_PEAK),
+    "I_TARGET            A": round(I_TARGET),
+    "V_SLIP_MAX        m/s": V_SLIP_MAX,
+    "V_SLIP_MIN        m/s": V_SLIP_MIN,
+    "SLIP_MIN            %": SLIP_MIN * 100,
     # LIM Configuration
-    "LIMS_PER_SIDE": LIMS_PER_SIDE,
-    "LIMS_PER_SITE": LIMS_PER_SITE,
-    "N_TURNS": N_TURNS,
-    "TAU_P": TAU_P,
-    "W_COIL": W_COIL,
-    "GAP": GAP,
-    "PITCH_COUNT": PITCH_COUNT,
-    "LIM_SPACING": LIM_SPACING,
+    "LIMS_PER_SIDE       #": LIMS_PER_SIDE,
+    "LIMS_PER_SITE       #": LIMS_PER_SITE,
+    "PITCH_COUNT         #": PITCH_COUNT,
+    "LIM_SPACING         m": LIM_SPACING,
     # Operating limits
-    "THRUST_EFFICIENCY": THRUST_EFFICIENCY,
-    "V_SLIP_MAX": V_SLIP_MAX,
-    "V_SLIP_MIN": V_SLIP_MIN,
-    "SLIP_MIN": SLIP_MIN,
-    "I_MIN": I_MIN,
-    "VOLTS_MAX": VOLTS_MAX,
-    "P_HEAT_MAX": P_HEAT_MAX,
-    "MAX_SITE_POWER": MAX_SITE_POWER,
+    "THRUST_EFFICIENCY   %": THRUST_EFFICIENCY * 100,
+    "I_MIN               A": I_MIN,
+    "VOLTS_MAX          kV": VOLTS_MAX/1000,
+    "P_HEAT_MAX         kW": P_HEAT_MAX/1000,
+    "MAX_SITE_POWER     MW": MAX_SITE_POWER/1e6,
     # Thermal
-    "T_PLATE": T_PLATE,
-    "ALPHA_ANGLE_DEG": ALPHA_ANGLE_DEG,
-    "CRYO_EFF": CRYO_EFF,
-    "EM_ALU": EM_ALU,
-    "EM_HEAT_SINK": EM_HEAT_SINK,
-    "HEAT_SINK_L": HEAT_SINK_L,
-    "MAX_HEATSINK_AREA": MAX_HEATSINK_AREA,
-    "V_REL_MIN": V_REL_MIN,
-    "Q_ABS_LIM": Q_ABS_LIM,
+    "T_PLATE            mm": T_PLATE * 1000,
+    "ALPHA_ANGLE_DEG   deg": ALPHA_ANGLE_DEG,
+    "CRYO_EFF            %": CRYO_EFF,
+    "EM_ALU              %": EM_ALU * 100,
+    "EM_HEAT_SINK        %": EM_HEAT_SINK * 100,
+    "HEAT_SINK_L         m": HEAT_SINK_L,
+    "MAX_HEATSINK_AREA  m²": MAX_HEATSINK_AREA,
+    "V_REL_MIN         m/s": V_REL_MIN,
+    "Q_ABS_LIM           W": Q_ABS_LIM,
     # Mass
-    "CASING_OUTER_W": CASING_OUTER_W,
-    "M_CABLE_M": M_CABLE_M,
-    "M_LOAD_M": M_LOAD_M,
+    "CASING_OUTER_WIDTH  m": CASING_OUTER_W,
+    "M_CABLE_M       tonne": M_CABLE_M/1000,
+    "M_LOAD_M        tonne": M_LOAD_M/1000,
 }
+for key, value in PARAM_LIST.items():
+    str1 = (f"\t{key:20}\t{value:8}")
+    print(str1)
+print("--------------------------------------------------------------------")
 
-# chart lists
+# chart lists data collectors
 list_i_peak = []
 list_volts = []
 list_v_slip = []
@@ -673,7 +674,6 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     E_site_ke = 0.0      # Kinetic energy per site (thrust power only)
     E_total_ke = 0.0     # Total kinetic energy all sites
     count = 0
-    sample_period = SAMPLE_PERIOD
     sample_time = 0
     skip = 1             # record first round, then start skip
     sample_time_max = SAMPLE_TIME_MAX
@@ -701,27 +701,39 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
         # This prevents the early-time power spikes from "spending" illegal power for one step.
 
         # --- Controller inner loop (a few quick iterations for self-consistency) ---
-        for _ctrl in range(6):
+        for _ctrl in range(100):
             # Relative velocity between cable and casing (your v_rel definition)
             v_rel = get_v_rel(vcable, vcasing)
 
-            # Travelling wave speed and slip kinematics
-            # Control v_slip via a target slip ratio to avoid long periods of excessive slip early on.
-            # s = v_slip / (v_rel + v_slip)  =>  v_slip = (s/(1-s)) * v_rel
-            if time < SLIP_START_WINDOW:
-                s_tgt = SLIP_TARGET_START
-                v_floor = V_SLIP_FLOOR_START
+            # Slip control with current-dependent tapering
+            # When power-limited (current reduced), lower slip reduces P_eddy,
+            # allowing more current headroom for thrust.
+            #
+            # Three regimes:
+            #   STARTUP (v_rel < ~500 m/s): v_slip clamped at V_SLIP_MIN, slip ratio naturally high
+            #   SWEET SPOT (v_rel ~500-5000 m/s): v_slip follows slip ratio target
+            #   HIGH SPEED (v_rel > ~5000 m/s): power controller limits current, slip tapers down
+            
+            current_ratio = i_peak_now / I_TARGET
+            if current_ratio >= 0.9:
+                # Full current available - use normal slip ratio
+                s_tgt = SLIP_RATIO_NORMAL
+            elif current_ratio <= 0.5:
+                # Severely current-limited - use reduced slip ratio
+                s_tgt = SLIP_RATIO_REDUCED
             else:
-                s_tgt = SLIP_TARGET
-                v_floor = V_SLIP_MIN
+                # Linear interpolation between 50% and 90% current
+                t = (current_ratio - 0.5) / 0.4
+                s_tgt = SLIP_RATIO_REDUCED + t * (SLIP_RATIO_NORMAL - SLIP_RATIO_REDUCED)
 
-            if s_tgt >= 0.999:
-                s_tgt = 0.999
-            if s_tgt <= 0.0:
-                s_tgt = 1e-6
+            # Clamp slip ratio to valid range
+            s_tgt = max(1e-6, min(0.999, s_tgt))
 
+            # Compute v_slip from slip ratio: s = v_slip/(v_rel + v_slip) => v_slip = s/(1-s) × v_rel
             v_slip_target = (s_tgt / (1.0 - s_tgt)) * max(v_rel, 0.0)
-            v_slip = max(v_floor, min(V_SLIP_MAX, v_slip_target))
+            
+            # Apply floor (ensures thrust at low v_rel) and ceiling (limits losses)
+            v_slip = max(V_SLIP_MIN, min(V_SLIP_MAX, v_slip_target))
 
             v_wave = v_rel + v_slip
             slip = get_slip(v_slip, v_rel)
@@ -748,8 +760,8 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
 
             # Hard clamp: secondary power cannot exceed magnetic energy flux for same B
             p_eddy_cap = get_thrust_power_max(b_plate, v_slip)
-            if p_eddy > p_eddy_cap:
-                p_eddy = p_eddy_cap
+            #if p_eddy > p_eddy_cap:
+            #    p_eddy = p_eddy_cap
 
             p_hyst = get_p_hyst_lim(f_supply, i_peak_now)
 
@@ -852,61 +864,58 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
                 # v_slip is controlled by slip ratio; do not force-ramp it here
         # Starting values for table, ignore 0. Only run once.
         if time == 1: 
-            power_track.append(["START", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append(["START", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_cryo/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
 
+        
+        skin_depth_eff = get_eff_plate_depth(f_slip, alu_temp_out)
+        assert skin_depth_eff > 0.0
+        skin_depth_calc = get_skin_depth_eddy(f_slip, alu_temp_out)
+        assert skin_depth_calc > 0.0
+        
         if time > sample_time and time < sample_time_max:
-            sample_time += sample_period
-            skip -= 1
-            skin_depth_eff = get_eff_plate_depth(f_slip, alu_temp_out)
-            assert skin_depth_eff > 0.0
-            skin_depth_calc = get_skin_depth_eddy(f_slip, alu_temp_out)
-            assert skin_depth_calc > 0.0
-            # collect data from graphs
-            if skip == 0:
-                list_i_peak.append(i_peak_now)
-                list_volts.append(volts_lim )
-                list_v_slip.append(v_slip)
-                list_slip.append(slip*100)
-                list_f_slip.append(f_slip)
-                list_thrust.append(thrust)
-                list_thrust_power.append(p_thrust)
-                list_v_rel.append(v_rel)
-                list_b_peak.append(b_plate)
-                list_p_eddy.append(p_eddy)
-                list_skin_depth_eff.append(skin_depth_eff*1000)
-                list_skin_depth_calc.append(skin_depth_calc*1000)
-                list_p_cryo.append(p_cryo)
-                list_p_hyst.append(p_hyst)
-                list_p_lim.append(p_total_lim)
-                list_p_lim_site.append(lim_site_power)
-                list_temp_plate_ave.append(temp_plate_ave)
-                list_E_site_ke.append(E_site_ke)
-                list_E_total_ke.append(E_total_ke)
-
-
-                count += 1
-                skip = SKIP
+            sample_time += SKIP
+            count += 1
+            
+            list_i_peak.append(i_peak_now)
+            list_volts.append(volts_lim )
+            list_v_slip.append(v_slip)
+            list_slip.append(slip*100)
+            list_f_slip.append(f_slip)
+            list_thrust.append(thrust)
+            list_thrust_power.append(p_thrust)
+            list_v_rel.append(v_rel)
+            list_b_peak.append(b_plate)
+            list_p_eddy.append(p_eddy)
+            list_skin_depth_eff.append(skin_depth_eff*1000)
+            list_skin_depth_calc.append(skin_depth_calc*1000)
+            list_p_cryo.append(p_cryo)
+            list_p_hyst.append(p_hyst)
+            list_p_lim.append(p_total_lim)
+            list_p_lim_site.append(lim_site_power)
+            list_temp_plate_ave.append(temp_plate_ave)
+            list_E_site_ke.append(E_site_ke)
+            list_E_total_ke.append(E_total_ke)
 
         # collect data at various early intervals
         if time > second and time < 60:
-            power_track.append([f"{round(time)} sec", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time)} sec", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_cryo/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             second += 5
         if time > minute and time < HR:
-            power_track.append([f"{round(time/60)} min", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/60)} min", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_cryo/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             if minute == 60:
                 minute += 60*4
             else:
                 minute += 60*5
         if time > hours * HR and time < 24 * HR:
-            power_track.append([f"{round(time/HR)} hrs", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/HR)} hrs", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_cryo/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             hours += 1
         if time > days * DAY and time < 31 * DAY:
-            power_track.append([f"{round(time/DAY)} day", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/DAY)} day", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_cryo/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             days += 1
 
         # show progress to stdout and collect data monthly
         if time > months * MONTH:
-            power_track.append([f"{round(time/MONTH)} mth", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+            power_track.append([f"{round(time/MONTH)} mth", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_cryo/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
             months += 1
             # show progress to screen once a month
             #sys.stdout.write(".")
@@ -914,19 +923,22 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
 
         # show yearly progress to stdout
         if time > mts * MONTH:
-            mthstr = str(mts)+" "
+            if mts < 10:
+                mthstr = str(mts)+"  "
+            else:
+                mthstr = str(mts)+" "
             sys.stdout.write(mthstr)
             prog = get_progress(vcasing)
             if mts == 0:
                 print(f"dt =  {dt}")
-                print(f"Months | Prog |   Volts   | I_Peak  |  V_Slip  |  Slip  |F_Supply|  Eddy  |  Hyst  |LIM Power  | Site Power| Thrust")
-                print(f"{mthstr} mts, {prog:.2f}%, {volts_lim:.2f} V, {i_peak_now:.2f} A, {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:.2f} Hz, {p_eddy:.2f} W, {p_hyst:.2f} W, {p_total_lim/1e6:.3f} MW, {lim_site_power/1e6:.3f} MW, {thrust:.3f} N")
+                print(f"Months| Prog | Volts  | I_Peak  | V_Slip  | Slip |F_Supply|  Eddy |  Hyst | Cryo Power|Site Power| Thrust")
+                print(f"{mthstr}mts, {prog:.1f}%, {volts_lim:.2f} V,  {i_peak_now:.2f} A,  {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:.2f} Hz, {p_eddy:.2f} W, {p_hyst:.2f} W, {p_cryo/1e6:.3f} MW, {lim_site_power/1e6:.3f} MW, {thrust:.3f} N")
             else:
-                print(f"mts, {prog:.2f}%, {volts_lim:.2f} V, {i_peak_now:.2f} A, {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:.2f} Hz, {p_eddy:.2f} W, {p_hyst:.2f} W, {p_total_lim/1e6:.3f} MW, {lim_site_power/1e6:.3f} MW, {thrust:.3f} N")
+                print(f"mts, {prog:.0f}%, {volts_lim:.0f} V, {i_peak_now:.2f} A, {v_slip:.2f} m/s, {slip*100:.2f}%, {f_supply:2.2f} Hz, {p_eddy:.0f} W, {p_hyst:.0f} W, {p_cryo/1e6:.3f} MW, {lim_site_power/1e6:.1f} MW, {thrust:.0f} N")
             mts += 1
  
         # collect min-max data
-        if v_rel != 0:
+        if v_rel != 0 and time > DAY: # things are out of wack at the beginning and a real deployment would account for it.
             if max_min["volts_max"][3] < volts_lim:
                 max_min["volts_max"] = [round(volts_lim,2), time, "V", volts_lim]
 
@@ -975,7 +987,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             if max_min["site_power_max"][3] < lim_site_power:
                 max_min["site_power_max"] = [round(lim_site_power/1e6,3), time, "MW", lim_site_power]
 
-            if max_min["min_heatsink_area"][3] < min_heatsink_area and time > HR:
+            if max_min["min_heatsink_area"][3] < min_heatsink_area:
                 max_min["min_heatsink_area"] = [round(min_heatsink_area), time, "m²/LIM", min_heatsink_area]
 
             if max_min["min_ambient_T"][3] < min_T_ambient:
@@ -990,8 +1002,8 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             if max_min["alu_temp_out"][3] < alu_temp_out:
                 max_min["alu_temp_out"] = [round(alu_temp_out), time, "W", alu_temp_out]
 
-            if max_min["p_cryo_max"][3] < p_cryo:
-                max_min["p_cryo_max"] = [round(p_cryo,2), time, "W", p_cryo]
+            if max_min["p_cryo_max"][3] < p_cryo:                  
+                max_min["p_cryo_max"] = [round(p_cryo/1e6,2), time, "MW", p_cryo]
 
             if max_min["skin_d_max"][3] < skin_depth_eff:
                 max_min["skin_d_max"] = [round(skin_depth_eff*1000,2), time, "mm", skin_depth_eff]
@@ -1037,8 +1049,8 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     print("\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
     print(f"{exit_msg}\t\t{time/YR:.2f} yrs")
     # post loop data collection
-    power_track.append([f"{round(time/YR,2)} yrs", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,1), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_total_lim/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
-    power_track.append(["Time", "V_Shell", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "LIM Power", "Site Power"])
+    power_track.append([f"{round(time/YR,2)} yrs", round(vcasing,1), round(i_peak_now,1), round(volts_lim,1), round(v_slip,1), f"{round(slip*100,1)}%", round(f_supply,3), round(p_eddy,1), round(p_hyst,1), round(thrust,1), f"{round(p_thrust/1e6,3)} MW", f"{round(p_cryo/1e6,3)} MW", f"{round(lim_site_power/1e6,3)} MW"])
+    power_track.append(["Time", "V_Shell", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "Cryo Power", "Site Power"])
 
     str2 = f"Deployment time: {time / DAY:.2f} days, {time / YR:.2f} years"
     str3 = f"Cable velocity: {vcable:.2f} m/s"
@@ -1047,11 +1059,6 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     # post loop wrap-up. show data.
     lines = ["\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n", exit_msg+"\n", str2+"\n", str3+"\n", str4+"\n"]
     lines.append("\n--------------------------------------------------------------------\n")
-    print("--------------------------------------------------------------------")
-    for key, value in PARAM_LIST.items():
-        str1 = (f"\t{key:15}\t{value:8}")
-        print(str1)
-        lines.append(str1+"\n")
     print("--------------------------------------------------------------------")
     lines.append("\n--------------------------------------------------------------------\n")
     # print out max_min data
@@ -1075,8 +1082,8 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     lines.append("\n--------------------------------------------------------------------\n")
    
     print("")
-    print(tabulate.tabulate(power_track, headers=["Time", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "LIM Power", "Site Power"]))
-    lines.append(tabulate.tabulate(power_track, headers=["Time", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "LIM Power", "Site Power"]))
+    print(tabulate.tabulate(power_track, headers=["V_Shell", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "Cryo Power", "Site Power"]))
+    lines.append(tabulate.tabulate(power_track, headers=["V_Shell", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "Cryo Power", "Site Power"]))
     print("--------------------------------------------------------------------")
     lines.append("\n--------------------------------------------------------------------\n")
 
