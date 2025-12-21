@@ -20,16 +20,16 @@ import matplotlib.pyplot as plt
 # Critical current (Ic) scales linearly with tape width
 # Multiple LIMs can be placed on each side of the cable
 # Total LIMs per site = 2 × LIMS_PER_SIDE (symmetric on each side)
-N_TURNS = 15                                # turns per phase coil (int)
+N_TURNS = 59                                # turns per phase coil (int)
 LIMS_PER_SIDE = 1                           # LIMs on each side of cable (1, 2, 3, ...)
 HTS_TAPE_WIDTH_MM = 12                      # tape width in mm (12, 6, 4, or 3)
-HTS_TAPE_LAYERS = 2                         # number of tape layers (1 or 2)
+HTS_TAPE_LAYERS = 1                         # number of tape layers (1 or 2)
 V_SLIP_MAX = 100.0                          # maximum slip velocity (m/s)
 V_SLIP_MIN = 5.0                            # minimum slip velocity (m/s)
-SLIP_RATIO_NORMAL = 0.02                    # target slip ratio at full current (2%)
-SLIP_RATIO_REDUCED = 0.01                   # target slip ratio when current-limited (1%)
+SLIP_RATIO_NORMAL = 0.0121                    # target slip ratio at full current (2%)
+SLIP_RATIO_REDUCED = 0.08                   # target slip ratio when current-limited (1%)
 TAU_P = 100.0                               # pole-pitch (m)
-W_COIL = 0.5                                # LIM width (m)
+W_COIL = 2.0                                # LIM width (m)
 IC_PER_MM_PER_LAYER = 66.7                  # Ic per mm of tape width per layer, 66 max (A/mm)
 LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
 GAP = 0.10                                  # coil-to-plate gap (m)
@@ -138,7 +138,7 @@ Q_SHEILDING = 0.005     # percentage of heat radiation that passes through multi
 Q_ABS_M = (Q_SUN_1AU + Q_EARTH_DAY) * CASING_OUTER_W * Q_SHEILDING # external heat absorbed by ring (W/m)
 Q_ABS_LIM = Q_ABS_M * LIM_SPACING # external heat absorbed by ring (W)
 T_FREE_SPACE = 2.7      # temperature of free space (K)
-CRYO_EFF = 0.05         # Cryo efficiency: 0.031 -> 32 W are needed for Cryo per W of heat (1/W)
+CRYO_EFF = 0.18         # Cryo efficiency: 0.031 -> 32 W are needed for Cryo per W of heat (1/W)
 C_P_ALU = 900           # heat capacity or aluminium (J/kg K)
 H_CONV_LN2 = 90         # Convective Heat Transfer Coefficient LN2 (W m^-2 K^-1)
 T2_LN2_BOIL = 77.4      # boiling point of liquid nitroger at 1 atm (K)
@@ -701,6 +701,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
         # This prevents the early-time power spikes from "spending" illegal power for one step.
 
         # --- Controller inner loop (a few quick iterations for self-consistency) ---
+
         for _ctrl in range(100):
             # Relative velocity between cable and casing (your v_rel definition)
             v_rel = get_v_rel(vcable, vcasing)
@@ -1018,6 +1019,10 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             break
         if lim_site_power > MAX_SITE_POWER * 1.1:
             exit_msg = f"FAIL max site power exceeded: {lim_site_power:.0f} W"
+            make_graphs = False
+            break
+        if TAU_P * PITCH_COUNT > LIM_SPACING:
+            exit_msg = f"FAIL The LIM ia longer than the LIM_SPACING: LIM={TAU_P * PITCH_COUNT} m, SPACING={LIM_SPACING} m\n"
             make_graphs = False
             break
         # increment loop variable for next loop and break it time exceeded
