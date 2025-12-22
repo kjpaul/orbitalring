@@ -14,35 +14,38 @@ import matplotlib.pyplot as plt
 # -------------------------------------------------
 
 # -------------------------------------------------
-# HTS TAPE CONFIGURATION
+# HTS TAPE AND FREQUENTLY CHANGED PARAMETERS
 # -------------------------------------------------
 # HTS tape comes in standard widths: 12mm, 6mm, 4mm, 3mm
 # Critical current (Ic) scales linearly with tape width
 # Multiple LIMs can be placed on each side of the cable
 # Total LIMs per site = 2 × LIMS_PER_SIDE (symmetric on each side)
-N_TURNS = 59                                # turns per phase coil (int)
+N_TURNS = 93                                # turns per phase coil (int)
 LIMS_PER_SIDE = 1                           # LIMs on each side of cable (1, 2, 3, ...)
-HTS_TAPE_WIDTH_MM = 12                      # tape width in mm (12, 6, 4, or 3)
-HTS_TAPE_LAYERS = 1                         # number of tape layers (1 or 2)
+HTS_TAPE_WIDTH_MM = 3                      # tape width in mm (12, 6, 4, or 3)
+HTS_TAPE_LAYERS = 2                         # number of tape layers (1 or 2)
 V_SLIP_MAX = 100.0                          # maximum slip velocity (m/s)
 V_SLIP_MIN = 5.0                            # minimum slip velocity (m/s)
-SLIP_RATIO_NORMAL = 0.0121                    # target slip ratio at full current (2%)
+SLIP_RATIO_NORMAL = 0.0121                  # target slip ratio at full current (2%)
 SLIP_RATIO_REDUCED = 0.08                   # target slip ratio when current-limited (1%)
 TAU_P = 100.0                               # pole-pitch (m)
 W_COIL = 2.0                                # LIM width (m)
-IC_PER_MM_PER_LAYER = 66.7                  # Ic per mm of tape width per layer, 66 max (A/mm)
+GAP = 0.20                                  # coil-to-plate gap (m)
 LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
-GAP = 0.10                                  # coil-to-plate gap (m)
-T_PLATE = 0.200                             # aluminium thickness (m)
+T_PLATE = 0.100                             # aluminium thickness (m)
+IC_PER_MM_PER_LAYER = 66.7                  # Ic per mm of tape width per layer, 66 max (A/mm)
 MAX_SITE_POWER = 16.0e6                     # power limit per LIM site (W)
 
 # graph and run-time variables 
 WRITE_FILE = True
 MAKE_GRAPHS = True
-SAMPLE_TIME_STR = "-- 100 tonne cable, 12 tonne load" # graph title
+
+# -------------------------------------------------
+# TIME CONTROL
+# -------------------------------------------------
 SKIP = 100   # if 1 = no skip
-DT1 = 0.1   # loop dt for first day
-DT2 = 20    # loop dt until sample time max, which also ends data collection for graphs
+DT1 = 1   # loop dt for first day
+DT2 = 10    # loop dt until sample time max, which also ends data collection for graphs
 DT3 = 50    # loop dt until end
 
 HR = 60 * 60
@@ -108,6 +111,7 @@ M_CABLE_M = 99_198                         # orbital ring cable mass per meter (
 M_LOAD_M = 12_000                            # orbital ring casing + load mass per meter (m)
 
 # lable data for plots
+SAMPLE_TIME_STR = "-- 100 tonne cable, 12 tonne load" # graph title
 PARAM_STR1 = f"τp={TAU_P} m, N={N_TURNS}, V_Slip_max={V_SLIP_MAX} m/s, d={LIM_SPACING} m"
 
 # -------------------------------------------------
@@ -144,7 +148,7 @@ H_CONV_LN2 = 90         # Convective Heat Transfer Coefficient LN2 (W m^-2 K^-1)
 T2_LN2_BOIL = 77.4      # boiling point of liquid nitroger at 1 atm (K)
 T1_LN2_CRYO = 70        # temperature of LN2 as it leaves cryogenic system (K)
 T_N2_HOT = 300          # N2 temperature as it leave the compressor and enters the radiator (K)
-T_MAX_Reaction_Plate = 500  # maximum temp for aluminium reaction plate (K)
+T_MAX_REACTION_PLATE = 500  # maximum temp for aluminium reaction plate (K)
 K_ALU = 205             # thermal conductivity of aluminium (W/m*K)
 C_P_LN2 = 2040          # Specific heat capacity of LN2 (J/kg*K)
 L_V_LN2 = 199000        # Latent heat of vaporization LN2 (J/kg)
@@ -201,6 +205,7 @@ for key, value in PARAM_LIST.items():
     str1 = (f"\t{key:20}\t{value:8}")
     print(str1)
 print("--------------------------------------------------------------------")
+
 
 # chart lists data collectors
 list_i_peak = []
@@ -619,12 +624,13 @@ def annotate_final(data_list, unit="", fmt=".1f"):
     )
 
 
+
 """
     # -------------------------------------------------
     # MAIN LOOP. CALCULATE DEPLOYMENT TIME
     # -------------------------------------------------
 """
-def get_deployment_time(v_slip, i_peak_now, param_str1):
+def get_deployment_time(v_slip, i_peak_now):
     # loop variables
     dt = DT1        # initial number of seconds per loop
     i_target = i_peak_now # set initial value of i_min
@@ -678,10 +684,24 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     skip = 1             # record first round, then start skip
     sample_time_max = SAMPLE_TIME_MAX
 
-    param_str1 = f"{SAMPLE_TIME_STR}\n{param_str1}"
+    param_str1 = f"{SAMPLE_TIME_STR}\n{PARAM_STR1}"
     exit_msg = "PASSED"
     make_graphs = MAKE_GRAPHS
     alu_temp_out = 70.0  # the entire orbital ring starts at cryogenic temperature
+
+    # --- Controller smoothing (does not change physics, only actuator behavior) ---
+    CTRL_TAU_SLIP = 15 * DAY          # time constant for v_slip response (tune: 3–12 hr)
+    DVSLIP_MAX_PER_S = 0.0001         # max v_slip slew rate (m/s^2). tune: 0.005–0.05
+                                     # 0.01 = max 36 m/s change per hour
+
+    v_slip_cmd = v_slip             # controller state (commanded v_slip)
+
+    DI_MAX_PER_S = 0.1   # max current slew rate (A/s). tune: 0.5–10 A/s
+
+    i_peak_prev = i_peak_now
+    
+    # Initialize power tracking for predictive control
+    lim_site_power = 0.0  # Will be calculated properly in first iteration
 
     """
         The two control variables are i_peak_now and v_slip. i_peak_now 
@@ -706,26 +726,42 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             # Relative velocity between cable and casing (your v_rel definition)
             v_rel = get_v_rel(vcable, vcasing)
 
-            # Slip control with current-dependent tapering
-            # When power-limited (current reduced), lower slip reduces P_eddy,
-            # allowing more current headroom for thrust.
+            # ============================================================
+            # PREDICTIVE POWER-MARGIN CONTROL
+            # ============================================================
+            # Instead of reacting to current reduction, we proactively adjust
+            # v_slip based on how close we are to the power limit.
             #
-            # Three regimes:
-            #   STARTUP (v_rel < ~500 m/s): v_slip clamped at V_SLIP_MIN, slip ratio naturally high
-            #   SWEET SPOT (v_rel ~500-5000 m/s): v_slip follows slip ratio target
-            #   HIGH SPEED (v_rel > ~5000 m/s): power controller limits current, slip tapers down
+            # Key insight: p_heat drives p_cryo which dominates site_power.
+            # By monitoring power margin directly, we can anticipate and
+            # smoothly adjust before hitting hard limits.
+            # ============================================================
             
-            current_ratio = i_peak_now / I_TARGET
-            if current_ratio >= 0.9:
-                # Full current available - use normal slip ratio
+            # Calculate current power margin (1.0 = plenty of headroom, 0.0 = at limit)
+            power_margin = 1.0 - (lim_site_power / MAX_SITE_POWER)
+            
+            # Define margin thresholds for proactive control
+            MARGIN_COMFORTABLE = 0.15  # Above this: use optimal slip ratio
+            MARGIN_TIGHT = 0.05        # Below this: aggressively increase v_slip
+            
+            if power_margin >= MARGIN_COMFORTABLE:
+                # Plenty of headroom - use optimal slip ratio for thrust
                 s_tgt = SLIP_RATIO_NORMAL
-            elif current_ratio <= 0.5:
-                # Severely current-limited - use reduced slip ratio
+            elif power_margin <= MARGIN_TIGHT:
+                # Very tight - maximize v_slip to reduce heat
                 s_tgt = SLIP_RATIO_REDUCED
             else:
-                # Linear interpolation between 50% and 90% current
-                t = (current_ratio - 0.5) / 0.4
+                # Linear interpolation based on power margin
+                t = (power_margin - MARGIN_TIGHT) / (MARGIN_COMFORTABLE - MARGIN_TIGHT)
                 s_tgt = SLIP_RATIO_REDUCED + t * (SLIP_RATIO_NORMAL - SLIP_RATIO_REDUCED)
+            
+            # Also factor in current headroom (secondary consideration)
+            current_ratio = i_peak_now / I_TARGET
+            if current_ratio < 0.7:
+                # If current is significantly reduced, blend toward higher slip
+                current_blend = (0.7 - current_ratio) / 0.2  # 0 at 70%, 1 at 50%
+                current_blend = max(0.0, min(1.0, current_blend))
+                s_tgt = s_tgt + current_blend * (SLIP_RATIO_REDUCED - s_tgt)
 
             # Clamp slip ratio to valid range
             s_tgt = max(1e-6, min(0.999, s_tgt))
@@ -734,7 +770,26 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
             v_slip_target = (s_tgt / (1.0 - s_tgt)) * max(v_rel, 0.0)
             
             # Apply floor (ensures thrust at low v_rel) and ceiling (limits losses)
-            v_slip = max(V_SLIP_MIN, min(V_SLIP_MAX, v_slip_target))
+            #v_slip = max(V_SLIP_MIN, min(V_SLIP_MAX, v_slip_target))
+            # Compute v_slip from slip ratio target
+            v_slip_target = (s_tgt / (1.0 - s_tgt)) * max(v_rel, 0.0)
+
+            # First apply bounds to the target (still the same physics constraints)
+            v_slip_target = max(V_SLIP_MIN, min(V_SLIP_MAX, v_slip_target))
+
+            # --- Smooth actuator: first-order lag + slew-rate limit ---
+            # Low-pass coefficient that remains stable across big dt changes
+            alpha = 1.0 - math.exp(-dt / max(CTRL_TAU_SLIP, 1e-9))
+
+            # Low-pass toward target
+            v_slip_cmd = v_slip_cmd + alpha * (v_slip_target - v_slip_cmd)
+
+            # Slew-rate limit (prevents one-step jumps when dt is large)
+            max_step = DVSLIP_MAX_PER_S * dt
+            v_slip_cmd = max(v_slip - max_step, min(v_slip + max_step, v_slip_cmd))
+
+            v_slip = v_slip_cmd
+
 
             v_wave = v_rel + v_slip
             slip = get_slip(v_slip, v_rel)
@@ -818,7 +873,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
                 changed = True
 
             # Thermal limit: conservative proportional throttling
-            if (temp_plate_ave > T_MAX_Reaction_Plate) or ((temp_plate_ave + delta_temp_lim) > T_MAX_Reaction_Plate):
+            if (temp_plate_ave > T_MAX_REACTION_PLATE) or ((temp_plate_ave + delta_temp_lim) > T_MAX_REACTION_PLATE):
                 i_peak_now = max(I_MIN, i_peak_now * 0.95)
                 v_slip = max(V_SLIP_MIN, v_slip * 0.95)
                 changed = True
@@ -836,13 +891,19 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
                     v_slip = max(V_SLIP_MIN, v_slip * 0.95)
                     changed = True
 
+            # Current slew limit (actuator realism)
+            i_step = DI_MAX_PER_S * dt
+            i_peak_now = max(i_peak_prev - i_step, min(i_peak_prev + i_step, i_peak_now))
+            i_peak_prev = i_peak_now
+
+
             # If we are comfortably below all limits, ramp current upward to use available power headroom.
             # Without this, the controller can get "stuck" at a low current set early in the run.
             if (not changed
                     and i_peak_now < I_TARGET
                     and lim_site_power < POWER_HEADROOM * MAX_SITE_POWER
                     and volts_lim < POWER_HEADROOM * VOLTS_MAX
-                    and temp_plate_ave < POWER_HEADROOM * T_MAX_Reaction_Plate):
+                    and temp_plate_ave < POWER_HEADROOM * T_MAX_REACTION_PLATE):
                 i_peak_now = min(I_TARGET, i_peak_now * CURRENT_UPRATE)
                 changed = True
 
@@ -860,7 +921,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
 
         # Startup ramp (only if comfortably below limits)
         if time < HR:  # First hour
-            if (temp_plate_ave < T_MAX_Reaction_Plate * 0.8 and volts_lim < VOLTS_MAX * 0.8 and lim_site_power < MAX_SITE_POWER * 0.8):
+            if (temp_plate_ave < T_MAX_REACTION_PLATE * 0.8 and volts_lim < VOLTS_MAX * 0.8 and lim_site_power < MAX_SITE_POWER * 0.8):
                 i_peak_now += (I_TARGET - i_peak_now) * 0.01
                 # v_slip is controlled by slip ratio; do not force-ramp it here
         # Starting values for table, ignore 0. Only run once.
@@ -1064,6 +1125,10 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     # post loop wrap-up. show data.
     lines = ["\n++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n", exit_msg+"\n", str2+"\n", str3+"\n", str4+"\n"]
     lines.append("\n--------------------------------------------------------------------\n")
+    for key, value in PARAM_LIST.items():
+        str1 = (f"\t{key:20}\t{value:8}\n")
+        lines.append(str1)
+
     print("--------------------------------------------------------------------")
     lines.append("\n--------------------------------------------------------------------\n")
     # print out max_min data
@@ -1111,7 +1176,7 @@ def get_deployment_time(v_slip, i_peak_now, param_str1):
     tick_count = round(time / YR)
 
     if WRITE_FILE:
-        with open("./output/_orbital_ring_options_03.txt", "a") as file:
+        with open("./output/_orbital_ring_options_04.txt", "a") as file:
             file.writelines(lines)
 
     return [tick_count, f"{param_str1} ", make_graphs, time]
@@ -1122,7 +1187,7 @@ def main() -> None:
         show = sys.argv
     v_slip = V_SLIP_MAX
     i_peaks = I_MIN
-    param = get_deployment_time(v_slip, i_peaks, PARAM_STR1)
+    param = get_deployment_time(v_slip, i_peaks)
 
 
 
