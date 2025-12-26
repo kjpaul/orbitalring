@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 # Critical current (Ic) scales linearly with tape width
 # Multiple LIMs can be placed on each side of the cable
 # Total LIMs per site = 2 × LIMS_PER_SIDE (symmetric on each side)
-N_TURNS = 120                                # turns per phase coil (int)
+N_TURNS = 195                                # turns per phase coil (int)
 LIMS_PER_SIDE = 1                           # LIMs on each side of cable (1, 2, 3, ...)
 HTS_TAPE_WIDTH_MM = 3                      # tape width in mm (12, 6, 4, or 3)
 HTS_TAPE_LAYERS = 1                         # number of tape layers (1 or 2)
@@ -30,7 +30,7 @@ SLIP_RATIO_NORMAL = 0.0121                  # target slip ratio at full current 
 SLIP_RATIO_REDUCED = 0.08                   # target slip ratio when current-limited (1%)
 TAU_P = 100.0                               # pole-pitch (m)
 W_COIL = 1.0                                # LIM width (m)
-GAP = 0.10                                  # coil-to-plate gap (m)
+GAP = 0.20                                  # coil-to-plate gap (m)
 LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
 T_PLATE = 0.100                             # aluminium thickness (m)
 IC_PER_MM_PER_LAYER = 66.7                  # Ic per mm of tape width per layer, 66 max (A/mm)
@@ -65,6 +65,17 @@ SAMPLE_TIME_MAX = 5 * YR      # length of sample (must be longer than deployment
 # detailed analysis or FEM simulation to validate for this specific geometry.
 THRUST_EFFICIENCY = 1.0     # 1.0 = conservative idealized model
 
+# -------------------------------------------------
+# THRUST MODEL SELECTION
+# -------------------------------------------------
+# Select which thrust model to use:
+#   1 = Narrow plate eddy current model (geometry-corrected for W << tau_p)
+#   2 = Goodness factor model (Laithwaite, assumes W > tau_p)
+#   3 = Slip x pressure model (F = slip * F_max, theoretical maximum)
+# 
+# Use command line: --model=1, --model=2, or --model=3
+THRUST_MODEL = 1  # Default to narrow plate model
+
 # Slip control notes:
 # - V_SLIP_MIN ensures minimum thrust at low v_rel (startup regime)
 # - V_SLIP_MAX limits losses at high v_rel
@@ -92,7 +103,7 @@ I_MIN = 10.0                                # lower limit on current. Reduce sli
 P_HEAT_MAX = 100000
 HTS_D = 80.0                                # HTS thickness in micrometers (kept for reference)
 VOLTS_MAX = 100e3                           # absolute peak coil voltage limit, per your assumption (V)
-ALPHA_ANGLE_DEG = 20.0                      # magnetic penettration angle of HTS in coils (deg)
+ALPHA_ANGLE_DEG = 20.0                      # magnetic penetration angle of HTS in coils (deg)
 HEAT_SINK_L = LIM_SPACING                   # shorter heat sink mean higher ave reaction plate temp.
 LIMS_PER_SITE = 2 * LIMS_PER_SIDE               # Total LIMs per site
 
@@ -107,8 +118,8 @@ LIM_EFF = 0.95                              # unaccounted for LIM losses efficie
 # CABLE and LOAD masses are dependant on each other 
 # according to Newtown's 3rd Law and the cable tension.
 # -------------------------------------------------
-M_CABLE_M = 99_198                         # orbital ring cable mass per meter (m)
-M_LOAD_M = 12_000                            # orbital ring casing + load mass per meter (m)
+M_CABLE_M = 99_198                         # orbital ring cable mass per meter (kg/m)
+M_LOAD_M = 12_000                            # orbital ring casing + load mass per meter (kg/m)
 
 # lable data for plots
 SAMPLE_TIME_STR = "-- 100 tonne cable, 12 tonne load" # graph title
@@ -145,17 +156,17 @@ T_FREE_SPACE = 2.7      # temperature of free space (K)
 CRYO_EFF = 0.18         # Cryo efficiency: 0.031 -> 32 W are needed for Cryo per W of heat (1/W)
 C_P_ALU = 900           # heat capacity or aluminium (J/kg K)
 H_CONV_LN2 = 90         # Convective Heat Transfer Coefficient LN2 (W m^-2 K^-1)
-T2_LN2_BOIL = 77.4      # boiling point of liquid nitroger at 1 atm (K)
+T2_LN2_BOIL = 77.4      # boiling point of liquid nitrogen at 1 atm (K)
 T1_LN2_CRYO = 70        # temperature of LN2 as it leaves cryogenic system (K)
 T_N2_HOT = 300          # N2 temperature as it leave the compressor and enters the radiator (K)
 T_MAX_REACTION_PLATE = 500  # maximum temp for aluminium reaction plate (K)
 K_ALU = 205             # thermal conductivity of aluminium (W/m*K)
 C_P_LN2 = 2040          # Specific heat capacity of LN2 (J/kg*K)
 L_V_LN2 = 199000        # Latent heat of vaporization LN2 (J/kg)
-EM_ALU = 0.85           # emisivity or reaction plate (black anodized alu) (num)
-EM_HEAT_SINK = 0.9      # emisivity of heat sink surface (num)
+EM_ALU = 0.85           # emissivity  or reaction plate (black anodized alu) (num)
+EM_HEAT_SINK = 0.9      # emissivity  of heat sink surface (num)
 PA_LN2_70K = 0.4        # pressure that turns boiling point of LN2 to 70 K (atm)
-V_REL_MIN = 10          # fudge factor compensate of missleading initial heat at low v_rel (m/s)
+V_REL_MIN = 10          # fudge factor compensate of misleading initial heat at low v_rel (m/s)
 
 
 PARAM_LIST = {
@@ -227,6 +238,8 @@ list_p_lim_site = []
 list_temp_plate_ave = []
 list_E_site_ke = []      # Track site KE over time (TJ)
 list_E_total_ke = []     # Track total KE over time (EJ)
+list_goodness_G = []     # Track goodness factor
+list_eta_slip = []       # Track slip efficiency
 
 """
     -------------------------------------------------
@@ -291,14 +304,30 @@ def get_supply_frequency(v_wave):
     magnetic fields
 """
 def get_b_plate_peak(i_peak):
-    """Magnetic field at reaction plate surface for rectangular current sheet."""
-    return (2 * MU0 * N_TURNS * i_peak / (math.pi * W_COIL)) * math.atan(W_COIL / (2 * GAP))
-#def get_b_plate_peak(i_peak):
-#    return MU0 * N_TURNS * i_peak / GAP
+    """Traveling wave amplitude at reaction plate for 3-phase LIM.
+    
+    For a single-phase coil modeled as a rectangular current sheet:
+        B_single = (2μ₀NI / πw) × arctan(w / 2g)
+    
+    For a balanced 3-phase system, three sinusoidal fields displaced by 120°
+    in both time and space combine to form a constant-amplitude traveling wave.
+    The backward-traveling components cancel; the forward components add:
+        B_traveling = (3/2) × B_single × cos(ωt - kx)
+    
+    Since the traveling wave has constant amplitude (no pulsation), we use
+    B_traveling directly in force calculations with no RMS conversion needed.
+    """
+    b_single_phase = (2 * MU0 * N_TURNS * i_peak / (math.pi * W_COIL)) * math.atan(W_COIL / (2 * GAP))
+    return 1.5 * b_single_phase  # 3-phase traveling wave amplitude
 
 
 def get_b_coil_peak(i_peak):
-    return MU0 * N_TURNS * i_peak / W_COIL # maximum field output or coil
+    """Peak field inside individual coil (for voltage/hysteresis calculations).
+    
+    This remains the single-phase value since each coil experiences its own
+    field for purposes of flux linkage and hysteresis loss.
+    """
+    return MU0 * N_TURNS * i_peak / W_COIL
 
 
 """
@@ -354,6 +383,58 @@ def get_plate_eddy_volume(f_slip, tempK):
     return W_COIL * L_ACTIVE * depth
 
 
+def get_goodness_factor(f_slip, tempK):
+    """Calculate Laithwaite's goodness factor for the LIM.
+    
+    The goodness factor G determines the operating regime:
+    - G << 1: Resistive regime (thrust ∝ slip, low efficiency)
+    - G ~ 1: Transitional (peak thrust at optimal slip)
+    - G >> 1: Inductive regime (thrust limited by reaction field)
+    
+    G = (ω_slip × μ₀ × σ × δ_eff × τ_p) / π
+    
+    For this orbital ring LIM with τ_p = 100m, G is typically very high (500-1000),
+    meaning we operate in the inductive regime. This has critical implications:
+    - Optimal slip ratio s_opt = 1/G ≈ 0.1%
+    - At startup (s = 100%), thrust is only ~0.2% of F_max
+    - Thrust improves dramatically as slip decreases during deployment
+    
+    Reference: Laithwaite (1965), Boldea & Nasar (1976)
+    """
+    if f_slip <= 0:
+        return 0.0
+    
+    rho = get_rho_alu(tempK)
+    sigma = 1.0 / rho
+    omega_slip = 2 * math.pi * f_slip
+    delta_eff = get_eff_plate_depth(f_slip, tempK)
+    
+    return (omega_slip * MU0 * sigma * delta_eff * TAU_P) / math.pi
+
+
+def get_slip_efficiency(slip, G):
+    """Calculate slip efficiency factor from goodness factor model.
+    
+    η_slip = (2sG) / (1 + s²G²)
+    
+    This unified formula correctly captures both regimes:
+    - Low G (resistive): η_slip ≈ 2sG, thrust ∝ slip
+    - High G (inductive): η_slip ≈ 2/(sG), thrust drops at high slip
+    - Peak at s = 1/G: η_slip = 1 (maximum thrust = F_max)
+    
+    For this orbital ring LIM at 70K with v_slip = 50 m/s:
+    - G ≈ 908
+    - s_opt = 0.11%
+    - At s = 1% (operational): η_slip ≈ 22%
+    - At s = 100% (startup): η_slip ≈ 0.2%
+    """
+    if slip <= 0 or G <= 0:
+        return 0.0
+    
+    sG = slip * G
+    return (2 * sG) / (1 + sG ** 2)
+
+
 """
     thrust and power
 """
@@ -374,20 +455,163 @@ def get_thrust_power_max(b_plate, v_slip):
     return (b_plate ** 2) * A_LIM * v_slip / (2 * MU0)
 
 
-def get_f_thrust(f_slip, f_supply, i_peak):
-    """Thrust model with efficiency factor.
+# =============================================================================
+# THRUST MODEL 1: Narrow Plate Eddy Current Model
+# =============================================================================
+def get_loop_inductance():
+    """Calculate inductance of eddy current loop for narrow plate (W << tau_p).
+    
+    For a rectangular loop of length tau_p and width W:
+        L = (mu_0 * tau_p / pi) * ln(tau_p / W)
+    """
+    return (MU0 * TAU_P / math.pi) * math.log(TAU_P / W_COIL)
 
-    F = THRUST_EFFICIENCY × s × F_max
 
+def get_loop_resistance(tempK):
+    """Calculate resistance of eddy current loop for narrow plate.
+    
+    Current must return along the length tau_p, through cross-section d x W.
+    This return path dominates the loop resistance:
+        R = rho * tau_p / (d_eff * W)
+    
+    where d_eff = min(T_PLATE, skin_depth)
+    """
+    rho = get_rho_alu(tempK)
+    f_slip = get_slip_frequency(V_SLIP_MIN)  # Use minimum for skin depth estimate
+    delta = get_skin_depth_eddy(f_slip, tempK)
+    d_eff = min(T_PLATE, delta)
+    return rho * TAU_P / (d_eff * W_COIL)
+
+
+def get_f_thrust_model1(f_slip, f_supply, i_peak, tempK=77.0):
+    """Thrust Model 1: Narrow Plate Eddy Current Model.
+    
+    For the orbital ring geometry (W << tau_p), eddy currents form elongated
+    loops with high return-path resistance. This model accounts for the
+    actual current path geometry.
+    
+    Physics:
+    1. EMF per loop = v_slip * B * W
+    2. Loop impedance Z = sqrt(R^2 + X^2) where R dominates for thin plates
+    3. Loop current I = EMF / Z
+    4. Power dissipated P = N_loops * I^2 * R
+    5. Thrust F = P / v_slip (from power balance)
+    
+    Key results:
+    - Thin plates (d < 2mm): F increases with thickness (R limits current)
+    - Thick plates (d > 10mm): F decreases with thickness (inductance limits)
+    - Optimal around d = 2mm where R ~ X
+    """
+    if i_peak <= 0 or f_supply <= 0 or f_slip <= 0:
+        return 0.0
+    
+    # Get magnetic field
+    B = get_b_plate_peak(i_peak)
+    
+    # Slip velocity
+    v_slip = f_slip * 2 * TAU_P
+    if v_slip <= 0:
+        return 0.0
+    
+    # Get material properties at temperature
+    rho = get_rho_alu(tempK)
+    delta = get_skin_depth_eddy(f_slip, tempK)
+    d_eff = min(T_PLATE, delta)
+    
+    # EMF per current loop
+    EMF = v_slip * B * W_COIL
+    
+    # Loop impedance
+    omega = 2 * math.pi * f_slip
+    R = rho * TAU_P / (d_eff * W_COIL)
+    L = get_loop_inductance()
+    X = omega * L
+    Z = math.sqrt(R**2 + X**2)
+    
+    # Loop current
+    I = EMF / Z
+    
+    # Number of current loops in active region (one per half-wavelength)
+    N_loops = L_ACTIVE / (TAU_P / 2)
+    
+    # Power dissipated in loops
+    P = N_loops * I**2 * R
+    
+    # Thrust from power balance: F * v_slip = P
+    F = P / v_slip
+    
+    # Apply efficiency factor
+    return THRUST_EFFICIENCY * F
+
+
+# =============================================================================
+# THRUST MODEL 2: Goodness Factor Model (Laithwaite)
+# =============================================================================
+def get_f_thrust_model2(f_slip, f_supply, i_peak, tempK=77.0):
+    """Thrust Model 2: Goodness Factor Model.
+    
+    Uses Laithwaite's goodness factor to determine operating regime:
+    
+    F = F_max * eta_slip
+    
     where:
-        s = slip ratio (f_slip / f_supply)
-        F_max = B²A/(2μ₀) = magnetic pressure limit
-        THRUST_EFFICIENCY = tunable factor (default 1.0 = conservative)
+        F_max = B^2 * A / (2*mu_0) = magnetic pressure limit
+        eta_slip = (2*s*G) / (1 + s^2*G^2) = slip efficiency
+        s = slip ratio
+        G = goodness factor = (omega * mu_0 * sigma * d_eff * tau_p) / pi
+    
+    WARNING: This model assumes W > tau_p (wide plate). For the orbital ring
+    geometry where W << tau_p, this model may not be accurate.
+    
+    At high G (inductive regime):
+    - Optimal slip s_opt = 1/G
+    - At startup (s=100%): thrust is very low
+    - As slip decreases: thrust improves
+    """
+    if i_peak <= 0 or f_supply <= 0:
+        return 0.0
+    
+    b_plate = get_b_plate_peak(i_peak)
+    slip = get_slip_f(f_slip, f_supply)
+    if slip < 0:
+        slip = 0.0
+    if slip > 1:
+        slip = 1.0
+    
+    # Ensure minimum slip to avoid division issues
+    slip = max(slip, 0.001)
+    
+    # Calculate goodness factor
+    G = get_goodness_factor(f_slip, tempK)
+    
+    # Calculate slip efficiency
+    eta_slip = get_slip_efficiency(slip, G)
+    
+    # Maximum thrust from magnetic pressure
+    F_max = get_thrust_force_max(b_plate)
+    
+    return THRUST_EFFICIENCY * F_max * eta_slip
 
-    The idealized model (efficiency = 1.0) assumes resistive regime.
-    For this high magnetic Reynolds number LIM (R_m >> 1), the actual
-    thrust may be higher due to shielding effects. Detailed FEM analysis
-    or experimental data would be needed to determine the true efficiency.
+
+# =============================================================================
+# THRUST MODEL 3: Slip x Pressure Model (Theoretical Maximum)
+# =============================================================================
+def get_f_thrust_model3(f_slip, f_supply, i_peak, tempK=77.0):
+    """Thrust Model 3: Slip x Pressure Model.
+    
+    Simple theoretical model:
+        F = slip * F_max
+    
+    where:
+        slip = f_slip / f_supply
+        F_max = B^2 * A / (2*mu_0) = magnetic pressure limit
+    
+    This assumes:
+    - Resistive regime (perfect phase alignment)
+    - No inductance effects
+    - Linear relationship between slip and thrust
+    
+    This is the theoretical maximum thrust for a given slip ratio.
     """
     if i_peak <= 0 or f_supply <= 0:
         return 0.0
@@ -399,9 +623,32 @@ def get_f_thrust(f_slip, f_supply, i_peak):
     if slip > 1:
         slip = 1.0
 
-    # return slip * get_thrust_force_max(b_plate)
     F_max = get_thrust_force_max(b_plate)
     return THRUST_EFFICIENCY * slip * F_max
+
+
+# =============================================================================
+# UNIFIED THRUST FUNCTION (dispatches to selected model)
+# =============================================================================
+def get_f_thrust(f_slip, f_supply, i_peak, tempK=77.0):
+    """Calculate thrust using the selected model.
+    
+    Model selection via global THRUST_MODEL:
+        1 = Narrow plate eddy current model (geometry-corrected)
+        2 = Goodness factor model (Laithwaite)
+        3 = Slip x pressure model (theoretical maximum)
+    
+    Use --model=N on command line to select.
+    """
+    if THRUST_MODEL == 1:
+        return get_f_thrust_model1(f_slip, f_supply, i_peak, tempK)
+    elif THRUST_MODEL == 2:
+        return get_f_thrust_model2(f_slip, f_supply, i_peak, tempK)
+    elif THRUST_MODEL == 3:
+        return get_f_thrust_model3(f_slip, f_supply, i_peak, tempK)
+    else:
+        # Default to model 1
+        return get_f_thrust_model1(f_slip, f_supply, i_peak, tempK)
 
 
 def get_thrust_power(thr, vrel):
@@ -636,6 +883,14 @@ def get_deployment_time(v_slip, i_peak_now):
     i_target = i_peak_now # set initial value of i_min
 
     print("VOLTS_MAX: ", VOLTS_MAX)
+    print(f"THRUST_MODEL: {THRUST_MODEL} ", end="")
+    if THRUST_MODEL == 1:
+        print("(Narrow plate eddy current - geometry corrected)")
+    elif THRUST_MODEL == 2:
+        print("(Goodness factor - Laithwaite)")
+    elif THRUST_MODEL == 3:
+        print("(Slip x pressure - theoretical maximum)")
+    print(f"T_PLATE: {T_PLATE * 1000:.1f} mm")
 
     # variable with starting conditions
     vcable = V_ORBIT
@@ -803,7 +1058,8 @@ def get_deployment_time(v_slip, i_peak_now):
             b_coil = get_b_coil_peak(i_peak_now)
 
             # Thrust and thrust power (per LIM)
-            thrust = get_f_thrust(f_slip, f_supply, i_peak_now)
+            # Pass alu_temp_out for temperature-dependent calculations
+            thrust = get_f_thrust(f_slip, f_supply, i_peak_now, alu_temp_out)
             p_thrust = get_thrust_power(thrust, v_rel)
 
             # Induced coil voltage (RMS) from flux linkage
@@ -1171,20 +1427,85 @@ def get_deployment_time(v_slip, i_peak_now):
     if exit_msg != "PASSED":
         print(f"{exit_msg}. time in seconds: {time:.3f} s, years: {time/YR:.2f}")
 
-    param_str1 = param_str1 + f", F_Supply: {round(f_supply,1)} Hz, Deployment time: {round(time / YR, 2)} years."
+    param_str1 = param_str1 + f", Model: {THRUST_MODEL}, F_Supply: {round(f_supply,1)} Hz, Deployment time: {round(time / YR, 2)} years."
 
     tick_count = round(time / YR)
 
     if WRITE_FILE:
-        with open("./output/_orbital_ring_options_04.txt", "a") as file:
+        with open(f"./output/_orbital_ring_model{THRUST_MODEL}.txt", "a") as file:
             file.writelines(lines)
 
     return [tick_count, f"{param_str1} ", make_graphs, time]
 
 def main() -> None:
+    global THRUST_MODEL
+    
     show = []
     if len(sys.argv) > 1:
         show = sys.argv
+        
+        # Check for help
+        if "--help" in sys.argv or "-h" in sys.argv:
+            print("""
+Orbital Ring Deployment Simulation
+===================================
+
+Usage: python legacy_power_lim.py [options] [graphs]
+
+Thrust Model Selection:
+  --model=1    Narrow plate eddy current model (geometry-corrected for W << tau_p)
+  --model=2    Goodness factor model (Laithwaite, assumes W > tau_p)
+  --model=3    Slip x pressure model (theoretical maximum, F = slip * F_max)
+
+Graph Options:
+  all          Show all graphs
+  current      Current (Amps)
+  volts        Voltage
+  v_slip       Slip velocity
+  thrust       Thrust
+  p_thrust     Thrust power
+  p_eddy       Eddy current losses
+  power        Site power used
+  plate_temp   Reaction plate temperature
+  skin         Skin depth
+  slip         Slip ratio
+  f_slip       Slip frequency
+  v_rel        Relative velocity
+  hyst         Hysteresis losses
+  cryo         Cryogenic power
+  ke_site      Site kinetic energy
+  ke_all       Total kinetic energy
+
+Examples:
+  python legacy_power_lim.py --model=1 thrust power
+  python legacy_power_lim.py --model=2 all
+  python legacy_power_lim.py --model=3
+            """)
+            return
+        
+        # Parse --model=N argument
+        for arg in sys.argv:
+            if arg.startswith("--model="):
+                try:
+                    model_num = int(arg.split("=")[1])
+                    if model_num in [1, 2, 3]:
+                        THRUST_MODEL = model_num
+                        print(f"Using thrust model {THRUST_MODEL}:")
+                        if THRUST_MODEL == 1:
+                            print("  Model 1: Narrow plate eddy current (geometry-corrected)")
+                        elif THRUST_MODEL == 2:
+                            print("  Model 2: Goodness factor (Laithwaite)")
+                        elif THRUST_MODEL == 3:
+                            print("  Model 3: Slip x pressure (theoretical maximum)")
+                    else:
+                        print(f"Invalid model number: {model_num}. Using default model 1.")
+                        THRUST_MODEL = 1
+                except ValueError:
+                    print(f"Invalid model argument: {arg}. Using default model 1.")
+                    THRUST_MODEL = 1
+    
+    print(f"\n*** THRUST MODEL: {THRUST_MODEL} ***\n")
+    
     v_slip = V_SLIP_MAX
     i_peaks = I_MIN
     param = get_deployment_time(v_slip, i_peaks)
