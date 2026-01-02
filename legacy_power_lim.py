@@ -19,20 +19,19 @@ import matplotlib.pyplot as plt
 # HTS tape comes in standard widths: 12mm, 6mm, 4mm, 3mm
 # Critical current (Ic) scales linearly with tape width
 # Multiple LIMs can be placed on each side of the cable
-# Total LIMs per site = 2 × LIMS_PER_SIDE (symmetric on each side)
-N_TURNS = 195                                # turns per phase coil (int)
-LIMS_PER_SIDE = 1                           # LIMs on each side of cable (1, 2, 3, ...)
-HTS_TAPE_WIDTH_MM = 3                      # tape width in mm (12, 6, 4, or 3)
-HTS_TAPE_LAYERS = 1                         # number of tape layers (1 or 2)
-V_SLIP_MAX = 100.0                          # maximum slip velocity (m/s)
+N_TURNS = 40                               # turns per phase coil (int)
+LIMS_PER_SIDE = 1                           # How many LIMs on each side of cable (1, 2, 3, ...)
+HTS_TAPE_WIDTH_MM = 12                       # tape width in mm (12, 6, 4, or 3)
+HTS_TAPE_LAYERS = 2                         # number of tape layers (1 or 2)
+V_SLIP_MAX = 200.0                          # maximum slip velocity (m/s)
 V_SLIP_MIN = 5.0                            # minimum slip velocity (m/s)
-SLIP_RATIO_NORMAL = 0.0121                  # target slip ratio at full current (2%)
-SLIP_RATIO_REDUCED = 0.08                   # target slip ratio when current-limited (1%)
+SLIP_RATIO_NORMAL = 0.02                    # target slip ratio at full current (2%)
+SLIP_RATIO_REDUCED = 0.005                  # target slip ratio when current-limited (1%)
 TAU_P = 100.0                               # pole-pitch (m)
-W_COIL = 1.0                                # LIM width (m)
-GAP = 0.20                                  # coil-to-plate gap (m)
+W_COIL = 0.5                                # LIM width (m)
+GAP = 0.05                                  # coil-to-plate gap (m)
 LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
-T_PLATE = 0.100                             # aluminium thickness (m)
+T_PLATE = 0.05                              # aluminium thickness (m)
 IC_PER_MM_PER_LAYER = 66.7                  # Ic per mm of tape width per layer, 66 max (A/mm)
 MAX_SITE_POWER = 16.0e6                     # power limit per LIM site (W)
 
@@ -43,7 +42,7 @@ MAKE_GRAPHS = True
 # -------------------------------------------------
 # TIME CONTROL
 # -------------------------------------------------
-SKIP = 100   # if 1 = no skip
+SKIP = 200   # if 1 = no skip
 DT1 = 1   # loop dt for first day
 DT2 = 10    # loop dt until sample time max, which also ends data collection for graphs
 DT3 = 50    # loop dt until end
@@ -58,7 +57,7 @@ SAMPLE_TIME_MAX = 5 * YR      # length of sample (must be longer than deployment
 # -------------------------------------------------
 # CONTROL / COUPLING PARAMETERS (tunable)
 # -------------------------------------------------
-# Thrust efficiency factor: multiplier on the idealized model F = s × F_max
+# Thrust efficiency factor: multiplier on the idealized model F = s * F_max
 # The idealized model (THRUST_EFFICIENCY = 1.0) assumes resistive regime and is
 # likely conservative for this high magnetic Reynolds number LIM (R_m >> 1).
 # Values of 5-20 may be realistic based on shielding effects, but require
@@ -149,8 +148,8 @@ M_LOAD_T = M_LOAD_M * L_RING_250            # orbital ring casing + load mass to
 # -------------------------------------------------
 Q_SUN_1AU = 1361        # solar energy at 1 AU (W/m^2)
 Q_EARTH_DAY = 650       # average daytime energy reflected up from earth's surface (W/m^2)
-Q_SHEILDING = 0.005     # percentage of heat radiation that passes through multi-layer alu shielding (%/100)
-Q_ABS_M = (Q_SUN_1AU + Q_EARTH_DAY) * CASING_OUTER_W * Q_SHEILDING # external heat absorbed by ring (W/m)
+Q_SHIELDING = 0.005     # percentage of heat radiation that passes through multi-layer alu shielding (%/100)
+Q_ABS_M = (Q_SUN_1AU + Q_EARTH_DAY) * CASING_OUTER_W * Q_SHIELDING # external heat absorbed by ring (W/m)
 Q_ABS_LIM = Q_ABS_M * LIM_SPACING # external heat absorbed by ring (W)
 T_FREE_SPACE = 2.7      # temperature of free space (K)
 CRYO_EFF = 0.18         # Cryo efficiency: 0.031 -> 32 W are needed for Cryo per W of heat (1/W)
@@ -307,12 +306,12 @@ def get_b_plate_peak(i_peak):
     """Traveling wave amplitude at reaction plate for 3-phase LIM.
     
     For a single-phase coil modeled as a rectangular current sheet:
-        B_single = (2μ₀NI / πw) × arctan(w / 2g)
+        B_single = (2μ₀NI / πw) * arctan(w / 2g)
     
     For a balanced 3-phase system, three sinusoidal fields displaced by 120°
     in both time and space combine to form a constant-amplitude traveling wave.
     The backward-traveling components cancel; the forward components add:
-        B_traveling = (3/2) × B_single × cos(ωt - kx)
+        B_traveling = (3/2) * B_single * cos(ωt - kx)
     
     Since the traveling wave has constant amplitude (no pulsation), we use
     B_traveling directly in force calculations with no RMS conversion needed.
@@ -391,7 +390,7 @@ def get_goodness_factor(f_slip, tempK):
     - G ~ 1: Transitional (peak thrust at optimal slip)
     - G >> 1: Inductive regime (thrust limited by reaction field)
     
-    G = (ω_slip × μ₀ × σ × δ_eff × τ_p) / π
+    G = (ω_slip * μ₀ * σ * δ_eff * τ_p) / π
     
     For this orbital ring LIM with τ_p = 100m, G is typically very high (500-1000),
     meaning we operate in the inductive regime. This has critical implications:
@@ -490,11 +489,28 @@ def get_f_thrust_model1(f_slip, f_supply, i_peak, tempK=77.0):
     loops with high return-path resistance. This model accounts for the
     actual current path geometry.
     
+    EDDY CURRENT LOOPS (not related to coil turns N_TURNS):
+    --------------------------------------------------------
+    The traveling magnetic field B(x) = B0*cos(pi*x/tau_p) creates alternating
+    regions of positive and negative field. Eddy currents flow in opposite
+    directions under opposite poles, forming loops that span one pole pitch:
+    
+        ←←←←←← current under negative pole ←←←←←←
+        ↓                                        ↑
+        ↓ return path (length τ_p)               ↑
+        ↓                                        ↑
+        →→→→→→ current under positive pole →→→→→→
+        
+        |←—————————— τ_p = 100m ——————————→|
+    
+    Number of loops = L_ACTIVE / tau_p = 300m / 100m = 3
+    (This has NOTHING to do with N_TURNS = 195)
+    
     Physics:
-    1. EMF per loop = v_slip * B * W
-    2. Loop impedance Z = sqrt(R^2 + X^2) where R dominates for thin plates
+    1. EMF per loop ≈ v_slip * B * W * 2  (factor of 2: both legs contribute)
+    2. Loop impedance Z = sqrt(R² + X²) where R dominates for thin plates
     3. Loop current I = EMF / Z
-    4. Power dissipated P = N_loops * I^2 * R
+    4. Power dissipated P = N_loops * I² * R
     5. Thrust F = P / v_slip (from power balance)
     
     Key results:
@@ -505,7 +521,7 @@ def get_f_thrust_model1(f_slip, f_supply, i_peak, tempK=77.0):
     if i_peak <= 0 or f_supply <= 0 or f_slip <= 0:
         return 0.0
     
-    # Get magnetic field
+    # Get magnetic field (this DOES depend on N_TURNS via i_peak)
     B = get_b_plate_peak(i_peak)
     
     # Slip velocity
@@ -519,7 +535,14 @@ def get_f_thrust_model1(f_slip, f_supply, i_peak, tempK=77.0):
     d_eff = min(T_PLATE, delta)
     
     # EMF per current loop
-    EMF = v_slip * B * W_COIL
+    # Each loop spans one pole pitch. The field varies sinusoidally:
+    #   B(x) = B₀ cos(πx/τ_p)
+    # At x=0: B = +B₀, at x=τ_p: B = -B₀
+    # Both legs across W contribute to EMF (they see opposite fields):
+    #   EMF = 2 * v_slip * B_avg * W
+    # For sinusoidal variation, B_avg = (2/π) * B₀
+    # Combined: EMF = (4/π) * v_slip * B₀ * W ≈ 1.27 * v_slip * B * W
+    EMF = (4.0 / math.pi) * v_slip * B * W_COIL
     
     # Loop impedance
     omega = 2 * math.pi * f_slip
@@ -528,11 +551,14 @@ def get_f_thrust_model1(f_slip, f_supply, i_peak, tempK=77.0):
     X = omega * L
     Z = math.sqrt(R**2 + X**2)
     
-    # Loop current
+    # Eddy current Loop
     I = EMF / Z
     
-    # Number of current loops in active region (one per half-wavelength)
-    N_loops = L_ACTIVE / (TAU_P / 2)
+    # Number of eddy current loops in active region
+    # Each loop spans one pole pitch (tau_p), NOT related to coil turns!
+    # With PITCH_COUNT = 3, we have L_ACTIVE = 3 * tau_p = 300m
+    # This gives N_loops = 3
+    N_loops = L_ACTIVE / TAU_P
     
     # Power dissipated in loops
     P = N_loops * I**2 * R
@@ -810,25 +836,6 @@ def get_rho_alu(tempK):
     return rho_alu
 
 
-
-"""
-    space elevator
-"""
-"""
-mu      = 3.986e14        # m^3 s^-2
-omega   = 7.2921159e-5    # rad s^-1
-rho     = 1700            # kg m^-3
-sigma   = 7e9             # Pa (14 GPa / 2)
-
-def F(r):                 # antiderivative
-    return mu/r + 0.5*omega**2*r**2
-
-k = math.exp((rho/sigma)*(F(r_bottom) - F(r_geo)))   # taper factor
-A_geo = A_bottom / k
-d_geo = math.sqrt(4*A_geo/math.pi)
-"""
-
-
 """
     helper equations
 """
@@ -977,7 +984,7 @@ def get_deployment_time(v_slip, i_peak_now):
 
         # --- Controller inner loop (a few quick iterations for self-consistency) ---
 
-        for _ctrl in range(100):
+        for _ctrl in range(10):
             # Relative velocity between cable and casing (your v_rel definition)
             v_rel = get_v_rel(vcable, vcasing)
 
@@ -1021,7 +1028,7 @@ def get_deployment_time(v_slip, i_peak_now):
             # Clamp slip ratio to valid range
             s_tgt = max(1e-6, min(0.999, s_tgt))
 
-            # Compute v_slip from slip ratio: s = v_slip/(v_rel + v_slip) => v_slip = s/(1-s) × v_rel
+            # Compute v_slip from slip ratio: s = v_slip/(v_rel + v_slip) => v_slip = s/(1-s) * v_rel
             v_slip_target = (s_tgt / (1.0 - s_tgt)) * max(v_rel, 0.0)
             
             # Apply floor (ensures thrust at low v_rel) and ceiling (limits losses)
@@ -1096,7 +1103,7 @@ def get_deployment_time(v_slip, i_peak_now):
             # Cryo radiator calculation:
             # The cryo system removes heat_t from cold side (77K) using p_cryo electrical power
             # The radiator must reject Q_hot = heat_t + p_cryo to space
-            # This is Q_cold × (1 + 1/COP) = Q_cold × (COP + 1) / COP
+            # This is Q_cold * (1 + 1/COP) = Q_cold * (COP + 1) / COP
             if v_rel != 0:
                 heat_t = LIMS_PER_SITE * p_heat + Q_ABS_LIM  # Cold-side heat from all LIMs at site
                 p_cryo_temp = get_p_cryo(heat_t)
@@ -1354,7 +1361,7 @@ def get_deployment_time(v_slip, i_peak_now):
             print(">>>>>>>>> DEPLOYMENT TIME EXCEEDED.<<<<<<<<<<<")
             break
 
-    # Cryo radiator must reject Q_hot = Q_cold + W = Q_cold × (1 + 1/COP)
+    # Cryo radiator must reject Q_hot = Q_cold + W = Q_cold * (1 + 1/COP)
     # where Q_cold = heat removed from cold side, W = electrical power
     cop = get_cop_actual(T2_LN2_BOIL, T_N2_HOT)
     if cop > 0:
@@ -1362,7 +1369,7 @@ def get_deployment_time(v_slip, i_peak_now):
     else:
         Q_hot_factor = 60  # Fallback
     
-    # p_cryo is electrical power, so Q_cold = p_cryo × COP, and Q_hot = p_cryo × (COP + 1)
+    # p_cryo is electrical power, so Q_cold = p_cryo * COP, and Q_hot = p_cryo * (COP + 1)
     p_cryo_max = max_min["p_cryo_max"][3]
     Q_hot_max = p_cryo_max * (cop + 1) if cop > 0 else p_cryo_max * 60
     cryo_radiator_size_min = get_heatsink_area(Q_hot_max, T_N2_HOT, T_FREE_SPACE, EM_HEAT_SINK, 1.0)
