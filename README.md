@@ -1,6 +1,6 @@
 # LIM Deployment Simulator for Orbital Ring Systems
 
-A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Ion Propulsion Engineering"** (Volume II of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
+A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Ion Propulsion Engineering"** (Technical Book I of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
 
 The simulator models the months-long process of decelerating a magnetically levitated cable from orbital velocity (7.75 km/s) to ground-stationary velocity (483 m/s at 250 km altitude) using distributed LIM sites around the ring.
 
@@ -54,7 +54,8 @@ All parameters are configured by editing constants in Section 1 of `lim_deployme
 | `HTS_TAPE_LAYERS` | 3 | Parallel tape layers (1–3) |
 | `IC_PER_MM_PER_LAYER` | 66.7 | Critical current density (A/mm/layer) |
 
-**Trade-off:** Wider tape or more layers → higher current capacity → more thrust, but higher cost.
+**Trade-off:** Wider tape → higher current capacity → more thrust, more hysteresis loses.
+**Trade-off:** More layers → higher current capacity → more thrust, model may be less accurate.
 
 ### LIM Geometry
 
@@ -76,7 +77,7 @@ All parameters are configured by editing constants in Section 1 of `lim_deployme
 | `LIM_SPACING` | 500 m | Distance between LIM sites |
 | `LIMS_PER_SIDE` | 1 | LIMs per side of cable (×2 for site total) |
 
-**Trade-off:** Closer spacing → faster deployment, higher capital cost.
+**Trade-off:** Closer spacing → faster deployment, higher plate temperature, limits length of TAU_P, less solar power per LIM site.
 
 ### Operating Limits
 
@@ -112,7 +113,7 @@ Accounts for the orbital ring geometry where coil width W is much smaller than p
 →→→→→→ current under positive pole →→→→→→
 ```
 
-**Best for:** Orbital ring design where W << τ_p.
+**Best for:** Orbital ring design where W << τ_p. This is probably the most realistic model.
 
 ### Model 2: Goodness Factor (Laithwaite)
 
@@ -122,7 +123,7 @@ $$G = \frac{\omega_{slip} \cdot \mu_0 \cdot \sigma \cdot \delta_{eff} \cdot \tau
 
 Thrust efficiency: $\eta = \frac{2sG}{1 + s^2G^2}$
 
-**Best for:** Comparison with literature; assumes W > τ_p.
+**Best for:** Comparison with literature; assumes W > τ_p. Needs FEA to test validity. Fastest deployment times.
 
 ### Model 3: Slip × Pressure (Theoretical Maximum)
 
@@ -283,4 +284,4 @@ MIT License — see LICENSE file for details.
 
 If you use this code in academic work, please cite:
 
-> de Jong, P.G. (2025). *Ion Propulsion Engineering: Linear Induction Motors for Orbital Ring Deployment*. Astronomy's Shocking Twist Series, Volume II.
+> de Jong, P.G. (2025). *Orbital Ring Engineering: Mechanics and Material Science for Space Lauch Mass Transit Systems, Volume I*. Astronomy's Shocking Twist Series.
