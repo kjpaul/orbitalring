@@ -67,7 +67,7 @@ N_TURNS = 80            # Turns per phase coil (typically 50-200)
 TAU_P = 100.0           # Pole pitch in meters (wavelength/2 of traveling field)
 W_COIL = 0.5            # LIM coil width in meters (must be << TAU_P)
 GAP = 0.05              # Air gap between coil and reaction plate (m)
-T_PLATE = 0.05          # Aluminium reaction plate thickness (m)
+T_PLATE = 0.1           # Aluminium reaction plate thickness (m)
 PITCH_COUNT = 3         # Number of pole pitches per LIM (typically 2-4)
 
 # -----------------------------------------------------------------------------

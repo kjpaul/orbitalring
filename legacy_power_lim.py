@@ -19,10 +19,10 @@ import matplotlib.pyplot as plt
 # HTS tape comes in standard widths: 12mm, 6mm, 4mm, 3mm
 # Critical current (Ic) scales linearly with tape width
 # Multiple LIMs can be placed on each side of the cable
-N_TURNS = 40                               # turns per phase coil (int)
+N_TURNS = 80                               # turns per phase coil (int)
 LIMS_PER_SIDE = 1                           # How many LIMs on each side of cable (1, 2, 3, ...)
-HTS_TAPE_WIDTH_MM = 12                       # tape width in mm (12, 6, 4, or 3)
-HTS_TAPE_LAYERS = 2                         # number of tape layers (1 or 2)
+HTS_TAPE_WIDTH_MM = 3                       # tape width in mm (12, 6, 4, or 3)
+HTS_TAPE_LAYERS = 3                         # number of tape layers (1 or 2)
 V_SLIP_MAX = 200.0                          # maximum slip velocity (m/s)
 V_SLIP_MIN = 5.0                            # minimum slip velocity (m/s)
 SLIP_RATIO_NORMAL = 0.02                    # target slip ratio at full current (2%)
@@ -32,7 +32,6 @@ W_COIL = 0.5                                # LIM width (m)
 GAP = 0.05                                  # coil-to-plate gap (m)
 LIM_SPACING = 500.0                         # distance at which LIMs are place (m)
 T_PLATE = 0.05                              # aluminium thickness (m)
-IC_PER_MM_PER_LAYER = 66.7                  # Ic per mm of tape width per layer, 66 max (A/mm)
 MAX_SITE_POWER = 16.0e6                     # power limit per LIM site (W)
 
 # graph and run-time variables 
@@ -88,7 +87,8 @@ POWER_HEADROOM = 0.98       # aim to use this fraction of MAX_SITE_POWER
 MAX_HEATSINK_AREA = (LIM_SPACING) * 2 * W_COIL # the heatsink extends under the coils, since they are 99.99 % open space. 
 A_COIL = TAU_P * W_COIL     # coil area
 
-# Derived HTS parameters
+# Derived HTS parameters. Since Ic for 12 mm = 800 A -> 66.7 A/mm. 800 A * 0.8125 = 650 A target.
+IC_PER_MM_PER_LAYER = 66.7                      # Ic per mm of tape width per layer, 66.7 max (A/mm)
 W_TAPE = HTS_TAPE_WIDTH_MM / 1000               # HTS tape width (m)
 I_C = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * HTS_TAPE_LAYERS  # Critical current (A)
 I_PEAK = 0.875 * I_C                            # I_peak, typically ~87.5% of Ic (A)
@@ -237,8 +237,8 @@ list_p_lim_site = []
 list_temp_plate_ave = []
 list_E_site_ke = []      # Track site KE over time (TJ)
 list_E_total_ke = []     # Track total KE over time (EJ)
-list_goodness_G = []     # Track goodness factor
-list_eta_slip = []       # Track slip efficiency
+# list_goodness_G = []     # Track goodness factor
+# list_eta_slip = []       # Track slip efficiency
 
 """
     -------------------------------------------------
