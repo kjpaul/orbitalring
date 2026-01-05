@@ -93,12 +93,14 @@ PLATE_MATERIAL = "cuni7030"
 # LIMs are distributed around the ring. Each "site" has LIMs on both sides
 # of the cable for balanced forces.
 #
+# The number of LIM stators per side at each site equals N_PLATES_PER_SIDE
+# (defined in section 1.2b) - one stator faces each reaction plate.
+#
 # Trade-offs:
 #   - Closer spacing → more LIMs → faster deployment, higher capital cost
 #   - Wider spacing → fewer LIMs → slower deployment, lower capital cost
 
 LIM_SPACING = 500.0     # Distance between LIM sites (m)
-LIMS_PER_SIDE = 1       # LIMs on each side of cable at each site (1, 2, or 3)
 
 # -----------------------------------------------------------------------------
 # 1.4 Operating Limits
@@ -260,7 +262,8 @@ I_TARGET = 0.8125 * I_C         # Target steady-state current (81.25% of Ic)
 I_MIN = 10.0                    # Minimum current (A)
 
 # LIM geometry
-LIMS_PER_SITE = 2 * LIMS_PER_SIDE
+# LIMS_PER_SITE = 2 × N_PLATES_PER_SIDE (one stator per plate, both sides)
+LIMS_PER_SITE = 2 * N_PLATES_PER_SIDE
 L_ACTIVE = TAU_P * PITCH_COUNT
 A_LIM = L_ACTIVE * W_COIL
 A_COIL = TAU_P * W_COIL
@@ -294,10 +297,6 @@ M_LEV_PLATE = DENSITY_IRON * D_LEV * W_LEV               # kg/m per plate
 M_HARDWARE = (2 * N_LEV_PLATES * M_LEV_PLATE + 
               2 * N_PLATES_PER_SIDE * M_LIM_PLATE)       # kg/m total hardware
 M_CABLE_M = M_CABLE_STRUCTURAL + M_HARDWARE              # kg/m total rotor mass
-
-# Total masses
-M_CABLE_TOTAL = M_CABLE_M * L_RING
-M_LOAD_TOTAL = M_LOAD_M * L_RING
 
 # Total masses
 M_CABLE_TOTAL = M_CABLE_M * L_RING
@@ -747,19 +746,25 @@ def calc_hysteresis_power(f_supply, i_peak):
 # SECTION 14: THERMAL CALCULATIONS
 # =============================================================================
 
-def calc_effective_emissivity(em1=EM_ALU, em2=EM_HEATSINK):
+def calc_effective_emissivity(em1=None, em2=EM_HEATSINK):
     """Effective emissivity between two parallel surfaces."""
+    if em1 is None:
+        em1 = PLATE_EM
     return 1 / (1/em1 + 1/em2 - 1)
 
 
-def calc_radiative_heat_transfer(area, T_hot, T_cold, em1=EM_ALU, em2=EM_HEATSINK):
+def calc_radiative_heat_transfer(area, T_hot, T_cold, em1=None, em2=EM_HEATSINK):
     """Radiative heat transfer between two surfaces."""
+    if em1 is None:
+        em1 = PLATE_EM
     em_eff = calc_effective_emissivity(em1, em2)
     return em_eff * STEFAN_BOLTZMANN * area * (T_hot**4 - T_cold**4)
 
 
-def calc_heatsink_area_required(p_heat, T_hot, T_cold=T_LN2_BOIL, em1=EM_ALU, em2=EM_HEATSINK):
+def calc_heatsink_area_required(p_heat, T_hot, T_cold=T_LN2_BOIL, em1=None, em2=EM_HEATSINK):
     """Required heatsink area to radiate given power."""
+    if em1 is None:
+        em1 = PLATE_EM
     em_eff = calc_effective_emissivity(em1, em2)
     if T_hot <= T_cold:
         T_hot = T_cold + 1
@@ -788,8 +793,8 @@ def calc_plate_temp_rise(v_rel, f_slip, p_eddy, temp_K):
     v_rel_adj = max(V_REL_MIN_FUDGE, v_rel)
     time_under_lim = L_ACTIVE / v_rel_adj
     volume = calc_plate_eddy_volume(f_slip, temp_K)
-    mass = volume * RHO_ALU_MASS
-    return (p_eddy * time_under_lim) / (mass * C_P_ALU)
+    mass = volume * PLATE_DENSITY
+    return (p_eddy * time_under_lim) / (mass * PLATE_CP)
 
 
 def calc_heat_load(p_eddy):
@@ -875,7 +880,7 @@ PARAM_DISPLAY = {
     "I_TARGET            A": round(I_TARGET),
     "V_SLIP_MAX        m/s": V_SLIP_MAX,
     "V_SLIP_MIN        m/s": V_SLIP_MIN,
-    "LIMS_PER_SIDE       #": LIMS_PER_SIDE,
+    "N_PLATES_PER_SIDE   #": N_PLATES_PER_SIDE,
     "LIMS_PER_SITE       #": LIMS_PER_SITE,
     "PITCH_COUNT         #": PITCH_COUNT,
     "LIM_SPACING         m": LIM_SPACING,
@@ -884,8 +889,10 @@ PARAM_DISPLAY = {
     "VOLTS_MAX          kV": VOLTS_MAX / 1000,
     "MAX_SITE_POWER     MW": MAX_SITE_POWER / 1e6,
     "T_PLATE            mm": T_PLATE * 1000,
-    "M_CABLE         kg/m": M_CABLE_M,
-    "M_LOAD          kg/m": M_LOAD_M,
+    "M_CABLE_STRUCT   kg/m": M_CABLE_STRUCTURAL,
+    "M_HARDWARE       kg/m": M_HARDWARE,
+    "M_CABLE_TOTAL    kg/m": M_CABLE_M,
+    "M_LOAD           kg/m": M_LOAD_M,
 }
 
 
@@ -894,6 +901,7 @@ def print_parameters():
     print("\n" + "="*70)
     print("SIMULATION PARAMETERS")
     print("="*70)
+    print(f"  {'PLATE_MATERIAL':24} {PLATE_MATERIAL:>12}")
     for key, value in PARAM_DISPLAY.items():
         print(f"  {key:24} {value:>12.2f}")
     print("="*70 + "\n")
