@@ -52,6 +52,7 @@ HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
 HTS_TAPE_LAYERS = 3         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
 
+
 # -----------------------------------------------------------------------------
 # 1.2 LIM Geometry
 # -----------------------------------------------------------------------------
@@ -67,8 +68,24 @@ N_TURNS = 80            # Turns per phase coil (typically 50-200)
 TAU_P = 100.0           # Pole pitch in meters (wavelength/2 of traveling field)
 W_COIL = 0.5            # LIM coil width in meters (must be << TAU_P)
 GAP = 0.05              # Air gap between coil and reaction plate (m)
-T_PLATE = 0.1           # Aluminium reaction plate thickness (m)
+T_PLATE = 0.2           # Aluminium reaction plate thickness (m)
 PITCH_COUNT = 3         # Number of pole pitches per LIM (typically 2-4)
+
+# -----------------------------------------------------------------------------
+# 1.2b Plate Geometry (separate from coil geometry)
+# -----------------------------------------------------------------------------
+# The reaction plate may be wider than the coil to allow for edge effects
+# and mechanical mounting. Levitation plates are for magnetic bearings.
+
+W_PLATE = 1.2               # Reaction plate width (m) - wider than coil
+N_PLATES_PER_SIDE = 1       # LIM reaction plates per side of cable
+N_LEV_PLATES = 1            # Levitation plates per side
+D_LEV = 0.10                # Levitation plate thickness (m)
+W_LEV = 1.4                 # Levitation plate width (m)
+
+# Reaction plate material properties
+# Options: "aluminum" or "cuni7030"
+PLATE_MATERIAL = "cuni7030"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -135,11 +152,13 @@ THRUST_EFFICIENCY = 1.0 # Multiplier on calculated thrust (1.0 = no adjustment)
 # -----------------------------------------------------------------------------
 # 1.7 Mass Configuration
 # -----------------------------------------------------------------------------
-# These masses come from the orbital ring design in "Orbital Ring Engineering".
-# They determine the acceleration achievable for a given thrust.
+# Cable mass is calculated from structural requirements plus attached hardware.
+# The structural cable mass comes from CNT stress calculations in ORE.
+# NOTE: M_CABLE_STRUCTURAL depends on the altitude of the orbit, the mass M_LOAD_M, 
+#       the density of the structural material and the selected target stress 
 
-M_CABLE_M = 99_198      # Cable mass per meter (kg/m) - the rotor
-M_LOAD_M = 12_000       # Casing + payload mass per meter (kg/m) - the stator
+M_CABLE_STRUCTURAL = 96_700     # Structural cable mass per meter (kg/m)
+M_LOAD_M = 12_000               # Casing + payload mass per meter (kg/m) - the stator
 
 # -----------------------------------------------------------------------------
 # 1.8 Simulation Control
@@ -174,12 +193,26 @@ V_ORBIT = 7754.866              # Orbital velocity (m/s)
 V_GROUND_STATIONARY = 483.331   # Ground-stationary velocity at 250 km (m/s)
 L_RING = 41_645_813.012         # Ring circumference (m)
 
-# Aluminium properties
-RHO_ALU_70K = 4.853e-9          # Resistivity at 70 K (Ω·m)
-RHO_ALU_MASS = 2700             # Density (kg/m³)
+# Reaction plate materials
+# Aluminum properties
+RHO_ALU_293K = 2.65e-8          # Electrical resistivity at 293 K (Ω·m)
+RHO_ALU_70K = 4.853e-9          # Electrical resistivity at 70 K (Ω·m)
+DENSITY_ALU = 2700              # Mass density (kg/m³)
 C_P_ALU = 900                   # Specific heat capacity (J/kg·K)
 K_ALU = 205                     # Thermal conductivity (W/m·K)
 EM_ALU = 0.85                   # Emissivity (black anodized)
+ALPHA_ALU = 3.663e-3            # Temperature coefficient of resistivity (1/K)
+
+# CuNi 70/30 (Cupronickel) properties
+RHO_CUNI_293K = 38e-8           # Electrical resistivity at 293 K (Ω·m) - nearly constant!
+DENSITY_CUNI = 8900             # Mass density (kg/m³)
+C_P_CUNI = 377                  # Specific heat capacity (J/kg·K)
+K_CUNI = 29                     # Thermal conductivity (W/m·K)
+EM_CUNI = 0.65                  # Emissivity (oxidized)
+ALPHA_CUNI = 0.0004             # Temperature coefficient - very small!
+
+# Iron properties (for levitation plates)
+DENSITY_IRON = 7870             # Mass density (kg/m³)
 
 # Liquid nitrogen properties
 T_LN2_BOIL = 77.4               # Boiling point at 1 atm (K)
@@ -238,6 +271,33 @@ LIM_SITES = round(L_RING / LIM_SPACING)
 
 # Angular conversion
 ALPHA_TAPE = ALPHA_PENETRATION_DEG * math.pi / 180
+
+# Material-dependent properties
+if PLATE_MATERIAL == "cuni7030":
+    PLATE_DENSITY = DENSITY_CUNI
+    PLATE_RHO_293K = RHO_CUNI_293K
+    PLATE_ALPHA = ALPHA_CUNI
+    PLATE_CP = C_P_CUNI
+    PLATE_K = K_CUNI
+    PLATE_EM = EM_CUNI
+else:  # aluminum
+    PLATE_DENSITY = DENSITY_ALU
+    PLATE_RHO_293K = RHO_ALU_293K
+    PLATE_ALPHA = ALPHA_ALU
+    PLATE_CP = C_P_ALU
+    PLATE_K = K_ALU
+    PLATE_EM = EM_ALU
+
+# Mass per meter calculations
+M_LIM_PLATE = PLATE_DENSITY * T_PLATE * W_PLATE          # kg/m per plate
+M_LEV_PLATE = DENSITY_IRON * D_LEV * W_LEV               # kg/m per plate
+M_HARDWARE = (2 * N_LEV_PLATES * M_LEV_PLATE + 
+              2 * N_PLATES_PER_SIDE * M_LIM_PLATE)       # kg/m total hardware
+M_CABLE_M = M_CABLE_STRUCTURAL + M_HARDWARE              # kg/m total rotor mass
+
+# Total masses
+M_CABLE_TOTAL = M_CABLE_M * L_RING
+M_LOAD_TOTAL = M_LOAD_M * L_RING
 
 # Total masses
 M_CABLE_TOTAL = M_CABLE_M * L_RING
@@ -383,21 +443,17 @@ def calc_b_field_in_coil(i_peak):
 # SECTION 8: PHYSICS FUNCTIONS - Material Properties
 # =============================================================================
 
-def calc_resistivity_alu(temp_K):
-    """Temperature-dependent resistivity of aluminium.
+def calc_resistivity(temp_K):
+    """Temperature-dependent resistivity of reaction plate material.
     
-    Uses linear temperature coefficient:
-        ρ(T) = ρ₀ × [1 + α × (T - T₀)]
-    
-    where ρ₀ = 2.65×10⁻⁸ Ω·m at 293 K, α = 3.663×10⁻³ K⁻¹
-    
-    Clamped to minimum value at 70 K to prevent unphysical extrapolation.
+    CuNi 70/30 has nearly constant resistivity vs temperature (α ≈ 0.04%/K)
+    compared to aluminum (α ≈ 0.4%/K). This is an advantage for consistent
+    LIM performance across operating temperatures.
     """
-    rho_293K = 2.65e-8
-    alpha = 3.663e-3
-    rho = rho_293K * (1 + alpha * (temp_K - 293))
-    return max(rho, RHO_ALU_70K)
-
+    rho = PLATE_RHO_293K * (1 + PLATE_ALPHA * (temp_K - 293))
+    if PLATE_MATERIAL == "aluminum":
+        return max(rho, RHO_ALU_70K)  # Clamp for aluminum
+    return rho
 
 def calc_skin_depth(f_slip, temp_K):
     """Electromagnetic skin depth in the reaction plate.
@@ -406,7 +462,7 @@ def calc_skin_depth(f_slip, temp_K):
     
     Eddy currents are confined to approximately this depth at frequency f.
     """
-    rho = calc_resistivity_alu(temp_K)
+    rho = calc_resistivity(temp_K)
     if f_slip <= 0:
         f_slip = calc_slip_frequency(V_SLIP_MIN)
     return math.sqrt(rho / (math.pi * MU0 * f_slip))
@@ -464,7 +520,7 @@ def calc_goodness_factor(f_slip, temp_K):
     if f_slip <= 0:
         return 0.0
     
-    rho = calc_resistivity_alu(temp_K)
+    rho = calc_resistivity(temp_K)
     sigma = 1.0 / rho
     omega = 2 * math.pi * f_slip
     delta_eff = calc_effective_plate_depth(f_slip, temp_K)
@@ -556,7 +612,7 @@ def calc_thrust_model1(f_slip, f_supply, i_peak, temp_K=77.0):
         return 0.0
     
     # Material properties
-    rho = calc_resistivity_alu(temp_K)
+    rho = calc_resistivity(temp_K)
     delta = calc_skin_depth(f_slip, temp_K)
     d_eff = min(T_PLATE, delta)
     
@@ -571,9 +627,9 @@ def calc_thrust_model1(f_slip, f_supply, i_peak, temp_K=77.0):
     Z = math.sqrt(R**2 + X**2)
     
     # Eddy current and power
-    I = EMF / Z
+    I_eddy = EMF / Z
     N_loops = L_ACTIVE / TAU_P
-    P = N_loops * I**2 * R
+    P = N_loops * I_eddy**2 * R
     
     # Thrust from power balance
     F = P / v_slip
