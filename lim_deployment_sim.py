@@ -27,10 +27,12 @@ Usage:
 """
 
 import sys
+import datetime
 import math
-# import tabulate
+import tabulate
 import matplotlib.pyplot as plt
 
+timestamp = datetime.datetime.now()
 
 # =============================================================================
 # SECTION 1: USER-CONFIGURABLE PARAMETERS
@@ -84,8 +86,8 @@ D_LEV = 0.10                # Levitation plate thickness (m)
 W_LEV = 1.4                 # Levitation plate width (m)
 
 # Reaction plate material properties
-# Options: "aluminum" or "cuni7030"
-PLATE_MATERIAL = "cuni7030"
+# Options: "aluminum", "cuni7030", or "titanium"
+PLATE_MATERIAL = "titanium"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -213,6 +215,14 @@ K_CUNI = 29                     # Thermal conductivity (W/m·K)
 EM_CUNI = 0.65                  # Emissivity (oxidized)
 ALPHA_CUNI = 0.0004             # Temperature coefficient - very small!
 
+# Pure Titanium properties (lunar-available from ilmenite)
+RHO_TI_293K = 42e-8             # Electrical resistivity at 293 K (Ω·m)
+DENSITY_TI = 4500               # Mass density (kg/m³)
+C_P_TI = 520                    # Specific heat capacity (J/kg·K)
+K_TI = 22                       # Thermal conductivity (W/m·K)
+EM_TI = 0.60                    # Emissivity (oxidized)
+ALPHA_TI = 0.0035               # Temperature coefficient (1/K)
+
 # Iron properties (for levitation plates)
 DENSITY_IRON = 7870             # Mass density (kg/m³)
 
@@ -283,6 +293,13 @@ if PLATE_MATERIAL == "cuni7030":
     PLATE_CP = C_P_CUNI
     PLATE_K = K_CUNI
     PLATE_EM = EM_CUNI
+elif PLATE_MATERIAL == "titanium":
+    PLATE_DENSITY = DENSITY_TI
+    PLATE_RHO_293K = RHO_TI_293K
+    PLATE_ALPHA = ALPHA_TI
+    PLATE_CP = C_P_TI
+    PLATE_K = K_TI
+    PLATE_EM = EM_TI
 else:  # aluminum
     PLATE_DENSITY = DENSITY_ALU
     PLATE_RHO_293K = RHO_ALU_293K
@@ -445,9 +462,10 @@ def calc_b_field_in_coil(i_peak):
 def calc_resistivity(temp_K):
     """Temperature-dependent resistivity of reaction plate material.
     
-    CuNi 70/30 has nearly constant resistivity vs temperature (α ≈ 0.04%/K)
-    compared to aluminum (α ≈ 0.4%/K). This is an advantage for consistent
-    LIM performance across operating temperatures.
+    Titanium has nearly optimal resistivity for narrow-plate geometry.
+    CuNi 70/30 has nearly constant resistivity vs temperature (α ≈ 0.04%/K).
+    Aluminum has high temperature dependence (α ≈ 0.4%/K) and is clamped
+    at the 70K value to prevent unphysical extrapolation.
     """
     rho = PLATE_RHO_293K * (1 + PLATE_ALPHA * (temp_K - 293))
     if PLATE_MATERIAL == "aluminum":
@@ -753,7 +771,7 @@ def calc_effective_emissivity(em1=None, em2=EM_HEATSINK):
     return 1 / (1/em1 + 1/em2 - 1)
 
 
-def calc_radiative_heat_transfer(area, T_hot, T_cold, em1=None, em2=EM_HEATSINK):
+def calc_radiative_heat_transfer(T_hot, area=LIM_SPACING*W_COIL, T_cold=T_LN2_BOIL, em1=None, em2=EM_HEATSINK):
     """Radiative heat transfer between two surfaces."""
     if em1 is None:
         em1 = PLATE_EM
@@ -848,16 +866,41 @@ def make_month_ticks(data_list, total_time):
     return tick_positions, tick_labels
 
 
-def annotate_final_value(data_list, unit="", fmt=".1f"):
+def annotate_final_value(data_list, unit=""):
     """Add annotation showing final value on plot."""
+    fmt=".3f"
     if not data_list:
         return
-    x = len(data_list) - 1
-    y = data_list[-1]
+    x = len(data_list) - 5
+    y = data_list[-5]
+    if y > 1e18:
+        unit = "E"+unit
+        y = y/1e18
+    elif y > 1e15:
+        unit = "P"+unit
+        y = y/1e15
+    elif y > 1e12:
+        unit = "T"+unit
+        y = y/1e12
+    elif y > 1e9:
+        unit = "G"+unit
+        y = y/1e9
+    elif y > 1e6:
+        unit = "M"+unit
+        y = y/1e6
+    elif y > 1e3:
+        unit = "k"+unit
+        y = y/1e3
+    if y > 100:
+        fmt=".1f"
+    elif y > 10:
+        fmt=".2f"
+    print(f"{y:{fmt}} {unit}".strip())
+
     label = f"{y:{fmt}} {unit}".strip()
     plt.annotate(
-        label, xy=(x, y), xytext=(-40, 10),
-        textcoords="offset points", fontsize=10, ha="left",
+        label, xy=(x, y), xytext=(-90, 30),
+        textcoords="offset points", fontsize=25, ha="left",
         bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, lw=0)
     )
 
@@ -898,13 +941,14 @@ PARAM_DISPLAY = {
 
 def print_parameters():
     """Display current parameter configuration."""
-    print("\n" + "="*70)
+    streq = "="*70
+    print(f"\n{streq}")
     print("SIMULATION PARAMETERS")
-    print("="*70)
+    print(streq)
     print(f"  {'PLATE_MATERIAL':24} {PLATE_MATERIAL:>12}")
     for key, value in PARAM_DISPLAY.items():
         print(f"  {key:24} {value:>12.2f}")
-    print("="*70 + "\n")
+    print(f"{streq}\n")
 
 
 # =============================================================================
@@ -928,6 +972,35 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
     }
     print(model_names.get(THRUST_MODEL, "(Unknown)"))
     print(f"T_PLATE: {T_PLATE * 1000:.1f} mm")
+
+    max_min = {         # [value, time]
+        "volts_max":          [0, 0, "",0],
+        "current_max":        [0, 0, "",0],
+        "v_slip_max":         [0, 0, "",0],
+        "p_cryo_max":         [0, 0, "",0],    
+        "p_eddy_max":         [0, 0, "",0],
+        "p_hyst_max":         [0, 0, "",0],
+        "p_heat_max":         [0, 0, "",0],
+        "f_slip_max":         [0, 0, "",0],
+        "f_supply_max":       [0, 0, "",0],
+        "b_field_max":        [0, 0, "",0],
+        "thrust_max":         [0, 0, "",0],
+        "p_thrust_max":       [0, 0, "",0],
+        "volts_lim_max":      [0, 0, "",0],
+        "delta_t_max":        [0, 0, "",0],
+        "plate_t_max":        [0, 0, "",0],
+        "skin_d_max":         [0, 0, "",0],
+        "skin_d_min":         [100, 0, "",0],
+        "min_heatsink_area":  [0, 0, "",0],
+        "min_cryo_area":      [0, 0, "",0],
+        "p_heat_load":        [0, 0, "", 0],
+        "alu_temp_out":       [0, 0, "", 0],
+        "lim_power_max":      [0, 0, "",0],
+        "site_power_max":     [0, 0, "",0],
+    }
+    exit_msg = "PASSED"
+
+
     
     # Initialize state
     dt = DT1
@@ -937,7 +1010,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
     v_slip = v_slip_init
     i_peak = i_peak_init
     plate_temp = 70.0  # Start at cryogenic temperature
-    
+    heatsink_area = 0
+
     # Controller state
     v_slip_cmd = v_slip
     i_peak_prev = i_peak
@@ -960,7 +1034,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
     # Time display
     month_count = 0
     
-    param_str = f"τp={TAU_P}m, N={N_TURNS}, Gap={GAP*1000:.0f}mm"
+    param_str = f"τp={TAU_P}m, N={N_TURNS}, Gap={GAP*1000:.0f}mm, Spacing={LIM_SPACING:.0f}m, HTS width={HTS_TAPE_WIDTH_MM:.0f}mm, I={I_TARGET:.0f}A"
     
     # Main loop
     while v_casing > V_GROUND_STATIONARY:
@@ -1061,6 +1135,9 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
             i_step = DI_MAX * dt
             i_peak = max(i_peak_prev - i_step, min(i_peak_prev + i_step, i_peak))
             i_peak_prev = i_peak
+
+            heatsink_area = calc_heatsink_area_required(p_heat, plate_temp)
+            min_cryo_area = calc_radiative_heat_transfer(plate_temp)
             
             # Ramp up if under limits
             if (not changed and i_peak < I_TARGET 
@@ -1099,8 +1176,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
             data_v_slip.append(v_slip)
             data_slip_ratio.append(slip * 100)
             data_f_slip.append(f_slip)
-            data_thrust.append(thrust)
-            data_thrust_power.append(p_thrust)
+            data_thrust.append(thrust * 2)
+            data_thrust_power.append(p_thrust * 2)
             data_v_rel.append(v_rel)
             data_b_field.append(b_plate)
             data_p_eddy.append(p_eddy)
@@ -1118,7 +1195,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
         if time > month_count * MONTH:
             progress = calc_deployment_progress(v_casing)
             if month_count == 0:
-                print(f"\nMonth | Progress | Voltage | Current | Thrust | Site Power")
+                print("\nMonth | Progress | Voltage | Current | Thrust | Site Power")
                 print("-" * 65)
             print(f"{month_count:5} | {progress:6.1f}% | {volts:7.0f} V | {i_peak:5.1f} A | {thrust:6.0f} N | {site_power/1e6:5.2f} MW")
             
@@ -1133,16 +1210,91 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
         
         # Check for failures
         if volts > VOLTS_MAX * 1.1:
+            exit_msg = f"FAIL over voltage limit: {volts:.0f} V"
             print(f"\nFAILURE: Voltage exceeded limit ({volts:.0f} V)")
             return (param_str, False, time)
         
         if site_power > MAX_SITE_POWER * 1.1:
+            exit_msg = f"FAIL max site power exceeded: {site_power:.0f} W"
             print(f"\nFAILURE: Site power exceeded limit ({site_power/1e6:.1f} MW)")
             return (param_str, False, time)
         
         if TAU_P * PITCH_COUNT > LIM_SPACING:
+            exit_msg = f"FAIL The LIM ia longer than the LIM_SPACING: LIM={TAU_P * PITCH_COUNT} m, SPACING={LIM_SPACING} m\n"
             print(f"\nFAILURE: LIM length ({TAU_P * PITCH_COUNT}m) > spacing ({LIM_SPACING}m)")
             return (param_str, False, time)
+
+                # collect min-max data
+        if v_rel != 0 and time > DAY: # things are out of wack at the beginning and a real deployment would account for it.
+            if max_min["volts_max"][3] < volts:
+                max_min["volts_max"] = [round(volts,2), time, "V", volts]
+
+            if max_min["current_max"][3] < i_peak:
+                max_min["current_max"] = [round(i_peak,2), time, "A", i_peak]
+
+            if max_min["v_slip_max"][3] < v_slip:
+                max_min["v_slip_max"] = [round(v_slip,6), time, "m/s", v_slip]
+
+            if max_min["f_slip_max"][3] < f_slip:
+                max_min["f_slip_max"] = [round(f_slip,6), time, "Hz", f_slip]
+
+            if max_min["f_supply_max"][3] < f_supply:
+                max_min["f_supply_max"] = [round(f_supply,6), time, "Hz", f_slip]
+
+            if max_min["b_field_max"][3] < b_plate:
+                max_min["b_field_max"] = [round(b_plate*1e3,6), time, "mT", b_plate]
+
+            if max_min["thrust_max"][3] < thrust:
+                max_min["thrust_max"] = [round(thrust,2), time, "N", thrust]
+
+            if max_min["p_thrust_max"][3] < p_thrust:
+                max_min["p_thrust_max"] = [round(p_thrust), time, "W", p_thrust]
+
+            if max_min["volts_lim_max"][3] < volts:
+                max_min["volts_lim_max"] = [round(volts,2), time, "V", volts]
+
+            if max_min["p_eddy_max"][3] < p_eddy:
+                max_min["p_eddy_max"] = [round(p_eddy,2), time, "W", p_eddy]
+
+            if max_min["p_hyst_max"][3] < p_hyst:
+                max_min["p_hyst_max"] =  [round(p_hyst,2), time, "W", p_hyst]
+
+            if max_min["plate_t_max"][3] < temp_plate_avg:
+                max_min["plate_t_max"] = [round(temp_plate_avg,2), time, "K", temp_plate_avg]
+
+            if max_min["delta_t_max"][3] < delta_temp:
+                max_min["delta_t_max"] = [round(delta_temp,6), time, "K", delta_temp]
+
+            if max_min["p_heat_max"][3] < p_heat:
+                max_min["p_heat_max"] = [round(p_heat,2), time, "W", p_heat]
+
+            if max_min["lim_power_max"][3] < p_lim:
+                max_min["lim_power_max"] = [round(p_lim/1e6,3), time, "MW", p_lim]
+
+            if max_min["site_power_max"][3] < site_power:
+                max_min["site_power_max"] = [round(site_power/1e6,3), time, "MW", site_power]
+
+            if max_min["min_heatsink_area"][3] < heatsink_area:
+                max_min["min_heatsink_area"] = [round(heatsink_area), time, "m²/LIM", heatsink_area]
+
+            if max_min["min_cryo_area"][3] < min_cryo_area:
+                max_min["min_cryo_area"] = [round(min_cryo_area), time, "m²", min_cryo_area]
+
+            if max_min["p_heat_load"][3] < heat_load:
+                max_min["p_heat_load"] = [round(heat_load), time, "W", heat_load]
+
+            if max_min["alu_temp_out"][3] < plate_temp:
+                max_min["alu_temp_out"] = [round(plate_temp), time, "W", plate_temp]
+
+            if max_min["p_cryo_max"][3] < p_cryo:                  
+                max_min["p_cryo_max"] = [round(p_cryo/1e6,2), time, "MW", p_cryo]
+
+            if max_min["skin_d_max"][3] < skin_calc:
+                max_min["skin_d_max"] = [round(skin_calc*1000,2), time, "mm", skin_calc]
+
+            if max_min["skin_d_min"][3] > skin_eff:
+                max_min["skin_d_min"] = [round(skin_eff*1000,2), time, "mm", skin_eff]
+
         
         # Time stepping
         if time < DAY:
@@ -1157,7 +1309,16 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
         if time > 100 * YR:
             print("\nWARNING: Deployment time exceeded 100 years")
             break
-    
+        
+    power_track.append([
+        "final", round(v_casing, 1), round(i_peak, 1),
+        round(volts, 1), round(v_slip, 1), f"{round(slip*100, 1)}%",
+        round(f_supply, 1), round(p_eddy, 1), round(p_hyst, 1),
+        round(thrust, 1), f"{round(p_thrust/1e6, 3)} MW",
+        f"{round(p_cryo/1e6, 3)} MW", f"{round(site_power/1e6, 3)} MW"
+    ])
+
+
     # Final results
     print("\n" + "=" * 70)
     print("DEPLOYMENT COMPLETE")
@@ -1168,6 +1329,55 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
     print(f"Total energy delivered: {E_total/1e18:.3f} EJ")
     print(f"Energy per site: {E_site/1e12:.2f} TJ")
     print("=" * 70)
+
+    # post loop wrap-up. show data.
+    str2 = f"Deployment time: {time / DAY:.2f} days, {time / YR:.2f} years"
+    str3 = f"Cable velocity: {v_cable:.2f} m/s"
+    str4 = f"Casing velocity: {v_casing:.2f} m/s"
+    strplus = "+"*70
+    strmin  = "-"*70
+
+    lines = [f"\n{strplus}\nTimestamp: {timestamp}\n{exit_msg}\n{str2}\n{str3}\n{str4}\n"]
+    lines.append(f"\n{strmin}\n")
+    for key, value in PARAM_DISPLAY.items():
+        str1 = (f"\t{key:20}\t{value:8}\n")
+        lines.append(str1)
+
+    print(strmin)
+    lines.append(f"\n{strmin}\n")
+    # print out max_min data
+    for key, value in max_min.items():
+        if value[1] < 60:
+            t = f"{value[1]:8.2f} seconds"
+        elif value[1] < HR:
+            t = f"{value[1]/60:8.2f} minutes"
+        elif value[1] < DAY:
+            t = f"{value[1]/HR:8.2f} hours"
+        elif value[1] < MONTH:
+            t = f"{value[1]/DAY:8.2f} days"
+        elif value[1] < YR:
+            t = f"{value[1]/MONTH:8.2f} months"
+        else:
+            t = f"{value[1]/YR:8.2f} years"
+        str1 = (f"\t{key:18} {value[0]:18.2f} {value[2]:8} {t}")
+        print(str1)
+        lines.append(str1+"\n")
+    print(strmin)
+    lines.append(f"\n{strmin}\n")
+   
+    print("")
+    print(tabulate.tabulate(power_track, headers=["V_Shell", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "Cryo Power", "Site Power"]))
+    lines.append(tabulate.tabulate(power_track, headers=["V_Shell", "Amps","Volts", "V_Slip", "Slip", "F_Supply", "Eddy", "Hyst", "Thrust", "P_Thrust", "Cryo Power", "Site Power"]))
+    print(strmin)
+    lines.append(f"\n{strmin}\n")
+
+    if exit_msg != "PASSED":
+        print(f"{exit_msg}. time in seconds: {time:.3f} s, years: {time/YR:.2f}")
+
+    # write results to file
+    if WRITE_FILE:
+        with open(f"./output/_orbital_ring_model{THRUST_MODEL}.txt", "a") as file:
+            file.writelines(lines)
     
     return (param_str, True, time)
 
@@ -1183,12 +1393,12 @@ def plot_results(show_graphs, param_str, total_time):
         "current": (data_current, "Current", "A", "blue"),
         "volts": (data_voltage, "Voltage", "V", "red"),
         "v_slip": (data_v_slip, "Slip Velocity", "m/s", "green"),
-        "thrust": (data_thrust, "Thrust", "N", "purple"),
+        "thrust": (data_thrust, "Thrust per site", "N", "purple"),
         "p_eddy": (data_p_eddy, "Eddy Current Losses", "W", "darkblue"),
         "v_rel": (data_v_rel, "Relative Velocity", "m/s", "olive"),
         "f_slip": (data_f_slip, "Slip Frequency", "Hz", "orange"),
         "slip": (data_slip_ratio, "Slip Ratio", "%", "cyan"),
-        "p_thrust": (data_thrust_power, "Thrust Power", "W", "navy"),
+        "p_thrust": (data_thrust_power, "Thrust Power per site", "W", "navy"),
         "b_peak": (data_b_field, "Magnetic Field", "T", "brown"),
         "hyst": (data_p_hyst, "Hysteresis Losses", "W", "brown"),
         "cryo": (data_p_cryo, "Cryogenic Power", "W", "teal"),
@@ -1197,8 +1407,11 @@ def plot_results(show_graphs, param_str, total_time):
         "plate_temp": (data_temp_plate, "Plate Temperature", "K", "lime"),
         "ke_site": (data_E_site, "Site Kinetic Energy", "J", "green"),
         "ke_all": (data_E_total, "Total Kinetic Energy", "J", "darkgreen"),
-        "skin": (data_skin_depth_eff, "Skin Depth", "mm", "magenta"),
+        "skin": (data_skin_depth_eff, "Effective Skin Depth", "mm", "magenta"),
+        "skin_calc": (data_skin_depth_calc, "Calculated Skin Depth", "mm", "darkmagenta"),
     }
+
+    param_str = param_str + f", Time: {total_time/DAY:.1f} days ({total_time/YR:.2f} years)"
     
     for name, (data, label, unit, color) in plots.items():
         if name in show_graphs or "all" in show_graphs:
@@ -1209,9 +1422,9 @@ def plot_results(show_graphs, param_str, total_time):
             
             plt.figure(figsize=(10, 6))
             plt.scatter(range(len(data)), data, c=color, s=1)
-            plt.xlabel("Months")
-            plt.ylabel(f"{label} ({unit})")
-            plt.title(f"{label} - {param_str}")
+            plt.xlabel("Months", fontsize=24)
+            plt.ylabel(f"{label} ({unit})", fontsize=24)
+            plt.title(f"{label} - {param_str}", fontsize=18)
             plt.xticks(tick_pos, tick_labels)
             annotate_final_value(data, unit=unit)
             plt.grid(True, alpha=0.3)
