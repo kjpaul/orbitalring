@@ -32,8 +32,6 @@ import math
 import tabulate
 import matplotlib.pyplot as plt
 
-timestamp = datetime.datetime.now()
-
 # =============================================================================
 # SECTION 1: USER-CONFIGURABLE PARAMETERS
 # =============================================================================
@@ -356,6 +354,7 @@ data_skin_depth_eff = []
 data_skin_depth_calc = []
 data_p_cryo = []
 data_p_hyst = []
+data_p_heat = []
 data_p_lim = []
 data_p_site = []
 data_temp_plate = []
@@ -871,8 +870,8 @@ def annotate_final_value(data_list, unit=""):
     fmt=".3f"
     if not data_list:
         return
-    x = len(data_list) - 5
-    y = data_list[-5]
+    x = len(data_list)
+    y = data_list[-1]
     if y > 1e18:
         unit = "E"+unit
         y = y/1e18
@@ -1034,7 +1033,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
     # Time display
     month_count = 0
     
-    param_str = f"τp={TAU_P}m, N={N_TURNS}, Gap={GAP*1000:.0f}mm, Spacing={LIM_SPACING:.0f}m, HTS width={HTS_TAPE_WIDTH_MM:.0f}mm, I={I_TARGET:.0f}A"
+    param_str = f"τp={TAU_P}m, N={N_TURNS}, Gap={GAP*1000:.0f}mm, Spacing={LIM_SPACING:.0f}m, HTS width={HTS_TAPE_WIDTH_MM:.0f}mm, I_max={I_TARGET:.0f}A"
     
     # Main loop
     while v_casing > V_GROUND_STATIONARY:
@@ -1105,7 +1104,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
             else:
                 p_cryo = 0.0
             
-            p_lim = (p_thrust + heat_load + p_hyst) / max(LIM_EFF, 1e-6)
+            p_lim = (p_thrust + p_eddy + p_hyst) / max(LIM_EFF, 1e-6)
             site_power = (LIMS_PER_SITE * p_lim + p_cryo) / max(INV_EFF, 1e-6)
             
             # Enforce limits
@@ -1180,11 +1179,12 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
             data_thrust_power.append(p_thrust * 2)
             data_v_rel.append(v_rel)
             data_b_field.append(b_plate)
-            data_p_eddy.append(p_eddy)
+            data_p_eddy.append(p_eddy * 2)
             data_skin_depth_eff.append(skin_eff * 1000)
             data_skin_depth_calc.append(skin_calc * 1000)
             data_p_cryo.append(p_cryo)
-            data_p_hyst.append(p_hyst)
+            data_p_hyst.append(p_hyst * 2)
+            data_p_heat.append(p_heat * 2)
             data_p_lim.append(p_lim)
             data_p_site.append(site_power)
             data_temp_plate.append(temp_plate_avg)
@@ -1200,10 +1200,10 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
             print(f"{month_count:5} | {progress:6.1f}% | {volts:7.0f} V | {i_peak:5.1f} A | {thrust:6.0f} N | {site_power/1e6:5.2f} MW")
             
             power_track.append([
-                f"{month_count} mth", round(v_casing, 1), round(i_peak, 1),
-                round(volts, 1), round(v_slip, 1), f"{round(slip*100, 1)}%",
-                round(f_supply, 1), round(p_eddy, 1), round(p_hyst, 1),
-                round(thrust, 1), f"{round(p_thrust/1e6, 3)} MW",
+                f"{month_count} mth", f"{round(v_casing, 1)} m/s", f"{round(i_peak, 1)} A",
+                f"{round(volts/1e3, 2)} kV", f"{round(v_slip, 1)} m/s", f"{round(slip*100, 1)}%",
+                f"{round(f_supply, 1)} Hz", f"{round(p_eddy/1e3, 2)} kW", f"{round(p_hyst/1e3, 2)} kW",
+                f"{round(thrust, 1)} N", f"{round(p_thrust/1e6, 3)} MW",
                 f"{round(p_cryo/1e6, 3)} MW", f"{round(site_power/1e6, 3)} MW"
             ])
             month_count += 1
@@ -1212,17 +1212,17 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
         if volts > VOLTS_MAX * 1.1:
             exit_msg = f"FAIL over voltage limit: {volts:.0f} V"
             print(f"\nFAILURE: Voltage exceeded limit ({volts:.0f} V)")
-            return (param_str, False, time)
+            return (exit_msg, False, time)
         
         if site_power > MAX_SITE_POWER * 1.1:
             exit_msg = f"FAIL max site power exceeded: {site_power:.0f} W"
             print(f"\nFAILURE: Site power exceeded limit ({site_power/1e6:.1f} MW)")
-            return (param_str, False, time)
+            return (exit_msg, False, time)
         
         if TAU_P * PITCH_COUNT > LIM_SPACING:
             exit_msg = f"FAIL The LIM ia longer than the LIM_SPACING: LIM={TAU_P * PITCH_COUNT} m, SPACING={LIM_SPACING} m\n"
             print(f"\nFAILURE: LIM length ({TAU_P * PITCH_COUNT}m) > spacing ({LIM_SPACING}m)")
-            return (param_str, False, time)
+            return (exit_msg, False, time)
 
                 # collect min-max data
         if v_rel != 0 and time > DAY: # things are out of wack at the beginning and a real deployment would account for it.
@@ -1248,25 +1248,25 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
                 max_min["thrust_max"] = [round(thrust,2), time, "N", thrust]
 
             if max_min["p_thrust_max"][3] < p_thrust:
-                max_min["p_thrust_max"] = [round(p_thrust), time, "W", p_thrust]
+                max_min["p_thrust_max"] = [round(p_thrust/1e6,3), time, "MW", p_thrust]
 
             if max_min["volts_lim_max"][3] < volts:
-                max_min["volts_lim_max"] = [round(volts,2), time, "V", volts]
+                max_min["volts_lim_max"] = [round(volts/1e3,2), time, "kV", volts]
 
             if max_min["p_eddy_max"][3] < p_eddy:
-                max_min["p_eddy_max"] = [round(p_eddy,2), time, "W", p_eddy]
+                max_min["p_eddy_max"] = [round(p_eddy/1e3,2), time, "kW", p_eddy]
 
             if max_min["p_hyst_max"][3] < p_hyst:
-                max_min["p_hyst_max"] =  [round(p_hyst,2), time, "W", p_hyst]
+                max_min["p_hyst_max"] =  [round(p_hyst/1e3,2), time, "kW", p_hyst]
+
+            if max_min["p_heat_max"][3] < p_heat:
+                max_min["p_heat_max"] = [round(p_heat/1e3,2), time, "kW", p_heat]
 
             if max_min["plate_t_max"][3] < temp_plate_avg:
                 max_min["plate_t_max"] = [round(temp_plate_avg,2), time, "K", temp_plate_avg]
 
             if max_min["delta_t_max"][3] < delta_temp:
                 max_min["delta_t_max"] = [round(delta_temp,6), time, "K", delta_temp]
-
-            if max_min["p_heat_max"][3] < p_heat:
-                max_min["p_heat_max"] = [round(p_heat,2), time, "W", p_heat]
 
             if max_min["lim_power_max"][3] < p_lim:
                 max_min["lim_power_max"] = [round(p_lim/1e6,3), time, "MW", p_lim]
@@ -1275,16 +1275,16 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
                 max_min["site_power_max"] = [round(site_power/1e6,3), time, "MW", site_power]
 
             if max_min["min_heatsink_area"][3] < heatsink_area:
-                max_min["min_heatsink_area"] = [round(heatsink_area), time, "m²/LIM", heatsink_area]
+                max_min["min_heatsink_area"] = [round(heatsink_area), time, "m^2/LIM", heatsink_area]
 
             if max_min["min_cryo_area"][3] < min_cryo_area:
-                max_min["min_cryo_area"] = [round(min_cryo_area), time, "m²", min_cryo_area]
+                max_min["min_cryo_area"] = [round(min_cryo_area), time, "m^2", min_cryo_area]
 
             if max_min["p_heat_load"][3] < heat_load:
-                max_min["p_heat_load"] = [round(heat_load), time, "W", heat_load]
+                max_min["p_heat_load"] = [round(heat_load/1e3,2), time, "kW", heat_load]
 
             if max_min["alu_temp_out"][3] < plate_temp:
-                max_min["alu_temp_out"] = [round(plate_temp), time, "W", plate_temp]
+                max_min["alu_temp_out"] = [round(plate_temp), time, "K", plate_temp]
 
             if max_min["p_cryo_max"][3] < p_cryo:                  
                 max_min["p_cryo_max"] = [round(p_cryo/1e6,2), time, "MW", p_cryo]
@@ -1311,10 +1311,10 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
             break
         
     power_track.append([
-        "final", round(v_casing, 1), round(i_peak, 1),
-        round(volts, 1), round(v_slip, 1), f"{round(slip*100, 1)}%",
-        round(f_supply, 1), round(p_eddy, 1), round(p_hyst, 1),
-        round(thrust, 1), f"{round(p_thrust/1e6, 3)} MW",
+        "final", f"{round(v_casing, 1)} m/s", f"{round(i_peak, 1)} A",
+        f"{round(volts/1e3, 2)} kV", f"{round(v_slip, 1)} m/s", f"{round(slip*100, 1)}%",
+        f"{round(f_supply, 1)} Hz", f"{round(p_eddy/1e3, 2)} kW", f"{round(p_hyst/1e3, 2)} kW",
+        f"{round(thrust, 1)} N", f"{round(p_thrust/1e6, 3)} MW",
         f"{round(p_cryo/1e6, 3)} MW", f"{round(site_power/1e6, 3)} MW"
     ])
 
@@ -1336,6 +1336,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
     str4 = f"Casing velocity: {v_casing:.2f} m/s"
     strplus = "+"*70
     strmin  = "-"*70
+    
+    timestamp = datetime.datetime.now()
 
     lines = [f"\n{strplus}\nTimestamp: {timestamp}\n{exit_msg}\n{str2}\n{str3}\n{str4}\n"]
     lines.append(f"\n{strmin}\n")
@@ -1394,14 +1396,15 @@ def plot_results(show_graphs, param_str, total_time):
         "volts": (data_voltage, "Voltage", "V", "red"),
         "v_slip": (data_v_slip, "Slip Velocity", "m/s", "green"),
         "thrust": (data_thrust, "Thrust per site", "N", "purple"),
-        "p_eddy": (data_p_eddy, "Eddy Current Losses", "W", "darkblue"),
+        "p_eddy": (data_p_eddy, "Eddy Current Losses per site", "W", "darkblue"),
         "v_rel": (data_v_rel, "Relative Velocity", "m/s", "olive"),
         "f_slip": (data_f_slip, "Slip Frequency", "Hz", "orange"),
         "slip": (data_slip_ratio, "Slip Ratio", "%", "cyan"),
         "p_thrust": (data_thrust_power, "Thrust Power per site", "W", "navy"),
         "b_peak": (data_b_field, "Magnetic Field", "T", "brown"),
-        "hyst": (data_p_hyst, "Hysteresis Losses", "W", "brown"),
-        "cryo": (data_p_cryo, "Cryogenic Power", "W", "teal"),
+        "hyst": (data_p_hyst, "Hysteresis Losses per site", "W", "brown"),
+        "p_heat": (data_p_heat, "Heat Losses per site", "W", "brown"),
+        "cryo": (data_p_cryo, "Cryogenic Power per site", "W", "teal"),
         "power": (data_p_site, "Site Power", "W", "darkslategray"),
         "lim_power": (data_p_lim, "LIM Power", "W", "darkslategray"),
         "plate_temp": (data_temp_plate, "Plate Temperature", "K", "lime"),
@@ -1411,7 +1414,8 @@ def plot_results(show_graphs, param_str, total_time):
         "skin_calc": (data_skin_depth_calc, "Calculated Skin Depth", "mm", "darkmagenta"),
     }
 
-    param_str = param_str + f", Time: {total_time/DAY:.1f} days ({total_time/YR:.2f} years)"
+    time_str = f"{total_time/DAY:.1f} days ({total_time/YR:.2f} years)"
+    month_str = f"{total_time/MONTH:.1f}"
     
     for name, (data, label, unit, color) in plots.items():
         if name in show_graphs or "all" in show_graphs:
@@ -1420,11 +1424,16 @@ def plot_results(show_graphs, param_str, total_time):
             
             tick_pos, tick_labels = make_month_ticks(data, total_time)
             
-            plt.figure(figsize=(10, 6))
+            plt.figure(figsize=(14, 7))
             plt.scatter(range(len(data)), data, c=color, s=1)
-            plt.xlabel("Months", fontsize=24)
+            plt.xlabel(f"{month_str} Months", fontsize=24)
             plt.ylabel(f"{label} ({unit})", fontsize=24)
-            plt.title(f"{label} - {param_str}", fontsize=18)
+            if "fulldata" in show_graphs:
+                plt.title(f"{label} - {param_str}", fontsize=22)
+            elif "timeonly" in show_graphs:
+                plt.title(f"{label} - {time_str}", fontsize=24)
+            else:
+                plt.title(f"{label}", fontsize=24)
             plt.xticks(tick_pos, tick_labels)
             annotate_final_value(data, unit=unit)
             plt.grid(True, alpha=0.3)
@@ -1462,6 +1471,7 @@ Graph Options:
   f_slip       Slip frequency (Hz)
   v_rel        Relative velocity (m/s)
   hyst         Hysteresis losses (W)
+  p_heat       Heat losses (W)
   cryo         Cryogenic power (W)
   ke_site      Site kinetic energy (J)
   ke_all       Total kinetic energy (J)
