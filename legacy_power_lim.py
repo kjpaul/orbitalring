@@ -1427,8 +1427,8 @@ def get_deployment_time(v_slip, i_peak_now):
     print(str3)
     print(str4)
     print("Count = ", count)
-    print(f"Site KE ({LIMS_PER_SITE} LIMs): {E_site_ke/1e12:.2f} TJ")
-    print(f"Total KE (all sites): {E_total_ke/1e18:.4f} EJ")
+    print(f"Site KE ({LIMS_PER_SITE} LIMs): {E_site_ke/1e12:.8f} TJ")
+    print(f"Total KE (all sites): {E_total_ke/1e18:.8f} EJ")
     print(f"Minimum cryo radiator width: {cryo_radiator_width:.1f} m (area: {cryo_radiator_size_min:.0f} m²)")
 
     if exit_msg != "PASSED":

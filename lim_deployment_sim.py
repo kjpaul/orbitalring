@@ -67,7 +67,7 @@ IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
 N_TURNS = 80            # Turns per phase coil (typically 50-200)
 TAU_P = 100.0           # Pole pitch in meters (wavelength/2 of traveling field)
 W_COIL = 0.5            # LIM coil width in meters (must be << TAU_P)
-GAP = 0.05              # Air gap between coil and reaction plate (m)
+GAP = 0.20              # Air gap between coil and reaction plate (m)
 T_PLATE = 0.2           # Aluminium reaction plate thickness (m)
 PITCH_COUNT = 3         # Number of pole pitches per LIM (typically 2-4)
 
@@ -903,9 +903,14 @@ def annotate_final_value(data_list, unit=""):
         bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, lw=0)
     )
 
+# =============================================================================
+# SECTION 17: Kinetic Energy Equations
+# =============================================================================
+def get_ke(mass_m, v_init, v_final):
+    return 0.5 * mass_m * (v_final**2 - v_init**2) * L_RING
 
 # =============================================================================
-# SECTION 17: PARAMETER DISPLAY
+# SECTION 18: PARAMETER DISPLAY
 # =============================================================================
 
 PARAM_DISPLAY = {
@@ -951,7 +956,7 @@ def print_parameters():
 
 
 # =============================================================================
-# SECTION 18: MAIN SIMULATION LOOP
+# SECTION 19: MAIN SIMULATION LOOP
 # =============================================================================
 
 def run_deployment_simulation(v_slip_init, i_peak_init):
@@ -1318,6 +1323,21 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
         f"{round(p_cryo/1e6, 3)} MW", f"{round(site_power/1e6, 3)} MW"
     ])
 
+    # Sanity check for KE
+    ke_cable = get_ke(M_CABLE_M, V_ORBIT, v_cable)
+    ke_load = get_ke(M_LOAD_M, V_ORBIT, v_casing)
+    ke_added = ke_cable + ke_load
+    ke_diff = ke_added - E_total
+
+    # post loop wrap-up. show data.
+    str2 = f"Deployment time: {time / DAY:.2f} days, {time / YR:.2f} years"
+    str3 = f"Cable velocity: {v_cable:.2f} m/s"
+    str4 = f"Casing velocity: {v_casing:.2f} m/s"
+    strplus = "+"*70
+    strmin  = "-"*70
+    streq  = "="*70
+    
+    timestamp = datetime.datetime.now()
 
     # Final results
     print("\n" + "=" * 70)
@@ -1326,20 +1346,26 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
     print(f"Deployment time: {time/DAY:.1f} days ({time/YR:.2f} years)")
     print(f"Final cable velocity: {v_cable:.2f} m/s")
     print(f"Final casing velocity: {v_casing:.2f} m/s")
-    print(f"Total energy delivered: {E_total/1e18:.3f} EJ")
-    print(f"Energy per site: {E_site/1e12:.2f} TJ")
+    print(f"Energy per site: {E_site/1e12:.6f} TJ")
+    print(f"Total energy delivered: {E_total/1e18:.8f} EJ")
+    print(f"Total energy from 1/2 m v^2: {ke_added/1e18:.8f} EJ")
+    print(f"These values differ by: {ke_diff/1e18:.10f} EJ")
     print("=" * 70)
 
-    # post loop wrap-up. show data.
-    str2 = f"Deployment time: {time / DAY:.2f} days, {time / YR:.2f} years"
-    str3 = f"Cable velocity: {v_cable:.2f} m/s"
-    str4 = f"Casing velocity: {v_casing:.2f} m/s"
-    strplus = "+"*70
-    strmin  = "-"*70
-    
-    timestamp = datetime.datetime.now()
-
     lines = [f"\n{strplus}\nTimestamp: {timestamp}\n{exit_msg}\n{str2}\n{str3}\n{str4}\n"]
+
+    lines.append(f"{streq}\n")
+    lines.append("DEPLOYMENT COMPLETE\n")
+    lines.append(f"{streq}\n")
+    lines.append(f"Deployment time: {time/DAY:.1f} days ({time/YR:.2f} years)\n")
+    lines.append(f"Final cable velocity: {v_cable:.2f} m/s\n")
+    lines.append(f"Final casing velocity: {v_casing:.2f} m/s\n")
+    lines.append(f"Energy per site: {E_site/1e12:.6f} TJ\n")
+    lines.append(f"Total energy delivered: {E_total/1e18:.8f} EJ\n")
+    lines.append(f"Total energy from 1/2 m v^2: {ke_added/1e18:.8f} EJ\n")
+    lines.append(f"These values differ by: {ke_diff/1e18:.10f} EJ\n")
+    lines.append(f"{streq}\n")
+
     lines.append(f"\n{strmin}\n")
     for key, value in PARAM_DISPLAY.items():
         str1 = (f"\t{key:20}\t{value:8}\n")
@@ -1385,7 +1411,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
 
 
 # =============================================================================
-# SECTION 19: PLOTTING FUNCTIONS
+# SECTION 20: PLOTTING FUNCTIONS
 # =============================================================================
 
 def plot_results(show_graphs, param_str, total_time):
@@ -1442,7 +1468,7 @@ def plot_results(show_graphs, param_str, total_time):
 
 
 # =============================================================================
-# SECTION 20: MAIN ENTRY POINT
+# SECTION 21: MAIN ENTRY POINT
 # =============================================================================
 
 def main():
