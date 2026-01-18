@@ -51,6 +51,7 @@ import matplotlib.pyplot as plt
 HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
 HTS_TAPE_LAYERS = 3         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
+NORRIS_HYSTERESIS = False   # use the Norris Formula (Thin Strip Model) as hysteresis loss model
 
 
 # -----------------------------------------------------------------------------
@@ -84,8 +85,8 @@ D_LEV = 0.10                # Levitation plate thickness (m)
 W_LEV = 1.4                 # Levitation plate width (m)
 
 # Reaction plate material properties
-# Options: "aluminum", "cuni7030", or "titanium"
-PLATE_MATERIAL = "titanium"
+# Options: "aluminum", "cuni7030", "titanium", "alpha_titanium" or "gamma_titanium"
+PLATE_MATERIAL = "alpha_titanium"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -221,6 +222,22 @@ K_TI = 22                       # Thermal conductivity (W/m·K)
 EM_TI = 0.60                    # Emissivity (oxidized)
 ALPHA_TI = 0.0035               # Temperature coefficient (1/K)
 
+# Alpha-2 titanium aluminide, α₂-Ti₃Al properties
+RHO_aTI_293K = 50e-8             # Electrical resistivity at 293 K (Ω·m)
+DENSITY_aTI = 4200               # Mass density (kg/m³)
+C_P_aTI = 550                    # Specific heat capacity (J/kg·K)
+K_aTI = 17                       # Thermal conductivity (W/m·K)
+EM_aTI = 0.60                    # Emissivity (oxidized)
+ALPHA_aTI = 0.0015               # Temperature coefficient (1/K)
+
+# Gamma titanium aluminide, Ti-48Al-2Cr-2Nb properties
+RHO_gTI_293K = 75e-8             # Electrical resistivity at 293 K (Ω·m)
+DENSITY_gTI = 3900               # Mass density (kg/m³)
+C_P_gTI = 570                    # Specific heat capacity (J/kg·K)
+K_gTI = 15                       # Thermal conductivity (W/m·K)
+EM_gTI = 0.60                    # Emissivity (oxidized)
+ALPHA_gTI = 0.0012               # Temperature coefficient (1/K)
+
 # Iron properties (for levitation plates)
 DENSITY_IRON = 7870             # Mass density (kg/m³)
 
@@ -298,6 +315,20 @@ elif PLATE_MATERIAL == "titanium":
     PLATE_CP = C_P_TI
     PLATE_K = K_TI
     PLATE_EM = EM_TI
+elif PLATE_MATERIAL == "alpha_titanium":
+    PLATE_DENSITY = DENSITY_aTI
+    PLATE_RHO_293K = RHO_aTI_293K
+    PLATE_ALPHA = ALPHA_aTI
+    PLATE_CP = C_P_aTI
+    PLATE_K = K_aTI
+    PLATE_EM = EM_aTI
+elif PLATE_MATERIAL == "gamma_titanium":
+    PLATE_DENSITY = DENSITY_gTI
+    PLATE_RHO_293K = RHO_gTI_293K
+    PLATE_ALPHA = ALPHA_gTI
+    PLATE_CP = C_P_gTI
+    PLATE_K = K_gTI
+    PLATE_EM = EM_gTI
 else:  # aluminum
     PLATE_DENSITY = DENSITY_ALU
     PLATE_RHO_293K = RHO_ALU_293K
@@ -741,7 +772,7 @@ def calc_thrust_power(thrust, v_rel):
 # SECTION 13: HTS HYSTERESIS LOSSES
 # =============================================================================
 
-def calc_hts_loss_factor(i_peak):
+def q_hts_loss_factor(i_peak):
     """Hysteresis loss factor for HTS tape.
     
     Q = B × I × W_tape × sin(α)
@@ -752,12 +783,18 @@ def calc_hts_loss_factor(i_peak):
     return b_coil * i_peak * W_TAPE * math.sin(ALPHA_TAPE)
 
 
-def calc_hysteresis_power(f_supply, i_peak):
+def q_hysteresis_norris(i_now=I_PEAK,i_c=I_C):
+    ii = i_now / i_c
+    return (MU0 * i_c**2/math.pi) * ((1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2)
+
+def calc_hysteresis_power(f_supply, i_peak, norris=False):
     """Total hysteresis power loss per LIM."""
-    q = calc_hts_loss_factor(i_peak)
+    if norris:
+        q = q_hysteresis_norris(i_peak)
+    else:
+        q = q_hts_loss_factor(i_peak)
     p_coil = q * L_HTS_COIL * f_supply
     return p_coil * LIM_PHASES * PITCH_COUNT
-
 
 # =============================================================================
 # SECTION 14: THERMAL CALCULATIONS
@@ -936,6 +973,7 @@ PARAM_DISPLAY = {
     "VOLTS_MAX          kV": VOLTS_MAX / 1000,
     "MAX_SITE_POWER     MW": MAX_SITE_POWER / 1e6,
     "T_PLATE            mm": T_PLATE * 1000,
+    "NORRIS_HYSTERESIS T/F": NORRIS_HYSTERESIS,
     "M_CABLE_STRUCT   kg/m": M_CABLE_STRUCTURAL,
     "M_HARDWARE       kg/m": M_HARDWARE,
     "M_CABLE_TOTAL    kg/m": M_CABLE_M,
@@ -1094,7 +1132,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init):
             volts = calc_coil_voltage(i_peak, f_supply, b_coil)
             
             p_eddy = calc_eddy_loss_from_thrust(v_slip, thrust)
-            p_hyst = calc_hysteresis_power(f_supply, i_peak)
+            p_hyst = calc_hysteresis_power(f_supply, i_peak, NORRIS_HYSTERESIS)
             p_heat = p_eddy + p_hyst
             
             temp_plate_avg = calc_plate_temperature(v_rel, p_eddy)
