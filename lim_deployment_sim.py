@@ -31,6 +31,8 @@ import datetime
 import math
 import tabulate
 import matplotlib.pyplot as plt
+from lim_plate_materials import *
+from lim_constants import *
 
 # =============================================================================
 # SECTION 1: USER-CONFIGURABLE PARAMETERS
@@ -83,10 +85,6 @@ N_PLATES_PER_SIDE = 1       # LIM reaction plates per side of cable
 N_LEV_PLATES = 1            # Levitation plates per side
 D_LEV = 0.10                # Levitation plate thickness (m)
 W_LEV = 1.4                 # Levitation plate width (m)
-
-# Reaction plate material properties
-# Options: "aluminum", "cuni7030", "titanium", "alpha_titanium" or "gamma_titanium"
-PLATE_MATERIAL = "alpha_titanium"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -182,101 +180,6 @@ WRITE_FILE = True       # Write results to file
 MAKE_GRAPHS = True      # Generate matplotlib graphs
 
 
-# =============================================================================
-# SECTION 2: PHYSICAL CONSTANTS
-# =============================================================================
-# These values should not be changed unless you have good reason.
-
-# Fundamental constants
-MU0 = 4 * math.pi * 1e-7        # Permeability of free space (H/m)
-STEFAN_BOLTZMANN = 5.670374e-8  # Stefan-Boltzmann constant (W/m²K⁴)
-
-# Orbital parameters at 250 km altitude
-V_ORBIT = 7754.866              # Orbital velocity (m/s)
-V_GROUND_STATIONARY = 483.331   # Ground-stationary velocity at 250 km (m/s)
-L_RING = 41_645_813.012         # Ring circumference (m)
-
-# Reaction plate materials
-# Aluminum properties
-RHO_ALU_293K = 2.65e-8          # Electrical resistivity at 293 K (Ω·m)
-RHO_ALU_70K = 4.853e-9          # Electrical resistivity at 70 K (Ω·m)
-DENSITY_ALU = 2700              # Mass density (kg/m³)
-C_P_ALU = 900                   # Specific heat capacity (J/kg·K)
-K_ALU = 205                     # Thermal conductivity (W/m·K)
-EM_ALU = 0.85                   # Emissivity (black anodized)
-ALPHA_ALU = 3.663e-3            # Temperature coefficient of resistivity (1/K)
-
-# CuNi 70/30 (Cupronickel) properties
-RHO_CUNI_293K = 38e-8           # Electrical resistivity at 293 K (Ω·m) - nearly constant!
-DENSITY_CUNI = 8900             # Mass density (kg/m³)
-C_P_CUNI = 377                  # Specific heat capacity (J/kg·K)
-K_CUNI = 29                     # Thermal conductivity (W/m·K)
-EM_CUNI = 0.65                  # Emissivity (oxidized)
-ALPHA_CUNI = 0.0004             # Temperature coefficient - very small!
-
-# Pure Titanium properties (lunar-available from ilmenite)
-RHO_TI_293K = 42e-8             # Electrical resistivity at 293 K (Ω·m)
-DENSITY_TI = 4500               # Mass density (kg/m³)
-C_P_TI = 520                    # Specific heat capacity (J/kg·K)
-K_TI = 22                       # Thermal conductivity (W/m·K)
-EM_TI = 0.60                    # Emissivity (oxidized)
-ALPHA_TI = 0.0035               # Temperature coefficient (1/K)
-
-# Alpha-2 titanium aluminide, α₂-Ti₃Al properties
-RHO_aTI_293K = 50e-8             # Electrical resistivity at 293 K (Ω·m)
-DENSITY_aTI = 4200               # Mass density (kg/m³)
-C_P_aTI = 550                    # Specific heat capacity (J/kg·K)
-K_aTI = 17                       # Thermal conductivity (W/m·K)
-EM_aTI = 0.60                    # Emissivity (oxidized)
-ALPHA_aTI = 0.0015               # Temperature coefficient (1/K)
-
-# Gamma titanium aluminide, Ti-48Al-2Cr-2Nb properties
-RHO_gTI_293K = 75e-8             # Electrical resistivity at 293 K (Ω·m)
-DENSITY_gTI = 3900               # Mass density (kg/m³)
-C_P_gTI = 570                    # Specific heat capacity (J/kg·K)
-K_gTI = 15                       # Thermal conductivity (W/m·K)
-EM_gTI = 0.60                    # Emissivity (oxidized)
-ALPHA_gTI = 0.0012               # Temperature coefficient (1/K)
-
-# Iron properties (for levitation plates)
-DENSITY_IRON = 7870             # Mass density (kg/m³)
-
-# Liquid nitrogen properties
-T_LN2_BOIL = 77.4               # Boiling point at 1 atm (K)
-T_LN2_SUPPLY = 70               # Supply temperature from cryo system (K)
-C_P_LN2 = 2040                  # Specific heat capacity (J/kg·K)
-L_V_LN2 = 199000                # Latent heat of vaporization (J/kg)
-H_CONV_LN2 = 90                 # Convective heat transfer coefficient (W/m²·K)
-
-# Thermal environment
-Q_SUN = 1361                    # Solar flux at 1 AU (W/m²)
-Q_EARTH_ALBEDO = 650            # Earth albedo contribution (W/m²)
-Q_SHIELDING = 0.005             # MLI shielding effectiveness (fraction transmitted)
-T_SPACE = 2.7                   # Deep space temperature (K)
-T_RADIATOR_HOT = 300            # Cryo radiator hot side temperature (K)
-T_MAX_PLATE = 500               # Maximum reaction plate temperature (K)
-
-# Cryogenic system
-CRYO_EFF = 0.18                 # Cryo system efficiency (fraction of Carnot)
-EM_HEATSINK = 0.9               # Heatsink emissivity
-
-# HTS tape properties
-HTS_THICKNESS_UM = 80           # Tape thickness in micrometers
-ALPHA_PENETRATION_DEG = 20.0    # Magnetic field penetration angle (degrees)
-
-
-# =============================================================================
-# SECTION 3: DERIVED PARAMETERS
-# =============================================================================
-# Calculated from user parameters and constants. Do not edit directly.
-
-# Time constants
-HR = 3600
-DAY = 24 * HR
-WEEK = 7 * DAY
-MONTH = 30 * DAY
-YR = round(365.33 * DAY)
-
 # HTS current ratings
 # The 87.5% and 81.25% factors provide safety margin below critical current
 # to prevent thermal runaway near Ic where losses increase sharply.
@@ -297,49 +200,11 @@ L_HTS_LIM = L_HTS_COIL * 3 * PITCH_COUNT  # 3 phases
 LIM_PHASES = 3
 LIM_SITES = round(L_RING / LIM_SPACING)
 
-# Angular conversion
-ALPHA_TAPE = ALPHA_PENETRATION_DEG * math.pi / 180
-
-# Material-dependent properties
-if PLATE_MATERIAL == "cuni7030":
-    PLATE_DENSITY = DENSITY_CUNI
-    PLATE_RHO_293K = RHO_CUNI_293K
-    PLATE_ALPHA = ALPHA_CUNI
-    PLATE_CP = C_P_CUNI
-    PLATE_K = K_CUNI
-    PLATE_EM = EM_CUNI
-elif PLATE_MATERIAL == "titanium":
-    PLATE_DENSITY = DENSITY_TI
-    PLATE_RHO_293K = RHO_TI_293K
-    PLATE_ALPHA = ALPHA_TI
-    PLATE_CP = C_P_TI
-    PLATE_K = K_TI
-    PLATE_EM = EM_TI
-elif PLATE_MATERIAL == "alpha_titanium":
-    PLATE_DENSITY = DENSITY_aTI
-    PLATE_RHO_293K = RHO_aTI_293K
-    PLATE_ALPHA = ALPHA_aTI
-    PLATE_CP = C_P_aTI
-    PLATE_K = K_aTI
-    PLATE_EM = EM_aTI
-elif PLATE_MATERIAL == "gamma_titanium":
-    PLATE_DENSITY = DENSITY_gTI
-    PLATE_RHO_293K = RHO_gTI_293K
-    PLATE_ALPHA = ALPHA_gTI
-    PLATE_CP = C_P_gTI
-    PLATE_K = K_gTI
-    PLATE_EM = EM_gTI
-else:  # aluminum
-    PLATE_DENSITY = DENSITY_ALU
-    PLATE_RHO_293K = RHO_ALU_293K
-    PLATE_ALPHA = ALPHA_ALU
-    PLATE_CP = C_P_ALU
-    PLATE_K = K_ALU
-    PLATE_EM = EM_ALU
-
 # Mass per meter calculations
 M_LIM_PLATE = PLATE_DENSITY * T_PLATE * W_PLATE          # kg/m per plate
 M_LEV_PLATE = DENSITY_IRON * D_LEV * W_LEV               # kg/m per plate
+# Angular conversion
+ALPHA_TAPE = ALPHA_PENETRATION_DEG * math.pi / 180
 M_HARDWARE = (2 * N_LEV_PLATES * M_LEV_PLATE + 
               2 * N_PLATES_PER_SIDE * M_LIM_PLATE)       # kg/m total hardware
 M_CABLE_M = M_CABLE_STRUCTURAL + M_HARDWARE              # kg/m total rotor mass
