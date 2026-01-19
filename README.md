@@ -1,6 +1,6 @@
 # LIM Deployment Simulator for Orbital Ring Systems
 
-A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Ion Propulsion Engineering"** (Technical Book II of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
+A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Orbital Ring Engineering"** (Technical Book II of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
 
 The simulator models the months-long process of decelerating a magnetically levitated cable from orbital velocity (7.75 km/s) to ground-stationary velocity (483 m/s at 250 km altitude) using distributed LIM sites around the ring.
 
