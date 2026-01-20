@@ -1,6 +1,6 @@
 # LIM Deployment Simulator for Orbital Ring Systems
 
-A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Orbital Ring Engineering"** (Technical Book II of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
+A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Ion Propulsion Engineering"** (Technical Book II of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
 
 The simulator models the months-long process of decelerating a magnetically levitated cable from orbital velocity (7.75 km/s) to ground-stationary velocity (483 m/s at 250 km altitude) using distributed LIM sites around the ring.
 
@@ -39,6 +39,12 @@ python lim_simulation.py --model=3    # Slip × pressure (theoretical max)
 ```bash
 python lim_simulation.py --thermal=cryo    # Cryo handles all heat (default)
 python lim_simulation.py --thermal=cable   # Cable absorbs eddy heat
+```
+
+### Quick Test Run
+
+```bash
+python lim_simulation.py --quick           # Fast run with larger time steps
 ```
 
 ### Full Help
@@ -103,7 +109,7 @@ All parameters are configured by editing `lim_config.py`. The most frequently-mo
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `HTS_TAPE_WIDTH_MM` | 3 | Tape width (3, 4, 6, or 12 mm) |
-| `HTS_TAPE_LAYERS` | 3 | Parallel tape layers (1–3) |
+| `HTS_TAPE_LAYERS` | 2 | Parallel tape layers (1–3) |
 | `IC_PER_MM_PER_LAYER` | 66.7 | Critical current density (A/mm/layer) |
 
 **Trade-off:** Wider tape → higher current capacity → more thrust, but more hysteresis losses.
@@ -112,7 +118,7 @@ All parameters are configured by editing `lim_config.py`. The most frequently-mo
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `N_TURNS` | 80 | Turns per phase coil |
+| `N_TURNS` | 100 | Turns per phase coil |
 | `TAU_P` | 100 m | Pole pitch (traveling wave wavelength / 2) |
 | `W_COIL` | 0.5 m | Coil width |
 | `GAP` | 0.20 m | Air gap to reaction plate |
@@ -167,6 +173,23 @@ See the **Thermal Modes** section below for details.
 |-----------|---------|-------------|
 | `M_CABLE_STRUCTURAL` | 96,700 kg/m | Structural cable mass per meter |
 | `M_LOAD_M` | 12,000 kg/m | Casing + payload per meter |
+
+---
+
+## Quick Mode
+
+For rapid testing, use `--quick` to run with larger time steps:
+
+```bash
+python lim_simulation.py --quick thrust power
+python lim_simulation.py --quick --thermal=cable radiator_width
+```
+
+Quick mode uses:
+- 10× larger time steps (10s → 100s → 500s instead of 1s → 10s → 50s)
+- More frequent data collection for smooth plots
+
+This reduces run time from several minutes to under a minute, with some loss of accuracy in the transient behavior. The final steady-state values are typically within a few percent of the full simulation.
 
 ---
 
