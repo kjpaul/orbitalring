@@ -50,7 +50,7 @@ python lim_simulation.py --quick           # Fast run with larger time steps
 ### Custom Mass Configuration
 
 ```bash
-python lim_simulation.py --m_load=50000    # Set load mass to 50,000 kg/m
+python lim_simulation.py --m_load=50000    # Set cable mass based on new load mass of 50,000 kg/m.
 ```
 
 ### Full Help

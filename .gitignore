@@ -7,5 +7,6 @@ graphs/
 diagrams/
 claude/
 helper/
+__pycache__/
 *.png
 *.bak

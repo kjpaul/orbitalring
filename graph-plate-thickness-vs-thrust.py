@@ -11,15 +11,15 @@ F_SLIP = 0.5  # Hz
 B = 0.03104        # Tesla (assumed for scaling)
 RHO = 420.0e-9 # Ohm-m (Al at 150K)
 ALPHA = 0.0035 
-ALU  = [26.5e-9, 0.0039, "Pure Aluminum", 2700] # [resistivity in ohm, alpha in 1/K, name, density in kg/m^3]
-TI   = [420e-9, 0.0035, "Pure Titanium", 4500]
-TI_ALPHA = [500e-9, 0.0015, "Alpha-2 titanium aluminide, α₂-Ti₃Al", 4200]
-TI_GAMMA = [750e-9, 0.0012, "Gamma titanium aluminide, Ti-48Al-2Cr-2Nb", 3900]
-TI_G5 = [1710e-9, 0.0010, "Grade 5 Titanium", 4430]
-CuNi = [380e-9, 0.0004, "Cupronickel, C71500, Marine alloy, 70/30 alloy", 8900]
-CuNi55 = [380e-9, 0.00001, "Eureka, CuNi 55/45", 8900]
-MG   = [44e-9, 0.0040, "Magnesium", 1740]
-CA   = [34e-9, 0.0035, "Calcium", 1526]
+ALU  = [26.5, 0.0039, "Pure Aluminum", 2700] # [resistivity in nano ohm meters, alpha in 1/K, name, density in kg/m^3]
+TI   = [420, 0.0035, "Pure Titanium", 4500]
+TI_ALPHA = [500, 0.0015, "Alpha-2 titanium aluminide, α₂-Ti₃Al", 4200]
+TI_GAMMA = [750, 0.0012, "Gamma titanium aluminide, Ti-48Al-2Cr-2Nb", 3900]
+TI_G5 = [1710, 0.0010, "Grade 5 Titanium", 4430]
+CuNi = [380, 0.0004, "Cupronickel, C71500, Marine alloy, 70/30 alloy", 8900]
+CuNi55 = [380, 0.00001, "Eureka, CuNi 55/45", 8900]
+MG   = [44, 0.0040, "Magnesium", 1740]
+CA   = [34, 0.0035, "Calcium", 1526]
 
 TEMP = 150
 METALS = [ALU, TI, TI_ALPHA, TI_GAMMA, TI_G5, CuNi, CuNi55, MG, CA]
@@ -29,7 +29,7 @@ def get_rho (metal=ALU, temp=TEMP):
     if len(metal) < 2:
         print ("Invalid metal.")
         return
-    rho20 = metal[0]
+    rho20 = metal[0] * 1e-9
     alpha = metal[1]
     return rho20 * (1 + alpha*(temp - 293))
 
