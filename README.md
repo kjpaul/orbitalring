@@ -535,6 +535,4 @@ MIT License — see LICENSE file for details.
 
 If you use this code in academic work, please cite:
 
-> de Jong, P.G. (2025). *Ion Propulsion Engineering: Linear Induction Motors for Orbital Ring Deployment, Volume II*. Astronomy's Shocking Twist Series.
-
 > de Jong, P.G. (2025). *Orbital Ring Engineering: Mechanics and Material Science for Space Launch Mass Transit Systems, Volume I*. Astronomy's Shocking Twist Series.
