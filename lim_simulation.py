@@ -115,7 +115,7 @@ def make_month_ticks(data_list, total_time):
 # MAIN SIMULATION LOOP
 # =============================================================================
 
-def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=False, quick_mode=False):
+def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0, sigma=12.63E9):
     """Run the deployment simulation.
     
     Args:
@@ -144,7 +144,21 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     
     # Get physics parameters
     params = cfg.get_physics_params()
-    
+
+    # Calculate cable mass if m_load > 999 kg/m
+    if m_load > 999:
+        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, sigma)
+        cfg.M_LOAD_M = m_load
+        print(f"New cable mass M_CABLE_M={cfg.M_CABLE_M:.0f} kg/m for M_LOAD_M={cfg.M_LOAD_M:.0f} kg/m")
+    else:
+        """Session proofing"""
+        cfg.M_CABLE_STRUCTURAL = cfg.M_CABLE_STRUCTURAL_DEFAULT
+        cfg.M_LOAD_M = cfg.M_LOAD_M_DEFAULT
+
+    cfg.M_CABLE_M = cfg.M_CABLE_STRUCTURAL + cfg.M_HARDWARE
+    cfg.M_CABLE_TOTAL = cfg.M_CABLE_M * cfg.L_RING
+    cfg.M_LOAD_TOTAL = cfg.M_LOAD_M * cfg.L_RING
+
     # Print configuration
     print(f"VOLTS_MAX: {cfg.VOLTS_MAX/1000:.0f} kV")
     print(f"THRUST_MODEL: {thrust_model}", end=" ")
@@ -581,6 +595,15 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         ]))
     
     print("-" * 70)
+    print(f"Cable: M_CABLE_M={cfg.M_CABLE_STRUCTURAL/1000:.2f} tonne/m and M_CABLE_M={cfg.M_CABLE_M/1000:.2f} tonne/m with M_LOAD_M={cfg.M_LOAD_M/1000:.2f} tonne/m")
+    print("-" * 70)
+    """
+        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, sigma)
+        cfg.M_LOAD_M = m_load
+        cfg.M_CABLE_M = cfg.M_CABLE_STRUCTURAL + cfg.M_HARDWARE
+        cfg.M_CABLE_TOTAL = cfg.M_CABLE_M * cfg.L_RING
+        cfg.M_LOAD_TOTAL = cfg.M_LOAD_M * cfg.L_RING
+    """
 
     # Write to file
     if cfg.WRITE_FILE:
@@ -719,7 +742,7 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
     model_str = f"Model {thrust_model} ({model_names.get(thrust_model, 'Unknown')}), Thermal: {thermal_mode}"
     
     time_str = f"{total_time/cfg.DAY:.1f} days ({total_time/cfg.YR:.2f} years)"
-    month_str = f"{total_time/cfg.MONTH:.1f}"
+    # month_str = f"{total_time/cfg.MONTH:.1f}"
 
     for name, (data, label, unit, color) in plots.items():
         if name in show_graphs or "all" in show_graphs:
@@ -730,17 +753,22 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
 
             plt.figure(figsize=(14, 7))
             plt.scatter(range(len(data)), data, c=color, s=1)
-            plt.xlabel(f"Time (months) -- {model_str}", fontsize=16)
-            plt.ylabel(f"{label} ({unit})", fontsize=16)
+            plt.ylabel(f"{label} ({unit})", fontsize=24)
             
             # Title includes model info
             if "fulldata" in show_graphs:
-                plt.title(f"{label} | {param_str}", fontsize=14)
+                plt.title(f"{label} | {param_str}", fontsize=18)
+                plt.xlabel(f"Time (months) -- {model_str}", fontsize=24)
             elif "timeonly" in show_graphs:
-                plt.title(f"{label} | {time_str} | {cfg.PLATE_MATERIAL}", fontsize=16)
+                plt.title(f"{label} | {time_str}", fontsize=24)
+                plt.xlabel(f"Time (months) -- {model_str}", fontsize=24)
+            elif "clean" in show_graphs:
+                plt.title(f"{label}", fontsize=26)
+                plt.xlabel("Time (months)", fontsize=24)
             else:
-                plt.title(f"{label} | {cfg.PLATE_MATERIAL}", fontsize=16)
-            
+                plt.title(f"{label} | {time_str} -- {cfg.PLATE_MATERIAL} -- ({cfg.MAX_SITE_POWER/1e6:.0f} MW)", fontsize=24)
+                plt.xlabel(f"Time (months) -- {model_str}", fontsize=24)
+        
             plt.xticks(tick_pos, tick_labels)
             
             # Add peak and final value annotations
@@ -762,6 +790,7 @@ def main():
     eddy_to_cable = cfg.EDDY_HEAT_TO_CABLE
     quick_mode = False
     show_graphs = []
+    new_load_mass = 0.0
 
     if len(sys.argv) > 1:
         if "--help" in sys.argv or "-h" in sys.argv:
@@ -792,14 +821,17 @@ Graph Options:
 
 Other Options:
   --quick      Fast test run (larger time steps, less accuracy)
+  --m_load=    Change load and cable mass in simulation. m_load > 999
   fulldate     Show parameter list in title bar
   timeonly     Show deplayment Days and Years in title bar
+  clean        Only show the title and X, Y labels
 
 Examples:
   python lim_simulation.py --model=1 thrust power fulldata
-  python lim_simulation.py --model=2 --thermal=cable all
+  python lim_simulation.py --model=2 --thermal=cable all metadata
   python lim_simulation.py --thermal=cryo cable_temp radiator_width
   python lim_simulation.py --quick thrust power timeonly
+  python lim_simulation.py --m_load=50000                   
             """)
             return
 
@@ -813,6 +845,12 @@ Examples:
                         print(f"Invalid model {model}, using default (1)")
                 except ValueError:
                     print(f"Invalid model argument: {arg}")
+            elif arg.startswith("--m_load="):
+                value = float(arg.split("=")[1])
+                if value > 999:
+                    new_load_mass = value
+                else:
+                    print(f"m_load must be a number > : [{value}] is not valid.")
             elif arg.startswith("--thermal="):
                 mode = arg.split("=")[1].lower()
                 if mode == "cable":
@@ -838,7 +876,7 @@ Examples:
     i_peak = cfg.I_MIN
 
     param_str, success, total_time = run_deployment_simulation(
-        v_slip, i_peak, thrust_model, eddy_to_cable, quick_mode
+        v_slip, i_peak, thrust_model, eddy_to_cable, quick_mode, new_load_mass
     )
 
     # Plot results if requested

@@ -2,7 +2,7 @@
 
 A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Ion Propulsion Engineering"** (Technical Book II of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
 
-The simulator models the months-long process of decelerating a magnetically levitated cable from orbital velocity (7.75 km/s) to ground-stationary velocity (483 m/s at 250 km altitude) using distributed LIM sites around the ring.
+The simulator models the months-long process of decelerating a magnetically levitated cable from orbital velocity (7,755 m/s) to ground-stationary velocity (483 m/s at 250 km altitude) using distributed LIM sites around the ring.
 
 ---
 
@@ -37,14 +37,20 @@ python lim_simulation.py --model=3    # Slip × pressure (theoretical max)
 ### Select Thermal Mode
 
 ```bash
-python lim_simulation.py --thermal=cryo    # Cryo handles all heat (default)
-python lim_simulation.py --thermal=cable   # Cable absorbs eddy heat
+python lim_simulation.py --thermal=cryo    # Cryo handles all heat
+python lim_simulation.py --thermal=cable   # Cable absorbs eddy heat (default)
 ```
 
 ### Quick Test Run
 
 ```bash
 python lim_simulation.py --quick           # Fast run with larger time steps
+```
+
+### Custom Mass Configuration
+
+```bash
+python lim_simulation.py --m_load=50000    # Set load mass to 50,000 kg/m
 ```
 
 ### Full Help
@@ -70,32 +76,35 @@ This modular structure allows you to:
 - Import physics functions for standalone calculations
 - Test individual components independently
 
-### Section Organization
+### Module Organization
 
 **lim_config.py** (Configuration):
 - Section 1: User-configurable parameters
 - Section 2: Physical constants
-- Section 3: Material properties
+- Section 3: Material properties (5 materials)
 - Section 4: Derived parameters
 - Section 5: Physics parameter dictionary
 - Section 6: Display utilities
 
 **lim_physics.py** (Physics):
-- Orbital dynamics
+- Orbital dynamics (cable/casing velocity, deployment progress)
 - Slip and frequency calculations
-- Magnetic field calculations
-- Material properties (temperature-dependent)
-- Eddy current losses
+- Magnetic field calculations (B at plate, B in coil)
+- Material properties (temperature-dependent resistivity)
+- Eddy current losses (from thrust power balance)
 - Thrust models (3 options)
-- Thermal calculations
-- Cryogenic system sizing
-- Radiator calculations
+- Thermal calculations (plate temperature, cable equilibrium)
+- Cryogenic system sizing (COP, heat loads)
+- Radiator calculations (width for heat rejection)
+- Kinetic energy tracking
 
 **lim_simulation.py** (Simulation):
-- Data collection arrays
-- Main simulation loop
-- Controller logic
-- Plotting functions
+- Data collection arrays (24 tracked quantities)
+- Main simulation loop with 10-iteration controller
+- Predictive power control with slip ratio adjustment
+- Limit enforcement (voltage, power, temperature)
+- Monthly progress display
+- Plotting functions with peak/final annotations
 - Command-line interface
 
 ---
@@ -109,8 +118,10 @@ All parameters are configured by editing `lim_config.py`. The most frequently-mo
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `HTS_TAPE_WIDTH_MM` | 3 | Tape width (3, 4, 6, or 12 mm) |
-| `HTS_TAPE_LAYERS` | 2 | Parallel tape layers (1–3) |
+| `HTS_TAPE_LAYERS` | 3 | Parallel tape layers (1–3) |
 | `IC_PER_MM_PER_LAYER` | 66.7 | Critical current density (A/mm/layer) |
+| `DE_RATING_FACTOR` | 0.9 | Multilayer self-inductance compensation |
+| `NORRIS_HYSTERESIS` | False | Use Norris formula for hysteresis loss |
 
 **Trade-off:** Wider tape → higher current capacity → more thrust, but more hysteresis losses.
 
@@ -120,31 +131,48 @@ All parameters are configured by editing `lim_config.py`. The most frequently-mo
 |-----------|---------|-------------|
 | `N_TURNS` | 100 | Turns per phase coil |
 | `TAU_P` | 100 m | Pole pitch (traveling wave wavelength / 2) |
-| `W_COIL` | 0.5 m | Coil width |
+| `W_COIL` | 2.0 m | Coil width |
 | `GAP` | 0.20 m | Air gap to reaction plate |
 | `T_PLATE` | 0.2 m | Reaction plate thickness |
 | `PITCH_COUNT` | 3 | Pole pitches per LIM |
 
-**Key constraint:** `W_COIL << TAU_P` for narrow-plate model validity.
+**Key constraint:** The narrow-plate model (Model 1) assumes `W_COIL << TAU_P`.
+
+### Plate Geometry
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `W_PLATE` | 1.2 m | Reaction plate width |
+| `N_PLATES_PER_SIDE` | 1 | LIM reaction plates per side of cable |
+| `N_LEV_PLATES` | 1 | Levitation plates per side |
+| `D_LEV` | 0.10 m | Levitation plate thickness |
+| `W_LEV` | 1.4 m | Levitation plate width |
 
 ### Reaction Plate Material
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `PLATE_MATERIAL` | "titanium" | Material selection |
+| `PLATE_MATERIAL` | `"gamma_titanium"` | Material selection |
 
 **Options:** `"aluminum"`, `"cuni7030"`, `"titanium"`, `"alpha_titanium"`, `"gamma_titanium"`
 
 The code includes full material properties for each option, including temperature-dependent resistivity.
+
+| Material | ρ₂₉₃ₖ (nΩ·m) | α (1/K) | Density (kg/m³) |
+|----------|-------------|---------|-----------------|
+| Aluminum | 26.5 | 0.00366 | 2700 |
+| CuNi 70/30 | 380 | 0.0004 | 8900 |
+| Pure Ti | 420 | 0.0035 | 4500 |
+| α₂-Ti₃Al | 500 | 0.0015 | 4200 |
+| γ-TiAl | 750 | 0.0012 | 3900 |
 
 ### Site Configuration
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `LIM_SPACING` | 500 m | Distance between LIM sites |
-| `N_PLATES_PER_SIDE` | 1 | Reaction plates per side of cable |
 
-**Trade-off:** Closer spacing → faster deployment, higher plate temperature, limits TAU_P length, less solar power per site.
+**Trade-off:** Closer spacing → faster deployment, higher plate temperature, limits τ_p length, less solar power per site.
 
 ### Operating Limits
 
@@ -155,17 +183,22 @@ The code includes full material properties for each option, including temperatur
 | `V_SLIP_MIN` | 5 m/s | Minimum slip velocity |
 | `V_SLIP_MAX` | 200 m/s | Maximum slip velocity |
 
-### Thermal Mode
+### Slip Control Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `EDDY_HEAT_TO_CABLE` | False | Thermal management strategy |
+| `SLIP_RATIO_NORMAL` | 0.02 | Target slip ratio at full current (2%) |
+| `SLIP_RATIO_REDUCED` | 0.005 | Reduced slip when power-limited (0.5%) |
 
-**Options:**
-- `False` (default): All heat goes through cryogenic system at 70 K
-- `True`: Eddy current heat stays in cable, which warms to equilibrium temperature
+### Thermal Mode Configuration
 
-See the **Thermal Modes** section below for details.
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `EDDY_HEAT_TO_CABLE` | True | Thermal management strategy |
+| `CABLE_EMISSIVITY` | 0.85 | Cable surface emissivity |
+| `CABLE_SURFACE_AREA_PER_M` | 0.5 m²/m | Radiating surface area per meter |
+| `COIL_MLI_EFFECTIVENESS` | 0.001 | MLI insulation effectiveness |
+| `COIL_SURFACE_AREA_PER_SITE` | 10 m² | Approximate coil cryostat surface area |
 
 ### Mass Model
 
@@ -173,6 +206,8 @@ See the **Thermal Modes** section below for details.
 |-----------|---------|-------------|
 | `M_CABLE_STRUCTURAL` | 96,700 kg/m | Structural cable mass per meter |
 | `M_LOAD_M` | 12,000 kg/m | Casing + payload per meter |
+
+The `--m_load=` command-line option recalculates cable mass using the physics function `calc_cable_mass()` which determines the CNT cable cross-section needed to support the specified load at 250 km orbital altitude.
 
 ---
 
@@ -197,19 +232,7 @@ This reduces run time from several minutes to under a minute, with some loss of 
 
 The simulator supports two thermal management strategies, selectable via `--thermal=` or by setting `EDDY_HEAT_TO_CABLE` in the config.
 
-### Cryogenic Mode (`--thermal=cryo`)
-
-All heat—eddy current losses, hysteresis losses, and environmental absorption—is removed through the cryogenic system at 70 K. This requires large radiators due to the thermodynamic penalty of lifting heat from 70 K to 300 K (approximately 22.9 W rejected per W of cooling).
-
-**Advantages:**
-- Cable stays cold, minimizing thermal expansion
-- Well-understood thermal path
-
-**Disadvantages:**
-- Requires massive radiators (~50 m² per watt of 70 K cooling)
-- High cryocooler power consumption
-
-### Cable Heat Sink Mode (`--thermal=cable`)
+### Cable Heat Sink Mode (`--thermal=cable`) — Default
 
 Eddy current heat remains in the cable, which warms until radiative equilibrium is reached (typically 300–350 K). Only hysteresis losses and coil environmental heat leak go through the cryogenic system.
 
@@ -221,6 +244,18 @@ Eddy current heat remains in the cable, which warms until radiative equilibrium 
 **Disadvantages:**
 - Thermal expansion of cable (~0.3% strain at 350 K vs 70 K)
 - Must manage radiative coupling between warm cable and cold coils
+
+### Cryogenic Mode (`--thermal=cryo`)
+
+All heat—eddy current losses, hysteresis losses, and environmental absorption—is removed through the cryogenic system at 70 K. This requires large radiators due to the thermodynamic penalty of lifting heat from 70 K to 300 K.
+
+**Advantages:**
+- Cable stays cold, minimizing thermal expansion
+- Well-understood thermal path
+
+**Disadvantages:**
+- Requires massive radiators
+- High cryocooler power consumption
 
 ### Comparing Modes
 
@@ -261,7 +296,7 @@ Classic LIM theory using Laithwaite's goodness factor G:
 
 $$G = \frac{\omega_{slip} \cdot \mu_0 \cdot \sigma \cdot \delta_{eff} \cdot \tau_p}{\pi}$$
 
-Thrust efficiency: $\eta = \frac{2sG}{1 + s^2G^2}$
+Slip efficiency: $\eta = \frac{2sG}{1 + s^2G^2}$
 
 **Best for:** Comparison with literature; assumes W > τ_p (wide plate).
 
@@ -285,31 +320,47 @@ Specify plots as command-line arguments:
 | `current` | Coil current (A) |
 | `volts` | Induced voltage (V) |
 | `v_slip` | Slip velocity (m/s) |
-| `thrust` | Thrust force (N) |
-| `p_thrust` | Thrust power (W) |
-| `p_eddy` | Eddy current losses (W) |
+| `thrust` | Thrust force per site (N) |
+| `p_thrust` | Thrust power per site (W) |
+| `p_eddy` | Eddy current losses per site (W) |
 | `power` | Total site power (W) |
+| `lim_power` | LIM power (W) |
 | `plate_temp` | Reaction plate temperature (K) |
 | `cable_temp` | Cable equilibrium temperature (K) |
 | `radiator_width` | Required radiator width (m) |
 | `q_cryo` | Cryo cold-side heat load (W) |
-| `skin` | Electromagnetic skin depth (mm) |
+| `skin` | Effective skin depth (mm) |
+| `skin_calc` | Calculated skin depth (mm) |
 | `slip` | Slip ratio (%) |
 | `f_slip` | Slip frequency (Hz) |
 | `v_rel` | Relative velocity cable–casing (m/s) |
-| `hyst` | HTS hysteresis losses (W) |
+| `hyst` | HTS hysteresis losses per site (W) |
+| `p_heat` | Total heat losses per site (W) |
 | `cryo` | Cryogenic power requirement (W) |
+| `b_peak` | Magnetic field at plate (T) |
 | `ke_site` | Cumulative kinetic energy per site (J) |
 | `ke_all` | Cumulative kinetic energy all sites (J) |
 
-**Example:**
+### Plot Display Options
+
+| Option | Description |
+|--------|-------------|
+| `fulldata` | Show parameter list in title bar |
+| `timeonly` | Show deployment days and years in title bar |
+| `clean` | Only show title and axis labels |
+
+**Examples:**
 ```bash
 python lim_simulation.py --model=1 thrust power plate_temp cable_temp radiator_width
+python lim_simulation.py --quick thrust power timeonly
+python lim_simulation.py ke_site ke_all clean
 ```
 
 ---
 
 ## Output
+
+### Monthly Progress Display
 
 The simulator prints monthly progress during deployment:
 
@@ -321,19 +372,46 @@ Month | Progress | Voltage | Current | Thrust | Site Power | Radiator W
    ...
 ```
 
+### Final Summary
+
 Final summary includes:
 - Deployment time (days, years)
 - Final cable and casing velocities
+- Energy per site (TJ)
 - Total energy delivered (EJ)
-- Energy per LIM site (TJ)
+- Energy verification via ½mv² calculation
 - Thermal mode and key thermal metrics
 - Maximum cable temperature
 - Maximum radiator width
 - Maximum cryogenic cold-side heat load
 
+### Max/Min Tracking
+
+The simulation tracks peak values for 25+ quantities including:
+- Voltage, current, slip velocity
+- Thrust, thrust power
+- Eddy current and hysteresis losses
+- Plate and cable temperatures
+- Site power, cryogenic power
+- Radiator width requirements
+
+### Output File
+
+Results are appended to `./output/_orbital_ring_modelN.txt` where N is the thrust model number.
+
 ---
 
 ## Physics Summary
+
+### Orbital Parameters at 250 km
+
+| Parameter | Value |
+|-----------|-------|
+| Orbital velocity | 7,754.866 m/s |
+| Ground-stationary velocity | 483.331 m/s |
+| Ring circumference | 41,645,813 m |
+| Net acceleration | 9.038 m/s² |
+| Orbital radius | 6,628,137 m |
 
 ### Magnetic Field at Reaction Plate
 
@@ -348,12 +426,6 @@ The factor of 1.5 (giving 3μ₀/π) accounts for the 3-phase traveling wave amp
 Resistivity varies with temperature:
 
 $$\rho(T) = \rho_{293K} \times [1 + \alpha(T - 293)]$$
-
-| Material | ρ₂₉₃ₖ (nΩ·m) | α (1/K) |
-|----------|-------------|---------|
-| Aluminum | 26.5 | 0.00366 |
-| Pure Ti | 420 | 0.0035 |
-| γ-TiAl | 750 | 0.0012 |
 
 ### Skin Depth
 
@@ -389,24 +461,47 @@ Radiator width for given length L:
 
 $$W_{radiator} = \frac{Q_{reject}}{\varepsilon \sigma (T_{hot}^4 - T_{space}^4) \times L}$$
 
-Default: η_cryo = 0.18 (18% of Carnot), T_cold = 70 K, T_hot = 300 K.
+Default: η_cryo = 0.05 (5% of Carnot), T_cold = 70 K, T_hot = 400 K.
+
+### Kinetic Energy Verification
+
+The simulation tracks cumulative thrust power and verifies against analytical kinetic energy:
+
+$$KE = \frac{1}{2} m_{per\_m} \cdot (v_{final}^2 - v_{initial}^2) \cdot L_{ring}$$
+
+This provides a sanity check that energy is conserved to high precision.
 
 ---
 
 ## Typical Results
 
-With default parameters (3mm × 3-layer HTS tape, 80 turns, 16 MW site power, titanium plate):
+With default parameters (3mm × 3-layer HTS tape, 100 turns, 16 MW site power, γ-TiAl plate):
 
-| Metric | Cryo Mode | Cable Mode |
-|--------|-----------|------------|
-| Deployment time | ~18 months | ~17.5 months |
-| Peak thrust per LIM | ~500 N | ~500 N |
+| Metric | Cable Mode | Cryo Mode |
+|--------|------------|-----------|
+| Deployment time | ~17–18 months | ~18 months |
+| Peak thrust per site | ~500 N | ~500 N |
 | Peak site power | 16 MW | 16 MW |
-| Max cable temperature | ~77 K | ~350 K |
-| Max radiator width | ~15 m | ~5 m |
+| Max cable temperature | ~350 K | ~77 K |
+| Max radiator width | ~5 m | ~15 m |
 | Total energy | ~15 EJ | ~15 EJ |
 
 Results vary significantly with thrust model selection and configuration.
+
+---
+
+## Controller Logic
+
+The simulation uses a proportional controller with predictive power management:
+
+1. **Power margin assessment**: Calculate headroom relative to MAX_SITE_POWER
+2. **Slip ratio targeting**: Interpolate between SLIP_RATIO_NORMAL (2%) and SLIP_RATIO_REDUCED (0.5%) based on power margin
+3. **Current headroom blending**: Further reduce slip target when current is well below target
+4. **Smooth actuator response**: Exponential smoothing with configurable time constant
+5. **Limit enforcement**: Scale back current and slip if voltage, power, or temperature limits exceeded
+6. **Startup ramp**: Gradual current increase during first hour
+
+The controller iterates up to 10 times per time step to achieve self-consistency between thrust, losses, temperature, and power.
 
 ---
 
@@ -418,9 +513,7 @@ The original single-file version of the simulator is available as `lim_deploymen
 python lim_deployment_sim.py --model=1 thrust power
 ```
 
-The legacy code has all parameters and physics in a single file. It does not include the thermal mode switch or radiator width calculations. Use it if you prefer a single-file solution or need to compare with earlier results.
-
-**Note:** The legacy code uses `PLATE_MATERIAL = "titanium"` by default but references aluminum in some comments. The modular code has been updated for consistency.
+The legacy code has all parameters and physics in a single file. It does not include the thermal mode switch, radiator width calculations, or the `--m_load` option. Use it if you prefer a single-file solution or need to compare with earlier results.
 
 ---
 

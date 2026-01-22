@@ -23,12 +23,26 @@ STEFAN_BOLTZMANN = 5.670374e-8  # Stefan-Boltzmann constant (W/m²K⁴)
 
 # Orbital parameters at 250 km altitude
 V_ORBIT = 7754.866              # Orbital velocity (m/s)
+R_ORBIT = 6_628_137               # radius of 250 km orbit (m)
 V_GROUND_STATIONARY = 483.331   # Ground-stationary velocity at 250 km (m/s)
 L_RING = 41_645_813.012         # Ring circumference (m)
+A_250_KM = 9.038                # net acceleration at 250 km geostationary orbit (m/s²)
 
 # Deep space
 T_SPACE = 2.7                   # Deep space temperature (K)
 
+# Material properties
+RHO_CNT = 1700                  # CNT density (kg/m³)
+
+
+# =============================================================================
+# CABLE MASS
+# =============================================================================
+
+def calc_cable_mass(load_mass=0.0, sigma_target=12.633E9):
+    """Calculate cable mass based on --m_load=NUMBER from argv. m_load must be > 999."""
+    F_load_m = A_250_KM * load_mass 
+    return F_load_m * R_ORBIT * RHO_CNT / sigma_target    
 
 # =============================================================================
 # ORBITAL DYNAMICS

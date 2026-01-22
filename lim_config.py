@@ -18,7 +18,7 @@ import math
 # 1.1 HTS (High-Temperature Superconductor) Tape Configuration
 # -----------------------------------------------------------------------------
 HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
-HTS_TAPE_LAYERS = 3.0         # Layers of tape in parallel: 1, 2, or 3
+HTS_TAPE_LAYERS = 3         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
 DE_RATING_FACTOR = 0.9      # Compensates for self-inductance in multilayer HTS configurations.
 NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
@@ -43,7 +43,7 @@ D_LEV = 0.10                # Levitation plate thickness (m)
 W_LEV = 1.4                 # Levitation plate width (m)
 
 # Reaction plate material: "aluminum", "cuni7030", "titanium", "alpha_titanium", "gamma_titanium"
-PLATE_MATERIAL = "aluminum"
+PLATE_MATERIAL = "gamma_titanium"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -73,8 +73,10 @@ THRUST_EFFICIENCY = 1.0 # Multiplier on calculated thrust
 # -----------------------------------------------------------------------------
 # 1.7 Mass Configuration
 # -----------------------------------------------------------------------------
-M_CABLE_STRUCTURAL = 96_700     # Structural cable mass per meter (kg/m)
-M_LOAD_M = 12_000               # Casing + payload mass per meter (kg/m)
+M_CABLE_STRUCTURAL_DEFAULT = 96_700     # Structural cable mass per meter (kg/m)
+M_LOAD_M_DEFAULT = 12_000               # Casing + payload mass per meter (kg/m)
+M_CABLE_STRUCTURAL = M_CABLE_STRUCTURAL_DEFAULT # Session proofing
+M_LOAD_M = M_LOAD_M_DEFAULT
 
 # -----------------------------------------------------------------------------
 # 1.8 Simulation Control
@@ -202,9 +204,11 @@ YR = round(365.33 * DAY)
 
 # HTS current ratings
 W_TAPE = HTS_TAPE_WIDTH_MM / 1000
+
+hts_tape_layers = float(HTS_TAPE_LAYERS)
 if HTS_TAPE_LAYERS > 1:
-    HTS_TAPE_LAYERS = DE_RATING_FACTOR * HTS_TAPE_LAYERS
-I_C = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * HTS_TAPE_LAYERS
+    hts_tape_layers = DE_RATING_FACTOR * hts_tape_layers
+I_C = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * hts_tape_layers
 I_PEAK = 0.875 * I_C
 I_TARGET = 0.8125 * I_C
 I_MIN = 10.0
