@@ -18,16 +18,17 @@ import math
 # 1.1 HTS (High-Temperature Superconductor) Tape Configuration
 # -----------------------------------------------------------------------------
 HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
-HTS_TAPE_LAYERS = 3         # Layers of tape in parallel: 1, 2, or 3
+HTS_TAPE_LAYERS = 3.0         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
+DE_RATING_FACTOR = 0.9      # Compensates for self-inductance in multilayer HTS configurations.
 NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
 
 # -----------------------------------------------------------------------------
 # 1.2 LIM Geometry
 # -----------------------------------------------------------------------------
-N_TURNS = 80            # Turns per phase coil (typically 50-200)
+N_TURNS = 100            # Turns per phase coil (typically 50-200)
 TAU_P = 100.0           # Pole pitch in meters
-W_COIL = 0.5            # LIM coil width in meters
+W_COIL = 2.0            # LIM coil width in meters
 GAP = 0.20              # Air gap between coil and reaction plate (m)
 T_PLATE = 0.2           # Reaction plate thickness (m)
 PITCH_COUNT = 3         # Number of pole pitches per LIM
@@ -42,7 +43,7 @@ D_LEV = 0.10                # Levitation plate thickness (m)
 W_LEV = 1.4                 # Levitation plate width (m)
 
 # Reaction plate material: "aluminum", "cuni7030", "titanium", "alpha_titanium", "gamma_titanium"
-PLATE_MATERIAL = "titanium"
+PLATE_MATERIAL = "aluminum"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -93,14 +94,14 @@ MAKE_GRAPHS = True
 # -----------------------------------------------------------------------------
 # 1.10 Thermal Mode Configuration (NEW)
 # -----------------------------------------------------------------------------
-EDDY_HEAT_TO_CABLE = False      # True = cable heats up, False = cryo handles it
+EDDY_HEAT_TO_CABLE = True      # True = cable heats up, False = cryo handles it
 
 # Cable thermal properties
 CABLE_EMISSIVITY = 0.85
 CABLE_SURFACE_AREA_PER_M = 0.5  # Radiating surface area per meter (m²/m)
 
 # Coil thermal isolation
-COIL_MLI_EFFECTIVENESS = 0.001
+COIL_MLI_EFFECTIVENESS = 0.001   # This is how well the insulation around the superconductors works.
 COIL_SURFACE_AREA_PER_SITE = 10  # Approximate coil cryostat surface area (m²)
 
 
@@ -176,11 +177,11 @@ Q_SUN = 1361
 Q_EARTH_ALBEDO = 650
 Q_SHIELDING = 0.005
 T_SPACE = 2.7
-T_RADIATOR_HOT = 300
+T_RADIATOR_HOT = 400
 T_MAX_PLATE = 500
 
 # Cryogenic system
-CRYO_EFF = 0.18
+CRYO_EFF = 0.05
 EM_HEATSINK = 0.9
 
 # HTS tape
@@ -201,6 +202,8 @@ YR = round(365.33 * DAY)
 
 # HTS current ratings
 W_TAPE = HTS_TAPE_WIDTH_MM / 1000
+if HTS_TAPE_LAYERS > 1:
+    HTS_TAPE_LAYERS = DE_RATING_FACTOR * HTS_TAPE_LAYERS
 I_C = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * HTS_TAPE_LAYERS
 I_PEAK = 0.875 * I_C
 I_TARGET = 0.8125 * I_C

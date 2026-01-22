@@ -111,52 +111,11 @@ def make_month_ticks(data_list, total_time):
     return tick_positions, tick_labels
 
 
-def annotate_final_value(data_list, unit=""):
-    """Add annotation showing final value on plot."""
-    fmt = ".3f"
-    if not data_list:
-        return
-    x = len(data_list)
-    y = data_list[-1]
-    
-    if y > 1e18:
-        unit = "E" + unit
-        y = y / 1e18
-    elif y > 1e15:
-        unit = "P" + unit
-        y = y / 1e15
-    elif y > 1e12:
-        unit = "T" + unit
-        y = y / 1e12
-    elif y > 1e9:
-        unit = "G" + unit
-        y = y / 1e9
-    elif y > 1e6:
-        unit = "M" + unit
-        y = y / 1e6
-    elif y > 1e3:
-        unit = "k" + unit
-        y = y / 1e3
-    
-    if y > 100:
-        fmt = ".1f"
-    elif y > 10:
-        fmt = ".2f"
-    
-    print(f"{y:{fmt}} {unit}".strip())
-    label = f"{y:{fmt}} {unit}".strip()
-    plt.annotate(
-        label, xy=(x, y), xytext=(-90, 30),
-        textcoords="offset points", fontsize=25, ha="left",
-        bbox=dict(boxstyle="round,pad=0.2", fc="white", alpha=0.7, lw=0)
-    )
-
-
 # =============================================================================
 # MAIN SIMULATION LOOP
 # =============================================================================
 
-def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=False):
+def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=False, quick_mode=False):
     """Run the deployment simulation.
     
     Args:
@@ -164,11 +123,24 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         i_peak_init: Initial peak current (A)
         thrust_model: 1, 2, or 3
         eddy_to_cable: If True, eddy heat stays in cable
+        quick_mode: If True, use larger time steps for faster execution
     
     Returns:
         (param_string, success, total_time)
     """
     clear_data()
+    
+    # Time step configuration
+    if quick_mode:
+        dt1 = 10      # First day: 10s instead of 1s
+        dt2 = 100     # Main phase: 100s instead of 10s
+        dt3 = 500     # Late phase: 500s instead of 50s
+        skip = 50     # Collect data more frequently for smoother plots
+    else:
+        dt1 = cfg.DT1
+        dt2 = cfg.DT2
+        dt3 = cfg.DT3
+        skip = cfg.SKIP
     
     # Get physics parameters
     params = cfg.get_physics_params()
@@ -221,7 +193,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     exit_msg = "PASSED"
 
     # Initialize state
-    dt = cfg.DT1
+    dt = dt1
     v_cable = cfg.V_ORBIT
     v_casing = cfg.V_ORBIT
     time = 0
@@ -437,7 +409,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         )
 
         if time > sample_time and time < cfg.SAMPLE_TIME_MAX:
-            sample_time += cfg.SKIP
+            sample_time += skip
             data_current.append(i_peak)
             data_voltage.append(volts)
             data_v_slip.append(v_slip)
@@ -538,11 +510,11 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
         # Time stepping
         if time < cfg.DAY:
-            dt = cfg.DT1
+            dt = dt1
         elif time < cfg.SAMPLE_TIME_MAX:
-            dt = cfg.DT2
+            dt = dt2
         else:
-            dt = cfg.DT3
+            dt = dt3
 
         time += dt
 
@@ -632,7 +604,83 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 # PLOTTING FUNCTIONS
 # =============================================================================
 
-def plot_results(show_graphs, param_str, total_time):
+def format_value_with_prefix(value, unit):
+    """Format a value with appropriate SI prefix."""
+    fmt = ".3f"
+    if abs(value) > 1e18:
+        prefix = "E"
+        value = value / 1e18
+    elif abs(value) > 1e15:
+        prefix = "P"
+        value = value / 1e15
+    elif abs(value) > 1e12:
+        prefix = "T"
+        value = value / 1e12
+    elif abs(value) > 1e9:
+        prefix = "G"
+        value = value / 1e9
+    elif abs(value) > 1e6:
+        prefix = "M"
+        value = value / 1e6
+    elif abs(value) > 1e3:
+        prefix = "k"
+        value = value / 1e3
+    else:
+        prefix = ""
+    
+    if abs(value) > 100:
+        fmt = ".1f"
+    elif abs(value) > 10:
+        fmt = ".2f"
+    
+    return f"{value:{fmt}} {prefix}{unit}".strip()
+
+
+def annotate_peak_value(data, unit, color):
+    """Add annotation showing peak value on plot."""
+    if not data:
+        return
+    
+    peak_val = max(data)
+    peak_idx = data.index(peak_val)
+    
+    label = format_value_with_prefix(peak_val, unit)
+    
+    # Position annotation above the peak point
+    plt.annotate(
+        f"Peak: {label}", 
+        xy=(peak_idx, peak_val), 
+        xytext=(-50, -60),
+        textcoords="offset points", 
+        fontsize=14, 
+        ha="left",
+        color=color,
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8, ec=color, lw=1),
+        arrowprops=dict(arrowstyle="->", color=color, lw=1.5)
+    )
+
+
+def annotate_final_value(data, unit=""):
+    """Add annotation showing final value on plot."""
+    if not data:
+        return
+    
+    x = len(data)
+    y = data[-1]
+    label = format_value_with_prefix(y, unit)
+    
+    plt.annotate(
+        f"Final: {label}", 
+        xy=(x, data[-1]), 
+        xytext=(-100, 30),
+        textcoords="offset points", 
+        fontsize=14, 
+        ha="left",
+        bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8, lw=1)
+    )
+
+
+def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cable=False):
     """Generate requested plots."""
     
     plots = {
@@ -643,24 +691,33 @@ def plot_results(show_graphs, param_str, total_time):
         "p_eddy": (data_p_eddy, "Eddy Current Losses per site", "W", "darkblue"),
         "v_rel": (data_v_rel, "Relative Velocity", "m/s", "olive"),
         "f_slip": (data_f_slip, "Slip Frequency", "Hz", "orange"),
-        "slip": (data_slip_ratio, "Slip Ratio", "%", "cyan"),
+        "slip": (data_slip_ratio, "Slip Ratio", "%", "#56B4E9"),
         "p_thrust": (data_thrust_power, "Thrust Power per site", "W", "navy"),
         "b_peak": (data_b_field, "Magnetic Field", "T", "brown"),
-        "hyst": (data_p_hyst, "Hysteresis Losses per site", "W", "brown"),
-        "p_heat": (data_p_heat, "Heat Losses per site", "W", "brown"),
-        "cryo": (data_p_cryo, "Cryogenic Power per site", "W", "teal"),
+        "hyst": (data_p_hyst, "Hysteresis Losses per site", "W", "#CC79A7"),
+        "p_heat": (data_p_heat, "Heat Losses per site", "W", "#D55E00"),
+        "cryo": (data_p_cryo, "Cryogenic Power per site", "W", "#009E73"),
         "power": (data_p_site, "Site Power", "W", "darkslategray"),
         "lim_power": (data_p_lim, "LIM Power", "W", "darkslategray"),
-        "plate_temp": (data_temp_plate, "Plate Temperature", "K", "lime"),
+        "plate_temp": (data_temp_plate, "Plate Temperature", "K", "#E69F00"),
         "ke_site": (data_E_site, "Site Kinetic Energy", "J", "green"),
         "ke_all": (data_E_total, "Total Kinetic Energy", "J", "darkgreen"),
         "skin": (data_skin_depth_eff, "Effective Skin Depth", "mm", "magenta"),
         "skin_calc": (data_skin_depth_calc, "Calculated Skin Depth", "mm", "darkmagenta"),
         "cable_temp": (data_cable_temp, "Cable Equilibrium Temperature", "K", "red"),
         "radiator_width": (data_radiator_width, "Required Radiator Width", "m", "blue"),
-        "q_cryo": (data_q_cryo_cold, "Cryo Cold-Side Heat Load", "W", "cyan"),
+        "q_cryo": (data_q_cryo_cold, "Cryo Cold-Side Heat Load", "W", "#0072B2"),
     }
 
+    # Build model info string
+    model_names = {
+        1: "Narrow Plate",
+        2: "Goodness Factor", 
+        3: "Slip × Pressure"
+    }
+    thermal_mode = "Cable" if eddy_to_cable else "Cryo"
+    model_str = f"Model {thrust_model} ({model_names.get(thrust_model, 'Unknown')}), Thermal: {thermal_mode}"
+    
     time_str = f"{total_time/cfg.DAY:.1f} days ({total_time/cfg.YR:.2f} years)"
     month_str = f"{total_time/cfg.MONTH:.1f}"
 
@@ -673,16 +730,23 @@ def plot_results(show_graphs, param_str, total_time):
 
             plt.figure(figsize=(14, 7))
             plt.scatter(range(len(data)), data, c=color, s=1)
-            plt.xlabel(f"{month_str} Months", fontsize=24)
-            plt.ylabel(f"{label} ({unit})", fontsize=24)
+            plt.xlabel(f"Time (months) -- {model_str}", fontsize=16)
+            plt.ylabel(f"{label} ({unit})", fontsize=16)
+            
+            # Title includes model info
             if "fulldata" in show_graphs:
-                plt.title(f"{label} - {param_str}", fontsize=22)
+                plt.title(f"{label} | {param_str}", fontsize=14)
             elif "timeonly" in show_graphs:
-                plt.title(f"{label} - {time_str}", fontsize=24)
+                plt.title(f"{label} | {time_str} | {cfg.PLATE_MATERIAL}", fontsize=16)
             else:
-                plt.title(f"{label}", fontsize=24)
+                plt.title(f"{label} | {cfg.PLATE_MATERIAL}", fontsize=16)
+            
             plt.xticks(tick_pos, tick_labels)
-            annotate_final_value(data, unit=unit)
+            
+            # Add peak and final value annotations
+            annotate_peak_value(data, unit, color)
+            annotate_final_value(data, unit)
+            
             plt.grid(True, alpha=0.3)
             plt.tight_layout()
             plt.show()
@@ -696,6 +760,7 @@ def main():
     """Main entry point."""
     thrust_model = cfg.THRUST_MODEL
     eddy_to_cable = cfg.EDDY_HEAT_TO_CABLE
+    quick_mode = False
     show_graphs = []
 
     if len(sys.argv) > 1:
@@ -725,10 +790,16 @@ Graph Options:
   ke_site      Site kinetic energy (J)
   ke_all       Total kinetic energy (J)
 
+Other Options:
+  --quick      Fast test run (larger time steps, less accuracy)
+  fulldate     Show parameter list in title bar
+  timeonly     Show deplayment Days and Years in title bar
+
 Examples:
-  python lim_simulation.py --model=1 thrust power
+  python lim_simulation.py --model=1 thrust power fulldata
   python lim_simulation.py --model=2 --thermal=cable all
   python lim_simulation.py --thermal=cryo cable_temp radiator_width
+  python lim_simulation.py --quick thrust power timeonly
             """)
             return
 
@@ -746,12 +817,12 @@ Examples:
                 mode = arg.split("=")[1].lower()
                 if mode == "cable":
                     eddy_to_cable = True
-                    print(f"Thermal mode set to {mode}: EDDY_HEAT_TO_CABLE = True")
                 elif mode == "cryo":
                     eddy_to_cable = False
-                    print(f"Thermal mode set to {mode}: EDDY_HEAT_TO_CABLE = False")
                 else:
                     print(f"Invalid thermal mode {mode}, using default (cryo)")
+            elif arg == "--quick":
+                quick_mode = True
             else:
                 show_graphs.append(arg)
 
@@ -759,18 +830,20 @@ Examples:
     cfg.print_parameters()
     print(f"Using Thrust Model {thrust_model}")
     print(f"Thermal Mode: {'cable' if eddy_to_cable else 'cryo'}")
+    if quick_mode:
+        print("Quick Mode: ENABLED (larger time steps, reduced accuracy)")
 
     # Run simulation
     v_slip = cfg.V_SLIP_MAX
     i_peak = cfg.I_MIN
 
     param_str, success, total_time = run_deployment_simulation(
-        v_slip, i_peak, thrust_model, eddy_to_cable
+        v_slip, i_peak, thrust_model, eddy_to_cable, quick_mode
     )
 
     # Plot results if requested
     if success and show_graphs:
-        plot_results(show_graphs, param_str, total_time)
+        plot_results(show_graphs, param_str, total_time, thrust_model, eddy_to_cable)
 
 
 if __name__ == "__main__":
