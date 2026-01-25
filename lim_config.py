@@ -18,7 +18,7 @@ import math
 # 1.1 HTS (High-Temperature Superconductor) Tape Configuration
 # -----------------------------------------------------------------------------
 HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
-HTS_TAPE_LAYERS = 3         # Layers of tape in parallel: 1, 2, or 3
+HTS_TAPE_LAYERS = 2         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
 DE_RATING_FACTOR = 0.9      # Compensates for self-inductance in multilayer HTS configurations.
 NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
@@ -54,7 +54,7 @@ LIM_SPACING = 500.0     # Distance between LIM sites (m)
 # 1.4 Operating Limits
 # -----------------------------------------------------------------------------
 VOLTS_MAX = 100e3       # Maximum induced coil voltage (V)
-MAX_SITE_POWER = 16e6   # Maximum power per LIM site (W)
+MAX_SITE_POWER = 8e6   # Maximum power per LIM site (W)
 
 # -----------------------------------------------------------------------------
 # 1.5 Slip Control Parameters
@@ -77,6 +77,9 @@ M_CABLE_STRUCTURAL_DEFAULT = 96_700     # Structural cable mass per meter (kg/m)
 M_LOAD_M_DEFAULT = 12_000               # Casing + payload mass per meter (kg/m)
 M_CABLE_STRUCTURAL = M_CABLE_STRUCTURAL_DEFAULT # Session proofing
 M_LOAD_M = M_LOAD_M_DEFAULT
+SIGMA_TARGET = 12.633E9                 # sets the post deployment cable tension (Pa)
+# The post deployment sigma is also dependant on the cable hardware mass, so the 12.633 GPa
+# target tension gives a post deployment tension of ~12 GPa  
 
 # -----------------------------------------------------------------------------
 # 1.8 Simulation Control
@@ -92,6 +95,16 @@ SKIP = 200              # Data collection interval
 # -----------------------------------------------------------------------------
 WRITE_FILE = True
 MAKE_GRAPHS = True
+
+# -----------------------------------------------------------------------------
+# 1.9b Graph Output Configuration
+# -----------------------------------------------------------------------------
+SAVE_GRAPHS = True                      # Save graphs to files instead of displaying
+GRAPH_OUTPUT_DIR = "./graphs"           # Directory to save graph images
+GRAPH_DPI = 300                         # Resolution for print (300 DPI is standard for print)
+GRAPH_WIDTH_INCHES = 10                 # Width in inches (10" at 300 DPI = 3000 pixels)
+GRAPH_HEIGHT_INCHES = 6                 # Height in inches (6" at 300 DPI = 1800 pixels)
+GRAPH_FORMAT = "png"                    # Output format: "png", "pdf", "svg", "jpg"
 
 # -----------------------------------------------------------------------------
 # 1.10 Thermal Mode Configuration (NEW)

@@ -265,22 +265,22 @@ def calc_thrust(f_slip, f_supply, i_peak, temp_K, params, model=1):
         return calc_thrust_model1(f_slip, f_supply, i_peak, temp_K, params)
 
 
+def calc_thrust_power(thrust, v_rel):
+    """Mechanical power delivered to the cable."""
+    return thrust * v_rel
+
 # =============================================================================
 # ELECTRICAL CALCULATIONS
 # =============================================================================
 
 def calc_coil_voltage(i_peak, f_supply, b_field, a_coil, n_turns):
     """Induced voltage in LIM coil from changing flux linkage."""
+    # this check is needed since i_peak is set after volts. Neither should be negative.
     if i_peak <= 0 or f_supply <= 0:
         return 0.0
     phi_peak = b_field * a_coil
     omega = 2 * math.pi * f_supply
     return omega * n_turns * phi_peak
-
-
-def calc_thrust_power(thrust, v_rel):
-    """Mechanical power delivered to the cable."""
-    return thrust * v_rel
 
 
 # =============================================================================
@@ -435,8 +435,7 @@ def calc_cryo_heat_load(p_eddy, p_hyst, lims_per_site, q_absorbed_per_site,
     else:
         # Everything goes through cryo
         total_heat = lims_per_site * (p_eddy + p_hyst) + q_absorbed_per_site
-        q_cold = total_heat
-    
+        q_cold = total_heat   
     return q_cold
 
 

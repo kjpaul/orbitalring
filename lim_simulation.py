@@ -115,7 +115,7 @@ def make_month_ticks(data_list, total_time):
 # MAIN SIMULATION LOOP
 # =============================================================================
 
-def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0, sigma=12.63E9):
+def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0, sigma=cfg.SIGMA_TARGET):
     """Run the deployment simulation.
     
     Args:
@@ -189,15 +189,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         "b_field_max": [0, 0, "", 0],
         "thrust_max": [0, 0, "", 0],
         "p_thrust_max": [0, 0, "", 0],
-        "volts_lim_max": [0, 0, "", 0],
         "delta_t_max": [0, 0, "", 0],
         "plate_t_max": [0, 0, "", 0],
-        "skin_d_max": [0, 0, "", 0],
-        "skin_d_min": [100, 0, "", 0],
-        "min_heatsink_area": [0, 0, "", 0],
-        "min_cryo_area": [0, 0, "", 0],
-        "p_heat_load": [0, 0, "", 0],
-        "plate_temp_out": [0, 0, "", 0],
         "lim_power_max": [0, 0, "", 0],
         "site_power_max": [0, 0, "", 0],
         "cable_temp_max": [0, 0, "", 0],
@@ -673,9 +666,9 @@ def annotate_peak_value(data, unit, color):
     plt.annotate(
         f"Peak: {label}", 
         xy=(peak_idx, peak_val), 
-        xytext=(-50, -60),
+        xytext=(-120, -60),
         textcoords="offset points", 
-        fontsize=14, 
+        fontsize=24, 
         ha="left",
         color=color,
         bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8, ec=color, lw=1),
@@ -695,42 +688,48 @@ def annotate_final_value(data, unit=""):
     plt.annotate(
         f"Final: {label}", 
         xy=(x, data[-1]), 
-        xytext=(-100, 30),
+        xytext=(-120, 30),
         textcoords="offset points", 
-        fontsize=14, 
+        fontsize=24, 
         ha="left",
         bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8, lw=1)
     )
 
 
 def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cable=False):
-    """Generate requested plots."""
+    """Generate requested plots.
     
-    plots = {
-        "current": (data_current, "Current", "A", "blue"),
-        "volts": (data_voltage, "Voltage", "V", "red"),
-        "v_slip": (data_v_slip, "Slip Velocity", "m/s", "green"),
-        "thrust": (data_thrust, "Thrust per site", "N", "purple"),
-        "p_eddy": (data_p_eddy, "Eddy Current Losses per site", "W", "darkblue"),
-        "v_rel": (data_v_rel, "Relative Velocity", "m/s", "olive"),
-        "f_slip": (data_f_slip, "Slip Frequency", "Hz", "orange"),
-        "slip": (data_slip_ratio, "Slip Ratio", "%", "#56B4E9"),
-        "p_thrust": (data_thrust_power, "Thrust Power per site", "W", "navy"),
-        "b_peak": (data_b_field, "Magnetic Field", "T", "brown"),
-        "hyst": (data_p_hyst, "Hysteresis Losses per site", "W", "#CC79A7"),
-        "p_heat": (data_p_heat, "Heat Losses per site", "W", "#D55E00"),
-        "cryo": (data_p_cryo, "Cryogenic Power per site", "W", "#009E73"),
-        "power": (data_p_site, "Site Power", "W", "darkslategray"),
-        "lim_power": (data_p_lim, "LIM Power", "W", "darkslategray"),
-        "plate_temp": (data_temp_plate, "Plate Temperature", "K", "#E69F00"),
-        "ke_site": (data_E_site, "Site Kinetic Energy", "J", "green"),
-        "ke_all": (data_E_total, "Total Kinetic Energy", "J", "darkgreen"),
-        "skin": (data_skin_depth_eff, "Effective Skin Depth", "mm", "magenta"),
-        "skin_calc": (data_skin_depth_calc, "Calculated Skin Depth", "mm", "darkmagenta"),
-        "cable_temp": (data_cable_temp, "Cable Equilibrium Temperature", "K", "red"),
-        "radiator_width": (data_radiator_width, "Required Radiator Width", "m", "blue"),
-        "q_cryo": (data_q_cryo_cold, "Cryo Cold-Side Heat Load", "W", "#0072B2"),
-    }
+    Plots are saved to GRAPH_OUTPUT_DIR with numbered filenames if SAVE_GRAPHS is True.
+    Otherwise, plots are displayed interactively.
+    """
+    import os
+    
+    # Ordered list of plots with numbering for consistent file naming
+    plots_ordered = [
+        ("current", data_current, "Current", "A", "blue"),
+        ("volts", data_voltage, "Voltage", "V", "red"),
+        ("v_slip", data_v_slip, "Slip Velocity", "m/s", "green"),
+        ("slip", data_slip_ratio, "Slip Ratio", "%", "#56B4E9"),
+        ("f_slip", data_f_slip, "Slip Frequency", "Hz", "orange"),
+        ("v_rel", data_v_rel, "Relative Velocity", "m/s", "olive"),
+        ("b_peak", data_b_field, "Magnetic Field", "T", "brown"),
+        ("thrust", data_thrust, "Thrust per site", "N", "purple"),
+        ("p_thrust", data_thrust_power, "Thrust Power per site", "W", "navy"),
+        ("p_eddy", data_p_eddy, "Eddy Current Losses per site", "W", "darkblue"),
+        ("hyst", data_p_hyst, "Hysteresis Losses per site", "W", "#CC79A7"),
+        ("p_heat", data_p_heat, "Heat Losses per site", "W", "#D55E00"),
+        ("lim_power", data_p_lim, "LIM Power", "W", "teal"),
+        ("power", data_p_site, "Site Power", "W", "darkslategray"),
+        ("cryo", data_p_cryo, "Cryogenic Power per site", "W", "#009E73"),
+        ("q_cryo", data_q_cryo_cold, "Cryo Cold-Side Heat Load", "W", "#0072B2"),
+        ("plate_temp", data_temp_plate, "Plate Temperature", "K", "#E69F00"),
+        ("cable_temp", data_cable_temp, "Cable Equilibrium Temperature", "K", "red"),
+        ("radiator_width", data_radiator_width, "Required Radiator Width", "m", "blue"),
+        ("skin", data_skin_depth_eff, "Effective Skin Depth", "mm", "magenta"),
+        ("skin_calc", data_skin_depth_calc, "Calculated Skin Depth", "mm", "darkmagenta"),
+        ("ke_site", data_E_site, "Site Kinetic Energy", "J", "green"),
+        ("ke_all", data_E_total, "Total Kinetic Energy", "J", "darkgreen"),
+    ]
 
     # Build model info string
     model_names = {
@@ -742,34 +741,43 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
     model_str = f"Model {thrust_model} ({model_names.get(thrust_model, 'Unknown')}), Thermal: {thermal_mode}"
     
     time_str = f"{total_time/cfg.DAY:.1f} days ({total_time/cfg.YR:.2f} years)"
-    # month_str = f"{total_time/cfg.MONTH:.1f}"
 
-    for name, (data, label, unit, color) in plots.items():
+    # Create output directory if saving graphs
+    if cfg.SAVE_GRAPHS:
+        os.makedirs(cfg.GRAPH_OUTPUT_DIR, exist_ok=True)
+        print(f"\nSaving graphs to: {cfg.GRAPH_OUTPUT_DIR}/")
+
+    plot_number = 0
+    for name, data, label, unit, color in plots_ordered:
         if name in show_graphs or "all" in show_graphs:
             if not data:
                 continue
-
+            
+            plot_number += 1
             tick_pos, tick_labels = make_month_ticks(data, total_time)
 
-            plt.figure(figsize=(14, 7))
-            plt.scatter(range(len(data)), data, c=color, s=1)
-            plt.ylabel(f"{label} ({unit})", fontsize=24)
+            # Use configured figure size for print quality
+            fig = plt.figure(figsize=(cfg.GRAPH_WIDTH_INCHES, cfg.GRAPH_HEIGHT_INCHES))
+            
+            plt.scatter(range(len(data)), data, c=color, s=2)  # Slightly larger dots for print
+            plt.ylabel(f"{label} ({unit})", fontsize=16)
             
             # Title includes model info
             if "fulldata" in show_graphs:
-                plt.title(f"{label} | {param_str}", fontsize=18)
-                plt.xlabel(f"Time (months) -- {model_str}", fontsize=24)
+                plt.title(f"{label} | {param_str}", fontsize=12)
+                plt.xlabel(f"Time (months) — {model_str}", fontsize=14)
             elif "timeonly" in show_graphs:
-                plt.title(f"{label} | {time_str}", fontsize=24)
-                plt.xlabel(f"Time (months) -- {model_str}", fontsize=24)
+                plt.title(f"{label} | {time_str}", fontsize=16)
+                plt.xlabel(f"Time (months) — {model_str}", fontsize=14)
             elif "clean" in show_graphs:
-                plt.title(f"{label}", fontsize=26)
-                plt.xlabel("Time (months)", fontsize=24)
+                plt.title(f"{label}", fontsize=18)
+                plt.xlabel("Time (months)", fontsize=14)
             else:
-                plt.title(f"{label} | {time_str} -- {cfg.PLATE_MATERIAL} -- ({cfg.MAX_SITE_POWER/1e6:.0f} MW)", fontsize=24)
-                plt.xlabel(f"Time (months) -- {model_str}", fontsize=24)
+                plt.title(f"{label} | {time_str} — {cfg.PLATE_MATERIAL} — ({cfg.MAX_SITE_POWER/1e6:.0f} MW)", fontsize=14)
+                plt.xlabel(f"Time (months) — {model_str}", fontsize=14)
         
-            plt.xticks(tick_pos, tick_labels)
+            plt.xticks(tick_pos, tick_labels, fontsize=12)
+            plt.yticks(fontsize=12)
             
             # Add peak and final value annotations
             annotate_peak_value(data, unit, color)
@@ -777,7 +785,20 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
             
             plt.grid(True, alpha=0.3)
             plt.tight_layout()
-            plt.show()
+            
+            # Save or show
+            if cfg.SAVE_GRAPHS:
+                filename = f"{plot_number:02d}-{name}.{cfg.GRAPH_FORMAT}"
+                filepath = os.path.join(cfg.GRAPH_OUTPUT_DIR, filename)
+                plt.savefig(filepath, dpi=cfg.GRAPH_DPI, bbox_inches='tight', 
+                           facecolor='white', edgecolor='none')
+                print(f"  Saved: {filename}")
+                plt.close(fig)
+            else:
+                plt.show()
+    
+    if cfg.SAVE_GRAPHS and plot_number > 0:
+        print(f"\nSaved {plot_number} graphs at {cfg.GRAPH_DPI} DPI ({cfg.GRAPH_WIDTH_INCHES}\" × {cfg.GRAPH_HEIGHT_INCHES}\")")
 
 
 # =============================================================================
@@ -801,35 +822,47 @@ Graph Options:
   current      Coil current (A)
   volts        Induced voltage (V)
   v_slip       Slip velocity (m/s)
-  thrust       Thrust force (N)
-  p_thrust     Thrust power (W)
-  p_eddy       Eddy current losses (W)
-  power        Total site power (W)
-  plate_temp   Reaction plate temperature (K)
-  cable_temp   Cable equilibrium temperature (K)
-  radiator_width  Required radiator width (m)
-  q_cryo       Cryo cold-side heat load (W)
-  skin         Skin depth (mm)
   slip         Slip ratio (%)
   f_slip       Slip frequency (Hz)
   v_rel        Relative velocity (m/s)
-  hyst         Hysteresis losses (W)
-  p_heat       Heat losses (W)
-  cryo         Cryogenic power (W)
+  b_peak       Magnetic field at plate (T)
+  thrust       Thrust force per site (N)
+  p_thrust     Thrust power per site (W)
+  p_eddy       Eddy current losses per site (W)
+  hyst         Hysteresis losses per site (W)
+  p_heat       Total heat losses per site (W)
+  lim_power    LIM power (W)
+  power        Total site power (W)
+  cryo         Cryogenic power per site (W)
+  q_cryo       Cryo cold-side heat load (W)
+  plate_temp   Reaction plate temperature (K)
+  cable_temp   Cable equilibrium temperature (K)
+  radiator_width  Required radiator width (m)
+  skin         Effective skin depth (mm)
+  skin_calc    Calculated skin depth (mm)
   ke_site      Site kinetic energy (J)
   ke_all       Total kinetic energy (J)
 
+Output Options:
+  --save       Save graphs to files (default: use SAVE_GRAPHS in config)
+  --show       Display graphs interactively (overrides --save)
+  --outdir=    Set output directory (default: ./graphs)
+  --dpi=       Set resolution (default: 300)
+  fulldata     Show parameter list in title bar
+  timeonly     Show deployment days and years in title bar
+  clean        Only show the title and axis labels
+
 Other Options:
+  --model=N    Select thrust model (1, 2, or 3)
+  --thermal=   Select thermal mode (cable or cryo)
   --quick      Fast test run (larger time steps, less accuracy)
-  --m_load=    Change load and cable mass in simulation. m_load > 999
-  fulldate     Show parameter list in title bar
-  timeonly     Show deplayment Days and Years in title bar
-  clean        Only show the title and X, Y labels
+  --m_load=    Change load and cable mass in simulation (m_load > 999)
 
 Examples:
   python lim_simulation.py --model=1 thrust power fulldata
-  python lim_simulation.py --model=2 --thermal=cable all metadata
-  python lim_simulation.py --thermal=cryo cable_temp radiator_width
+  python lim_simulation.py --save all clean
+  python lim_simulation.py --show --thermal=cable thrust power
+  python lim_simulation.py --outdir=./book_figures --dpi=600 all
   python lim_simulation.py --quick thrust power timeonly
   python lim_simulation.py --m_load=50000                   
             """)
@@ -850,7 +883,7 @@ Examples:
                 if value > 999:
                     new_load_mass = value
                 else:
-                    print(f"m_load must be a number > : [{value}] is not valid.")
+                    print(f"m_load must be a number > 999: [{value}] is not valid.")
             elif arg.startswith("--thermal="):
                 mode = arg.split("=")[1].lower()
                 if mode == "cable":
@@ -861,6 +894,17 @@ Examples:
                     print(f"Invalid thermal mode {mode}, using default (cryo)")
             elif arg == "--quick":
                 quick_mode = True
+            elif arg == "--save":
+                cfg.SAVE_GRAPHS = True
+            elif arg == "--show":
+                cfg.SAVE_GRAPHS = False
+            elif arg.startswith("--outdir="):
+                cfg.GRAPH_OUTPUT_DIR = arg.split("=")[1]
+            elif arg.startswith("--dpi="):
+                try:
+                    cfg.GRAPH_DPI = int(arg.split("=")[1])
+                except ValueError:
+                    print(f"Invalid DPI value: {arg}")
             else:
                 show_graphs.append(arg)
 
