@@ -18,7 +18,7 @@ import math
 # 1.1 HTS (High-Temperature Superconductor) Tape Configuration
 # -----------------------------------------------------------------------------
 HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
-HTS_TAPE_LAYERS = 2         # Layers of tape in parallel: 1, 2, or 3
+HTS_TAPE_LAYERS = 1         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
 DE_RATING_FACTOR = 0.9      # Compensates for self-inductance in multilayer HTS configurations.
 NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
@@ -26,7 +26,7 @@ NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
 # -----------------------------------------------------------------------------
 # 1.2 LIM Geometry
 # -----------------------------------------------------------------------------
-N_TURNS = 100            # Turns per phase coil (typically 50-200)
+N_TURNS = 200            # Turns per phase coil (typically 50-200)
 TAU_P = 100.0           # Pole pitch in meters
 W_COIL = 2.0            # LIM coil width in meters
 GAP = 0.20              # Air gap between coil and reaction plate (m)
@@ -103,7 +103,7 @@ SAVE_GRAPHS = True                      # Save graphs to files instead of displa
 GRAPH_OUTPUT_DIR = "./graphs"           # Directory to save graph images
 GRAPH_DPI = 300                         # Resolution for print (300 DPI is standard for print)
 GRAPH_WIDTH_INCHES = 10                 # Width in inches (10" at 300 DPI = 3000 pixels)
-GRAPH_HEIGHT_INCHES = 6                 # Height in inches (6" at 300 DPI = 1800 pixels)
+GRAPH_HEIGHT_INCHES = 5                 # Height in inches (6" at 300 DPI = 1800 pixels)
 GRAPH_FORMAT = "png"                    # Output format: "png", "pdf", "svg", "jpg"
 
 # -----------------------------------------------------------------------------

@@ -638,7 +638,7 @@ def format_value_with_prefix(value, unit):
     elif abs(value) > 1e6:
         prefix = "M"
         value = value / 1e6
-    elif abs(value) > 1e3:
+    elif abs(value) > 1e3 and unit != "mm":
         prefix = "k"
         value = value / 1e3
     else:
@@ -666,9 +666,9 @@ def annotate_peak_value(data, unit, color):
     plt.annotate(
         f"Peak: {label}", 
         xy=(peak_idx, peak_val), 
-        xytext=(-120, -60),
+        xytext=(-50, -60),
         textcoords="offset points", 
-        fontsize=24, 
+        fontsize=16, 
         ha="left",
         color=color,
         bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8, ec=color, lw=1),
@@ -688,9 +688,9 @@ def annotate_final_value(data, unit=""):
     plt.annotate(
         f"Final: {label}", 
         xy=(x, data[-1]), 
-        xytext=(-120, 30),
+        xytext=(-50, 13),
         textcoords="offset points", 
-        fontsize=24, 
+        fontsize=16, 
         ha="left",
         bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.8, lw=1)
     )
@@ -738,9 +738,9 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
         3: "Slip × Pressure"
     }
     thermal_mode = "Cable" if eddy_to_cable else "Cryo"
-    model_str = f"Model {thrust_model} ({model_names.get(thrust_model, 'Unknown')}), Thermal: {thermal_mode}"
+    model_str = f"Model {thrust_model} ({model_names.get(thrust_model, 'Unknown')}), Thermal: {thermal_mode}, N: {cfg.N_TURNS}"
     
-    time_str = f"{total_time/cfg.DAY:.1f} days ({total_time/cfg.YR:.2f} years)"
+    time_str = f"{total_time/cfg.MONTH:.1f} months"
 
     # Create output directory if saving graphs
     if cfg.SAVE_GRAPHS:
@@ -765,16 +765,16 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
             # Title includes model info
             if "fulldata" in show_graphs:
                 plt.title(f"{label} | {param_str}", fontsize=12)
-                plt.xlabel(f"Time (months) — {model_str}", fontsize=14)
+                plt.xlabel(f"Time {time_str} — {model_str}", fontsize=14)
             elif "timeonly" in show_graphs:
-                plt.title(f"{label} | {time_str}", fontsize=16)
-                plt.xlabel(f"Time (months) — {model_str}", fontsize=14)
+                plt.title(f"{label}", fontsize=16)
+                plt.xlabel(f"Time {time_str} — {model_str}", fontsize=14)
             elif "clean" in show_graphs:
                 plt.title(f"{label}", fontsize=18)
-                plt.xlabel("Time (months)", fontsize=14)
+                plt.xlabel("Time {time_str}", fontsize=14)
             else:
-                plt.title(f"{label} | {time_str} — {cfg.PLATE_MATERIAL} — ({cfg.MAX_SITE_POWER/1e6:.0f} MW)", fontsize=14)
-                plt.xlabel(f"Time (months) — {model_str}", fontsize=14)
+                plt.title(f"{label} | {cfg.PLATE_MATERIAL} ({cfg.HTS_TAPE_LAYERS}x{cfg.W_TAPE*1000:.0f} mm HTS @ {cfg.MAX_SITE_POWER/1e6:.0f} MW)", fontsize=14)
+                plt.xlabel(f"Time {time_str} — {model_str}", fontsize=14)
         
             plt.xticks(tick_pos, tick_labels, fontsize=12)
             plt.yticks(fontsize=12)

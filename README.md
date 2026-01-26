@@ -20,10 +20,16 @@ pip install matplotlib tabulate
 python lim_simulation.py
 ```
 
-### Run with Graphs
+### Run with Graphs (Interactive Display)
 
 ```bash
-python lim_simulation.py thrust power current
+python lim_simulation.py --show thrust power current
+```
+
+### Save Graphs to Files
+
+```bash
+python lim_simulation.py --save all clean
 ```
 
 ### Select Thrust Model
@@ -37,8 +43,8 @@ python lim_simulation.py --model=3    # Slip × pressure (theoretical max)
 ### Select Thermal Mode
 
 ```bash
-python lim_simulation.py --thermal=cryo    # Cryo handles all heat
 python lim_simulation.py --thermal=cable   # Cable absorbs eddy heat (default)
+python lim_simulation.py --thermal=cryo    # Cryo handles all heat
 ```
 
 ### Quick Test Run
@@ -50,7 +56,7 @@ python lim_simulation.py --quick           # Fast run with larger time steps
 ### Custom Mass Configuration
 
 ```bash
-python lim_simulation.py --m_load=50000    # Set cable mass based on new load mass of 50,000 kg/m.
+python lim_simulation.py --m_load=50000    # Set cable mass based on new load mass of 50,000 kg/m
 ```
 
 ### Full Help
@@ -58,6 +64,48 @@ python lim_simulation.py --m_load=50000    # Set cable mass based on new load ma
 ```bash
 python lim_simulation.py --help
 ```
+
+---
+
+## Graph Output
+
+The simulator can save publication-quality graphs to files or display them interactively.
+
+### Saving Graphs
+
+```bash
+python lim_simulation.py --save all clean              # Save all graphs to ./graphs/
+python lim_simulation.py --outdir=./figures all clean  # Custom output directory
+python lim_simulation.py --dpi=600 all clean           # Higher resolution for print
+```
+
+Graphs are saved with numbered filenames in logical order:
+- `01-current.png`
+- `02-volts.png`
+- `03-v_slip.png`
+- ... and so on
+
+### Graph Configuration
+
+Edit `lim_config.py` to set defaults:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `SAVE_GRAPHS` | True | Save to files (True) or display (False) |
+| `GRAPH_OUTPUT_DIR` | "./graphs" | Output directory for saved graphs |
+| `GRAPH_DPI` | 300 | Resolution (300 DPI is standard for print) |
+| `GRAPH_WIDTH_INCHES` | 10 | Figure width in inches |
+| `GRAPH_HEIGHT_INCHES` | 5 | Figure height in inches |
+| `GRAPH_FORMAT` | "png" | Output format: "png", "pdf", "svg", "jpg" |
+
+### Command-Line Overrides
+
+| Option | Description |
+|--------|-------------|
+| `--save` | Force save to files |
+| `--show` | Force interactive display |
+| `--outdir=PATH` | Set output directory |
+| `--dpi=N` | Set resolution |
 
 ---
 
@@ -99,12 +147,13 @@ This modular structure allows you to:
 - Kinetic energy tracking
 
 **lim_simulation.py** (Simulation):
-- Data collection arrays (24 tracked quantities)
+- Data collection arrays (23 tracked quantities)
 - Main simulation loop with 10-iteration controller
 - Predictive power control with slip ratio adjustment
 - Limit enforcement (voltage, power, temperature)
 - Monthly progress display
 - Plotting functions with peak/final annotations
+- High-resolution graph export
 - Command-line interface
 
 ---
@@ -118,18 +167,20 @@ All parameters are configured by editing `lim_config.py`. The most frequently-mo
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `HTS_TAPE_WIDTH_MM` | 3 | Tape width (3, 4, 6, or 12 mm) |
-| `HTS_TAPE_LAYERS` | 3 | Parallel tape layers (1–3) |
+| `HTS_TAPE_LAYERS` | 1 | Parallel tape layers (1–3) |
 | `IC_PER_MM_PER_LAYER` | 66.7 | Critical current density (A/mm/layer) |
 | `DE_RATING_FACTOR` | 0.9 | Multilayer self-inductance compensation |
 | `NORRIS_HYSTERESIS` | False | Use Norris formula for hysteresis loss |
 
-**Trade-off:** Wider tape → higher current capacity → more thrust, but more hysteresis losses.
+With 3 mm tape and 1 layer, I_c = 200 A, giving I_target ≈ 163 A.
+
+**Trade-off:** More layers → higher current capacity → more thrust, but more hysteresis losses and diminishing returns due to de-rating.
 
 ### LIM Geometry
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `N_TURNS` | 100 | Turns per phase coil |
+| `N_TURNS` | 200 | Turns per phase coil |
 | `TAU_P` | 100 m | Pole pitch (traveling wave wavelength / 2) |
 | `W_COIL` | 2.0 m | Coil width |
 | `GAP` | 0.20 m | Air gap to reaction plate |
@@ -179,7 +230,7 @@ The code includes full material properties for each option, including temperatur
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `VOLTS_MAX` | 100 kV | Maximum induced coil voltage |
-| `MAX_SITE_POWER` | 16 MW | Power limit per LIM site |
+| `MAX_SITE_POWER` | 8 MW | Power limit per LIM site |
 | `V_SLIP_MIN` | 5 m/s | Minimum slip velocity |
 | `V_SLIP_MAX` | 200 m/s | Maximum slip velocity |
 
@@ -206,6 +257,7 @@ The code includes full material properties for each option, including temperatur
 |-----------|---------|-------------|
 | `M_CABLE_STRUCTURAL` | 96,700 kg/m | Structural cable mass per meter |
 | `M_LOAD_M` | 12,000 kg/m | Casing + payload per meter |
+| `SIGMA_TARGET` | 12.633 GPa | Target post-deployment cable tension |
 
 The `--m_load=` command-line option recalculates cable mass using the physics function `calc_cable_mass()` which determines the CNT cable cross-section needed to support the specified load at 250 km orbital altitude.
 
@@ -234,7 +286,7 @@ The simulator supports two thermal management strategies, selectable via `--ther
 
 ### Cable Heat Sink Mode (`--thermal=cable`) — Default
 
-Eddy current heat remains in the cable, which warms until radiative equilibrium is reached (typically 300–350 K). Only hysteresis losses and coil environmental heat leak go through the cryogenic system.
+Eddy current heat remains in the cable, which warms until radiative equilibrium is reached (typically 300–450 K). Only hysteresis losses and coil environmental heat leak go through the cryogenic system.
 
 **Advantages:**
 - Dramatically smaller radiators (roughly 1/3 the size)
@@ -312,34 +364,35 @@ $$F = s \times \frac{B^2 A}{2\mu_0}$$
 
 ## Available Plots
 
-Specify plots as command-line arguments:
+Specify plots as command-line arguments. When saving, plots are numbered in this order:
 
-| Name | Description |
-|------|-------------|
-| `all` | Show all available plots |
-| `current` | Coil current (A) |
-| `volts` | Induced voltage (V) |
-| `v_slip` | Slip velocity (m/s) |
-| `thrust` | Thrust force per site (N) |
-| `p_thrust` | Thrust power per site (W) |
-| `p_eddy` | Eddy current losses per site (W) |
-| `power` | Total site power (W) |
-| `lim_power` | LIM power (W) |
-| `plate_temp` | Reaction plate temperature (K) |
-| `cable_temp` | Cable equilibrium temperature (K) |
-| `radiator_width` | Required radiator width (m) |
-| `q_cryo` | Cryo cold-side heat load (W) |
-| `skin` | Effective skin depth (mm) |
-| `skin_calc` | Calculated skin depth (mm) |
-| `slip` | Slip ratio (%) |
-| `f_slip` | Slip frequency (Hz) |
-| `v_rel` | Relative velocity cable–casing (m/s) |
-| `hyst` | HTS hysteresis losses per site (W) |
-| `p_heat` | Total heat losses per site (W) |
-| `cryo` | Cryogenic power requirement (W) |
-| `b_peak` | Magnetic field at plate (T) |
-| `ke_site` | Cumulative kinetic energy per site (J) |
-| `ke_all` | Cumulative kinetic energy all sites (J) |
+| # | Name | Description |
+|---|------|-------------|
+| 01 | `current` | Coil current (A) |
+| 02 | `volts` | Induced voltage (V) |
+| 03 | `v_slip` | Slip velocity (m/s) |
+| 04 | `slip` | Slip ratio (%) |
+| 05 | `f_slip` | Slip frequency (Hz) |
+| 06 | `v_rel` | Relative velocity cable–casing (m/s) |
+| 07 | `b_peak` | Magnetic field at plate (T) |
+| 08 | `thrust` | Thrust force per site (N) |
+| 09 | `p_thrust` | Thrust power per site (W) |
+| 10 | `p_eddy` | Eddy current losses per site (W) |
+| 11 | `hyst` | HTS hysteresis losses per site (W) |
+| 12 | `p_heat` | Total heat losses per site (W) |
+| 13 | `lim_power` | LIM power (W) |
+| 14 | `power` | Total site power (W) |
+| 15 | `cryo` | Cryogenic power requirement (W) |
+| 16 | `q_cryo` | Cryo cold-side heat load (W) |
+| 17 | `plate_temp` | Reaction plate temperature (K) |
+| 18 | `cable_temp` | Cable equilibrium temperature (K) |
+| 19 | `radiator_width` | Required radiator width (m) |
+| 20 | `skin` | Effective skin depth (mm) |
+| 21 | `skin_calc` | Calculated skin depth (mm) |
+| 22 | `ke_site` | Cumulative kinetic energy per site (J) |
+| 23 | `ke_all` | Cumulative kinetic energy all sites (J) |
+
+Use `all` to generate all plots.
 
 ### Plot Display Options
 
@@ -351,9 +404,9 @@ Specify plots as command-line arguments:
 
 **Examples:**
 ```bash
-python lim_simulation.py --model=1 thrust power plate_temp cable_temp radiator_width
-python lim_simulation.py --quick thrust power timeonly
-python lim_simulation.py ke_site ke_all clean
+python lim_simulation.py --save all clean
+python lim_simulation.py --show thrust power plate_temp cable_temp radiator_width
+python lim_simulation.py --outdir=./book_figures --dpi=600 all timeonly
 ```
 
 ---
@@ -368,7 +421,7 @@ The simulator prints monthly progress during deployment:
 Month | Progress | Voltage | Current | Thrust | Site Power | Radiator W
 ---------------------------------------------------------------------------
     0 |    0.0% |    1234 V |  48.7 A |   134 N |  2.45 MW |   3.21 m
-    1 |    2.3% |    2456 V | 195.2 A |   538 N |  8.12 MW |   5.67 m
+    1 |    2.3% |    2456 V | 163.0 A |   538 N |  5.12 MW |   4.67 m
    ...
 ```
 
@@ -387,7 +440,7 @@ Final summary includes:
 
 ### Max/Min Tracking
 
-The simulation tracks peak values for 25+ quantities including:
+The simulation tracks peak values for 19 quantities including:
 - Voltage, current, slip velocity
 - Thrust, thrust power
 - Eddy current and hysteresis losses
@@ -475,16 +528,16 @@ This provides a sanity check that energy is conserved to high precision.
 
 ## Typical Results
 
-With default parameters (3mm × 3-layer HTS tape, 100 turns, 16 MW site power, γ-TiAl plate):
+With default parameters (3mm × 1-layer HTS tape, 200 turns, 8 MW site power, γ-TiAl plate):
 
-| Metric | Cable Mode | Cryo Mode |
-|--------|------------|-----------|
-| Deployment time | ~17–18 months | ~18 months |
-| Peak thrust per site | ~500 N | ~500 N |
-| Peak site power | 16 MW | 16 MW |
-| Max cable temperature | ~350 K | ~77 K |
-| Max radiator width | ~5 m | ~15 m |
-| Total energy | ~15 EJ | ~15 EJ |
+| Metric | Cable Mode |
+|--------|------------|
+| Deployment time | ~14 months |
+| Peak thrust per site | ~2,800 N |
+| Peak site power | 8 MW |
+| Max cable temperature | ~370 K |
+| Max radiator width | ~5 m |
+| Total energy | ~15 EJ |
 
 Results vary significantly with thrust model selection and configuration.
 
@@ -513,7 +566,7 @@ The original single-file version of the simulator is available as `lim_deploymen
 python lim_deployment_sim.py --model=1 thrust power
 ```
 
-The legacy code has all parameters and physics in a single file. It does not include the thermal mode switch, radiator width calculations, or the `--m_load` option. Use it if you prefer a single-file solution or need to compare with earlier results.
+The legacy code has all parameters and physics in a single file. It does not include the thermal mode switch, radiator width calculations, graph saving, or the `--m_load` option. Use it if you prefer a single-file solution or need to compare with earlier results.
 
 ---
 
