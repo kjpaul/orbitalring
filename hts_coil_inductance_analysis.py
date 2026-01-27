@@ -13,6 +13,8 @@ reducing mutual inductance between turns.
 Author: Paul G. de Jong / Claude (Anthropic)
 License: MIT
 Repository: https://github.com/kjpaul/orbitalring
+
+Updated: January 2026 to match current lim_config.py defaults
 """
 
 import numpy as np
@@ -75,11 +77,14 @@ class InsulationLayer:
 
 @dataclass
 class CoilGeometry:
-    """Defines the LIM coil geometry."""
-    n_turns: int = 8
-    pole_pitch: float = 50.0        # meters
-    coil_width: float = 1.0         # meters
-    magnetic_gap: float = 0.2       # meters
+    """Defines the LIM coil geometry.
+    
+    Default values match lim_config.py (January 2026).
+    """
+    n_turns: int = 200
+    pole_pitch: float = 100.0       # meters
+    coil_width: float = 2.0         # meters
+    magnetic_gap: float = 0.20      # meters
     
     @property
     def coil_area(self) -> float:
@@ -601,28 +606,31 @@ def main():
     print("=" * 80)
     print("HTS COIL INDUCTANCE ANALYSIS")
     print("Effect of Eddy Currents in Copper Stabilizer Layers")
+    print("Updated: January 2026 to match lim_config.py")
     print("=" * 80)
     
-    # Define standard LIM coil geometry
+    # Define standard LIM coil geometry (from lim_config.py)
     coil = CoilGeometry(
-        n_turns=8,
-        pole_pitch=50.0,
-        coil_width=1.0,
-        magnetic_gap=0.2
+        n_turns=200,
+        pole_pitch=100.0,
+        coil_width=2.0,
+        magnetic_gap=0.20
     )
     
-    print(f"\nCoil Geometry:")
+    print(f"\nCoil Geometry (from lim_config.py):")
     print(f"  Turns: {coil.n_turns}")
     print(f"  Pole pitch: {coil.pole_pitch} m")
     print(f"  Coil width: {coil.coil_width} m")
     print(f"  Magnetic gap: {coil.magnetic_gap} m")
     print(f"  Coil area: {coil.coil_area} m²")
     
-    # Operating conditions
-    frequency = 86.0  # Hz (typical for LIM at operational velocity)
+    # Operating conditions - mid-deployment
+    # At v_rel = 3000 m/s with 2% slip, v_wave = 3060 m/s
+    # f = v_wave / (2 * tau_p) = 3060 / 200 = 15.3 Hz
+    frequency = 15.0  # Hz (typical for LIM at mid-deployment)
     temperature = 77.0  # K (liquid nitrogen)
     
-    print(f"\nOperating Conditions:")
+    print(f"\nOperating Conditions (mid-deployment):")
     print(f"  Frequency: {frequency} Hz")
     print(f"  Temperature: {temperature} K")
     

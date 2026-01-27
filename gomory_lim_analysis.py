@@ -10,6 +10,8 @@ Prof. Dr. Fedor Gömöry's research to derive appropriate values for:
 - Inductance scaling
 
 For the Ion Propulsion Engineering textbook.
+
+Updated: January 2026 to match current lim_config.py defaults
 """
 
 import numpy as np
@@ -189,19 +191,26 @@ print("\n" + "=" * 70)
 print("SECTION 5: ORBITAL RING LIM COIL PARAMETERS")
 print("=" * 70)
 
-# LIM parameters from earlier work
-tau_p = 50.0        # pole pitch [m]
-w_coil = 1.0        # coil width [m]
-gap = 0.2           # magnetic gap [m]
-I_peak = 650        # peak current [A]
-f_supply = 86       # steady-state frequency [Hz]
+# LIM parameters from lim_config.py (January 2026)
+tau_p = 100.0       # pole pitch [m]
+w_coil = 2.0        # coil width [m]
+gap = 0.20          # magnetic gap [m]
+I_peak = 163        # peak current [A] - 81.25% of I_c for 3mm × 1 layer
+N_turns = 200       # turns per coil
 
-print(f"\nLIM Operating Parameters:")
+# Calculate supply frequency at typical operating point
+v_rel_typical = 3000  # m/s (mid-deployment)
+v_slip = 60           # m/s (2% slip)
+v_wave = v_rel_typical + v_slip
+f_supply = v_wave / (2 * tau_p)  # ~15 Hz at mid-deployment
+
+print(f"\nLIM Operating Parameters (from lim_config.py):")
 print(f"  Pole pitch (τ_p):     {tau_p} m")
 print(f"  Coil width:           {w_coil} m")
 print(f"  Magnetic gap:         {gap} m")
-print(f"  Peak current:         {I_peak} A")
-print(f"  Supply frequency:     {f_supply} Hz")
+print(f"  Peak current:         {I_peak} A (3mm × 1 layer HTS)")
+print(f"  Number of turns:      {N_turns}")
+print(f"  Supply frequency:     {f_supply:.1f} Hz (at v_rel = {v_rel_typical} m/s)")
 
 # Coil inductance formula (from legacy code analysis)
 # L_coil = N² × μ₀ × (A_coil/gap) × k_fill
@@ -229,13 +238,14 @@ def calculate_voltage(N, k_fill, tau_p, w_coil, gap, f, I_peak):
     
     return L_coil, V_phase
 
-print(f"\n{'k_fill':>8s} {'N':>6s} {'L_coil (mH)':>12s} {'V_phase (V)':>12s} {'Status':>15s}")
+print(f"\nAt f_supply = {f_supply:.1f} Hz (mid-deployment):")
+print(f"\n{'k_fill':>8s} {'N':>6s} {'L_coil (mH)':>12s} {'V_phase (kV)':>12s} {'Status':>15s}")
 print("-" * 55)
 
-V_limit = 2000  # V
+V_limit = 100000  # V (100 kV max from lim_config.py)
 
-for k_fill in [0.167, 0.35, 0.50, 0.65]:
-    for N in [4, 6, 8, 10, 12, 14]:
+for k_fill in [0.05, 0.10, 0.20, 0.50]:
+    for N in [100, 150, 200, 250, 300]:
         L_coil, V_phase = calculate_voltage(N, k_fill, tau_p, w_coil, gap, f_supply, I_peak)
         
         if V_phase < 0.5 * V_limit:
@@ -245,9 +255,9 @@ for k_fill in [0.167, 0.35, 0.50, 0.65]:
         else:
             status = "✗ OVER"
             
-        if N == 8 or (k_fill == 0.50 and N in [4, 6, 8, 10]):  # Show key cases
-            print(f"{k_fill:>8.3f} {N:>6d} {L_coil*1000:>12.2f} {V_phase:>12.0f} {status:>15s}")
-    if k_fill != 0.65:
+        if N == 200 or (k_fill == 0.10 and N in [100, 150, 200, 250]):  # Show key cases
+            print(f"{k_fill:>8.3f} {N:>6d} {L_coil*1000:>12.1f} {V_phase/1000:>12.2f} {status:>15s}")
+    if k_fill != 0.50:
         print()
 
 # =============================================================================
@@ -258,80 +268,86 @@ print("\n" + "=" * 70)
 print("SECTION 6: RECOMMENDATIONS FOR ION PROPULSION ENGINEERING TEXTBOOK")
 print("=" * 70)
 
-recommendations = """
+recommendations = f"""
 Based on analysis of Prof. Dr. Fedor Gömöry's experimental work and 
-HTS coil design literature:
+HTS coil design literature, updated for current baseline (January 2026):
+
+CURRENT BASELINE (from lim_config.py):
+  τp = {tau_p} m, W = {w_coil} m, gap = {gap} m
+  N = {N_turns} turns
+  I_peak = {I_peak} A (3mm × 1 layer HTS tape)
+  V_limit = 100 kV
 
 1. FILL FACTOR (k_fill)
    ─────────────────────
    Legacy value:     k_fill = 0.167 (too low - assumed only REBCO layer)
-   Recommended:      k_fill = 0.50  (accounts for full tape + Kapton insulation)
+   Realistic range:  k_fill = 0.05-0.20 for space-rated insulation
    
    Justification:
    • HTS tape: ~100 μm total thickness
-   • Kapton + adhesive: ~100 μm
-   • Fill factor = 100/(100+100) = 0.50
-   • Matches literature "65% packing factor" for optimized coils
+   • Space-rated insulation needs higher voltage standoff
+   • At orbital ring scale (100 kV class), conservative k_fill is appropriate
 
 2. VOLTAGE LIMIT
    ─────────────
-   Recommended:      V_limit = 2 kV (per phase)
+   Current baseline: V_limit = 100 kV
    
    Justification:
-   • Kapton (38 μm) breakdown: ~10.5 kV
-   • Safety factor of 5: 2.1 kV
-   • Conventional HTS motor coils: typically < 1 kV
+   • Large-scale HTS systems can achieve high voltages with proper insulation
    • Japanese HTS cables achieve 275 kV with specialized PPLP insulation
-   • 2 kV is conservative for basic Kapton insulation
+   • 100 kV is achievable with proper vacuum insulation design
+   • The large gap (200 mm) provides additional safety margin
 
 3. OPTIMAL TURN COUNT
    ──────────────────
-   With k_fill = 0.50 and V_limit = 2 kV:
+   Current baseline: N = 200 turns
    
-   N = 6 turns: V ≈ 730 V  → Good safety margin
-   N = 8 turns: V ≈ 1300 V → Moderate margin  
-   N = 10 turns: V ≈ 2030 V → At limit
-   
-   RECOMMEND: N = 6-8 turns with k_fill = 0.50
+   This is validated by the deployment simulation which shows:
+   • Voltage stays well within limits throughout deployment
+   • Thrust is adequate for ~14 month deployment
+   • Higher N would increase thrust but risk voltage limits at high v_rel
 
 4. KEY INSIGHT FROM GÖMÖRY'S WORK
    ───────────────────────────────
    His AC loss studies show that hysteresis loss dominates in HTS coils
-   under AC conditions. For the LIM operating at ~86 Hz:
+   under AC conditions. For the LIM operating at ~15-40 Hz (varying with v_rel):
    
    • AC losses scale with frequency and (I/I_c)³ approximately
    • Striation of wide tapes (dividing into filaments) reduces AC loss
-   • For 12 mm wide tape divided into 48 filaments with 10 μm Cu:
-     AC loss target of 1 W/kA/m at 0.075 T, 100 Hz was achieved
+   • The Norris thin-strip model provides a theoretical basis for loss calculation
    
-   This informs cooling requirements for the orbital ring LIM stators.
+   The simulation includes both Norris-based and simplified hysteresis models.
 """
 
 print(recommendations)
 
 # Final summary table
 print("\n" + "=" * 70)
-print("SUMMARY: REVISED LIM COIL PARAMETERS")
+print("SUMMARY: CURRENT LIM COIL PARAMETERS")
 print("=" * 70)
 
-k_fill_new = 0.50
-N_optimal = 6
+k_fill_current = 0.10  # Typical for space-rated insulation
+N_current = 200
 
-L_coil_new, V_phase_new = calculate_voltage(N_optimal, k_fill_new, tau_p, w_coil, gap, f_supply, I_peak)
-L_coil_old, V_phase_old = calculate_voltage(8, 0.167, tau_p, w_coil, gap, f_supply, I_peak)
+L_coil_current, V_phase_current = calculate_voltage(N_current, k_fill_current, tau_p, w_coil, gap, f_supply, I_peak)
 
 print(f"""
-Parameter                    Legacy          Revised         Change
+Current Baseline Parameters (lim_config.py January 2026):
 ─────────────────────────────────────────────────────────────────────
-Fill factor (k_fill)         0.167           {k_fill_new}            +199%
-Turn count (N)               8               {N_optimal}               -25%
-Inductance (mH)              {L_coil_old*1000:.2f}           {L_coil_new*1000:.2f}           {(L_coil_new-L_coil_old)/L_coil_old*100:+.0f}%
-Phase voltage (V)            {V_phase_old:.0f}            {V_phase_new:.0f}            {(V_phase_new-V_phase_old)/V_phase_old*100:+.0f}%
-Voltage margin               {V_phase_old/V_limit*100:.0f}% of limit   {V_phase_new/V_limit*100:.0f}% of limit   
+  Pole pitch (τp):        {tau_p} m
+  Coil width (W):         {w_coil} m  
+  Magnetic gap:           {gap} m
+  Plate thickness:        0.20 m (γ-TiAl)
+  Number of turns (N):    {N_current}
+  HTS tape:               3mm × 1 layer → I_c = 200 A
+  Peak current:           {I_peak} A (81.25% of I_c)
+  Fill factor (k_fill):   ~{k_fill_current} (estimated)
+  
+At mid-deployment (v_rel = 3000 m/s, f = {f_supply:.1f} Hz):
+  Coil inductance:        {L_coil_current*1000:.1f} mH
+  Phase voltage:          {V_phase_current/1000:.2f} kV
+  Voltage margin:         {(1 - V_phase_current/V_limit)*100:.0f}% below 100 kV limit
 ─────────────────────────────────────────────────────────────────────
-
-With N=8 and k_fill=0.50: L={calculate_voltage(8, 0.50, tau_p, w_coil, gap, f_supply, I_peak)[0]*1000:.2f} mH, 
-                          V={calculate_voltage(8, 0.50, tau_p, w_coil, gap, f_supply, I_peak)[1]:.0f} V ({calculate_voltage(8, 0.50, tau_p, w_coil, gap, f_supply, I_peak)[1]/V_limit*100:.0f}% of limit)
 """)
 
 print("=" * 70)
