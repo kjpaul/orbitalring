@@ -294,7 +294,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             if eddy_to_cable:
                 cable_temp = phys.calc_cable_equilibrium_temperature(
                     p_eddy, cfg.LIMS_PER_SITE, cfg.LIM_SITES,
-                    cfg.CABLE_EMISSIVITY, cfg.CABLE_SURFACE_AREA_PER_M
+                    cfg.CABLE_EMISSIVITY, cfg.CABLE_SURFACE_AREA_PER_M,
+                    cfg.Q_ABSORBED_PER_M  # Environmental heat through MLI
                 )
                 temp_plate_avg = cable_temp
                 delta_temp = phys.calc_cable_local_temperature(
@@ -317,10 +318,16 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
                 plate_temp = temp_plate_avg + delta_temp
                 cable_temp = plate_temp
 
+            # Calculate levitation coil heat load (from warm cable to cold lev coils)
+            q_lev_coil = phys.calc_levitation_coil_heat(
+                cable_temp, cfg.LEV_COIL_AREA_PER_SITE,
+                cfg.LEV_COIL_MLI_HEAT_FLUX_REF, calc_temp #cfg.LEV_COIL_T_REF
+            )
+
             # Calculate cryogenic heat load based on thermal mode
             q_cryo_cold = phys.calc_cryo_heat_load(
                 p_eddy, p_hyst, cfg.LIMS_PER_SITE, cfg.Q_ABSORBED_PER_SITE,
-                eddy_to_cable, cfg.Q_COIL_ENVIRONMENT
+                eddy_to_cable, cfg.Q_COIL_ENVIRONMENT, q_lev_coil
             )
 
             # Calculate radiator width
@@ -408,11 +415,11 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         # Data collection
         skin_eff = phys.calc_effective_plate_depth(
             f_slip, plate_temp, cfg.T_PLATE, cfg.PLATE_RHO_293K,
-            cfg.PLATE_ALPHA, cfg.PLATE_MATERIAL, cfg.V_SLIP_MIN
+            cfg.PLATE_ALPHA, cfg.PLATE_MATERIAL, cfg.V_SLIP_MIN, cfg.TAU_P
         )
         skin_calc = phys.calc_skin_depth(
-            f_slip, plate_temp, cfg.PLATE_RHO_293K,
-            cfg.PLATE_ALPHA, cfg.PLATE_MATERIAL, cfg.V_SLIP_MIN
+            f_slip, plate_temp, cfg.PLATE_RHO_293K, cfg.PLATE_ALPHA, 
+            cfg.PLATE_MATERIAL, cfg.V_SLIP_MIN, cfg.TAU_P
         )
 
         if time > sample_time and time < cfg.SAMPLE_TIME_MAX:

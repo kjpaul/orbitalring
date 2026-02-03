@@ -18,15 +18,15 @@ import math
 # 1.1 HTS (High-Temperature Superconductor) Tape Configuration
 # -----------------------------------------------------------------------------
 HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
-HTS_TAPE_LAYERS = 1         # Layers of tape in parallel: 1, 2, or 3
+HTS_TAPE_LAYERS = 2         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
-DE_RATING_FACTOR = 0.9      # Compensates for self-inductance in multilayer HTS configurations.
+DE_RATING_FACTOR = 1 - math.sin(math.radians(20)) # Compensates for self-inductance in multilayer HTS configurations.
 NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
 
 # -----------------------------------------------------------------------------
 # 1.2 LIM Geometry
 # -----------------------------------------------------------------------------
-N_TURNS = 200            # Turns per phase coil (typically 50-200)
+N_TURNS = 148           # Turns per phase coil (typically 50-200)
 TAU_P = 100.0           # Pole pitch in meters
 W_COIL = 2.0            # LIM coil width in meters
 GAP = 0.20              # Air gap between coil and reaction plate (m)
@@ -38,12 +38,13 @@ PITCH_COUNT = 3         # Number of pole pitches per LIM
 # -----------------------------------------------------------------------------
 W_PLATE = 1.2               # Reaction plate width (m)
 N_PLATES_PER_SIDE = 1       # LIM reaction plates per side of cable
-N_LEV_PLATES = 1            # Levitation plates per side
+N_LEV_PLATES = 2            # Levitation plates per side
 D_LEV = 0.10                # Levitation plate thickness (m)
-W_LEV = 1.4                 # Levitation plate width (m)
+D_LEV_COIL = 1.0            # Levitation coild witdth (m)
+W_LEV = D_LEV_COIL + 0.4    # Levitation plate width (m)
 
 # Reaction plate material: "aluminum", "cuni7030", "titanium", "alpha_titanium", "gamma_titanium"
-PLATE_MATERIAL = "gamma_titanium"
+PLATE_MATERIAL = "aluminum"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -54,7 +55,7 @@ LIM_SPACING = 500.0     # Distance between LIM sites (m)
 # 1.4 Operating Limits
 # -----------------------------------------------------------------------------
 VOLTS_MAX = 100e3       # Maximum induced coil voltage (V)
-MAX_SITE_POWER = 8e6   # Maximum power per LIM site (W)
+MAX_SITE_POWER = 16e6   # Maximum power per LIM site (W)
 
 # -----------------------------------------------------------------------------
 # 1.5 Slip Control Parameters
@@ -107,7 +108,7 @@ GRAPH_HEIGHT_INCHES = 5                 # Height in inches (6" at 300 DPI = 1800
 GRAPH_FORMAT = "png"                    # Output format: "png", "pdf", "svg", "jpg"
 
 # -----------------------------------------------------------------------------
-# 1.10 Thermal Mode Configuration (NEW)
+# 1.10 Thermal Mode Configuration
 # -----------------------------------------------------------------------------
 EDDY_HEAT_TO_CABLE = True      # True = cable heats up, False = cryo handles it
 
@@ -115,9 +116,22 @@ EDDY_HEAT_TO_CABLE = True      # True = cable heats up, False = cryo handles it
 CABLE_EMISSIVITY = 0.85
 CABLE_SURFACE_AREA_PER_M = 0.5  # Radiating surface area per meter (m²/m)
 
-# Coil thermal isolation
-COIL_MLI_EFFECTIVENESS = 0.001   # This is how well the insulation around the superconductors works.
-COIL_SURFACE_AREA_PER_SITE = 10  # Approximate coil cryostat surface area (m²)
+# LIM coil thermal isolation
+COIL_MLI_EFFECTIVENESS = 0.001   # MLI transmission for LIM coils (0.1%)
+COIL_WINDING_WIDTH = (1 + 0.06 + 0.12*HTS_TAPE_LAYERS)*N_TURNS/1000 # Kapton tape + adhesive + HTS thickness (m)
+COIL_SURFACE_AREA_PER_COIL = 2 * (TAU_P + W_COIL) * COIL_WINDING_WIDTH   # Approximate LIM coil cryostat surface area (m²)
+COIL_SURFACE_AREA_PER_SITE = COIL_SURFACE_AREA_PER_COIL * 3 * PITCH_COUNT * 2 * N_PLATES_PER_SIDE  # area per coil * phases * pitches * sides * LIMs per side (m²)
+
+# Levitation coil thermal properties
+# The DC levitation coils run continuously along the ring (no gaps).
+# They absorb heat from the warm cable above through their MLI insulation.
+LEV_COIL_WIDTH = D_LEV_COIL * N_LEV_PLATES # Combined width of levitation coil rings (m)
+LEV_COIL_MLI_HEAT_FLUX_REF = 5.0  # MLI heat flux at 300K reference (W/m²)
+
+# Note: Environmental heat (Q_ABSORBED_PER_M, calculated in Section 4) is added to the
+# cable's heat budget when EDDY_HEAT_TO_CABLE = True. This represents solar and earth
+# radiation that leaks through the MLI shielding (~100 W/m with current parameters).
+# This sets a minimum cable temperature of ~254 K even with zero eddy losses.
 
 
 # =============================================================================
@@ -218,10 +232,10 @@ YR = round(365.33 * DAY)
 # HTS current ratings
 W_TAPE = HTS_TAPE_WIDTH_MM / 1000
 
-hts_tape_layers = float(HTS_TAPE_LAYERS)
+eff_hts_tape_layers = float(HTS_TAPE_LAYERS)
 if HTS_TAPE_LAYERS > 1:
-    hts_tape_layers = DE_RATING_FACTOR * hts_tape_layers
-I_C = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * hts_tape_layers
+    eff_hts_tape_layers = DE_RATING_FACTOR * eff_hts_tape_layers
+I_C = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * eff_hts_tape_layers
 I_PEAK = 0.875 * I_C
 I_TARGET = 0.8125 * I_C
 I_MIN = 10.0
@@ -295,8 +309,11 @@ MAX_HEATSINK_AREA = LIM_SPACING * 2 * W_COIL
 HEATSINK_LENGTH = LIM_SPACING
 V_REL_MIN_FUDGE = 10
 
-# Coil environmental heat leak
+# Coil environmental heat leak (LIM coils only)
 Q_COIL_ENVIRONMENT = (Q_SUN + Q_EARTH_ALBEDO) * COIL_SURFACE_AREA_PER_SITE * COIL_MLI_EFFECTIVENESS
+
+# Levitation coil area per site (for heat load calculation)
+LEV_COIL_AREA_PER_SITE = LEV_COIL_WIDTH * LIM_SPACING  # m²
 
 # Efficiency factors
 INV_EFF = 0.90

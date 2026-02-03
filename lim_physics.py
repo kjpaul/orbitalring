@@ -121,17 +121,17 @@ def calc_resistivity(temp_K, rho_293K, alpha, material="titanium", rho_70K_alu=4
     return rho
 
 
-def calc_skin_depth(f_slip, temp_K, rho_293K, alpha, material, v_slip_min):
+def calc_skin_depth(f_slip, temp_K, rho_293K, alpha, material, v_slip_min, tau_p=100):
     """Electromagnetic skin depth in the reaction plate."""
     rho = calc_resistivity(temp_K, rho_293K, alpha, material)
     if f_slip <= 0:
-        f_slip = v_slip_min / 200  # Approximate for tau_p=100
+        f_slip = v_slip_min / (2 * tau_p)
     return math.sqrt(rho / (math.pi * MU0 * f_slip))
 
 
-def calc_effective_plate_depth(f_slip, temp_K, t_plate, rho_293K, alpha, material, v_slip_min):
+def calc_effective_plate_depth(f_slip, temp_K, t_plate, rho_293K, alpha, material, v_slip_min, tau_p=200):
     """Effective conducting depth: minimum of plate thickness and skin depth."""
-    delta = calc_skin_depth(f_slip, temp_K, rho_293K, alpha, material, v_slip_min)
+    delta = calc_skin_depth(f_slip, temp_K, rho_293K, alpha, material, v_slip_min, tau_p)
     return min(t_plate, delta)
 
 
@@ -370,11 +370,32 @@ def calc_heat_load(p_eddy, l_active, heatsink_length, q_absorbed_per_site):
 # CABLE EQUILIBRIUM TEMPERATURE (NEW)
 # =============================================================================
 
-def calc_cable_equilibrium_temperature(p_eddy_per_site, lims_per_site, lim_sites, 
-                                       cable_emissivity, cable_surface_area_per_m):
-    """Calculate cable equilibrium temperature when eddy heat stays in cable."""
-    p_eddy_total = p_eddy_per_site * lims_per_site * lim_sites
-    q_in_per_m = p_eddy_total / L_RING
+def calc_cable_equilibrium_temperature(p_eddy_per_lim, lims_per_site, lim_sites, 
+                                       cable_emissivity, cable_surface_area_per_m,
+                                       q_env_per_m=0.0):
+    """Calculate cable equilibrium temperature when eddy heat stays in cable.
+    
+    The cable must radiate away both:
+    1. Eddy current heat from LIM operation (distributed around the ring)
+    2. Environmental heat absorbed through MLI shielding (sun + earth)
+    
+    Args:
+        p_eddy_per_lim: Eddy current losses per LIM (W)
+        lims_per_site: Number of LIMs per site
+        lim_sites: Total number of LIM sites around the ring
+        cable_emissivity: Emissivity of cable surface
+        cable_surface_area_per_m: Radiating surface area per meter of cable (m²/m)
+        q_env_per_m: Environmental heat absorbed per meter (W/m)
+    
+    Returns:
+        Equilibrium temperature (K)
+    """
+    # Eddy heat distributed around the ring
+    p_eddy_total = p_eddy_per_lim * lims_per_site * lim_sites
+    q_eddy_per_m = p_eddy_total / L_RING
+    
+    # Total heat input per meter = eddy + environmental
+    q_in_per_m = q_eddy_per_m + q_env_per_m
     
     radiative_coeff = cable_emissivity * STEFAN_BOLTZMANN * cable_surface_area_per_m
     
@@ -407,6 +428,38 @@ def calc_cable_local_temperature(p_eddy, v_rel, l_active, lim_spacing,
 
 
 # =============================================================================
+# LEVITATION COIL HEAT LOAD
+# =============================================================================
+
+def calc_levitation_coil_heat(T_cable, lev_coil_area, q_ref, T_ref, T_cryo=77.4):
+    """Calculate heat load on levitation coils from warm cable above.
+    
+    The DC levitation coils are wrapped in MLI but still absorb heat from
+    the warm cable through radiative transfer. The heat flux scales with
+    the T^4 difference.
+    
+    Args:
+        T_cable: Cable temperature (K)
+        lev_coil_area: Levitation coil area per site (m²)
+        q_ref: Reference MLI heat flux at T_ref (W/m²)
+        T_ref: Reference hot-side temperature (K)
+        T_cryo: Cryogenic temperature (K), default 77.4 K (LN2)
+    
+    Returns:
+        Heat load on levitation coils (W)
+    """
+    # MLI heat flux scales approximately with T_hot^4 - T_cold^4
+    ref_term = T_ref**4 - T_cryo**4
+    actual_term = T_cable**4 - T_cryo**4
+    
+    if ref_term <= 0:
+        return 0.0
+    
+    q_actual = q_ref * (actual_term / ref_term)
+    return q_actual * lev_coil_area
+
+
+# =============================================================================
 # CRYOGENIC SYSTEM
 # =============================================================================
 
@@ -427,14 +480,30 @@ def calc_cryo_power(heat_load, T_cold, T_hot, efficiency):
 
 
 def calc_cryo_heat_load(p_eddy, p_hyst, lims_per_site, q_absorbed_per_site,
-                        eddy_to_cable, q_coil_environment):
-    """Calculate heat load that must go through cryogenic system."""
+                        eddy_to_cable, q_coil_environment, q_lev_coil=0.0):
+    """Calculate heat load that must go through cryogenic system.
+    
+    Args:
+        p_eddy: Eddy current losses per LIM (W)
+        p_hyst: Hysteresis losses per LIM (W)
+        lims_per_site: Number of LIMs per site
+        q_absorbed_per_site: Environmental heat absorbed per site (W)
+        eddy_to_cable: True if eddy heat goes to cable, False if to cryo
+        q_coil_environment: Heat leak through LIM coil MLI (W)
+        q_lev_coil: Heat load on levitation coils from warm cable (W)
+    
+    Returns:
+        Total heat load for cryogenic system (W)
+    """
     if eddy_to_cable:
-        # Only hysteresis in coils + heat leak through MLI to coils
-        q_cold = lims_per_site * p_hyst + q_coil_environment
+        # Eddy heat stays in cable, cryo handles:
+        # - HTS hysteresis losses
+        # - Heat leak through LIM coil MLI
+        # - Heat from warm cable to levitation coils
+        q_cold = lims_per_site * p_hyst + q_coil_environment + q_lev_coil
     else:
-        # Everything goes through cryo
-        total_heat = lims_per_site * (p_eddy + p_hyst) + q_absorbed_per_site
+        # Everything goes through cryo (legacy mode)
+        total_heat = lims_per_site * (p_eddy + p_hyst) + q_absorbed_per_site + q_lev_coil
         q_cold = total_heat   
     return q_cold
 
