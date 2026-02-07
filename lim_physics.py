@@ -428,6 +428,111 @@ def calc_cable_local_temperature(p_eddy, v_rel, l_active, lim_spacing,
 
 
 # =============================================================================
+# TWO-NODE WARM THERMAL MODEL (thermosyphon)
+# =============================================================================
+
+def calc_two_node_thermal(p_eddy_per_lim, lims_per_site, lim_sites,
+                          cable_emissivity, cable_radiating_area_per_m,
+                          wall_emissivity, warm_radiator_area_per_m,
+                          warm_radiator_emissivity, q_env_per_m=0.0):
+    """Two-node thermal model for cable and casing wall temperatures.
+    
+    The warm thermal management system uses a gravity-driven thermosyphon:
+    a working fluid evaporates at warm surfaces inside the casing, vapor
+    rises to external radiator panels where it condenses, and liquid 
+    returns by gravity. This moves heat with negligible electrical power.
+    
+    Node 1 (T_cable): The cable interior.
+        Heat in:  eddy current losses (ring-averaged) + environmental MLI leak
+        Heat out: radiation to casing inner wall
+        
+    Node 2 (T_wall): Casing wall / thermosyphon evaporator.
+        Heat in:  radiation from cable
+        Heat out: thermosyphon carries heat to external radiators → space
+        
+    The thermosyphon is efficient enough that T_wall ≈ T_radiator.
+    At equilibrium, all heat flows through both nodes to space.
+    
+    Note: inverter waste heat and cryo hot-side rejection are handled
+    separately — inverters are local to each LIM site on the casing,
+    and the cryo system has its own dedicated radiators.
+    
+    Args:
+        p_eddy_per_lim: Eddy current losses per LIM (W)
+        lims_per_site: Number of LIMs per site
+        lim_sites: Total number of LIM sites around the ring
+        cable_emissivity: Emissivity of cable surface
+        cable_radiating_area_per_m: Cable surface facing casing wall (m²/m)
+        wall_emissivity: Emissivity of casing inner wall
+        warm_radiator_area_per_m: External radiator area per meter (m²/m)
+        warm_radiator_emissivity: Emissivity of external warm radiators
+        q_env_per_m: Environmental heat absorbed per meter through MLI (W/m)
+    
+    Returns:
+        (T_cable, T_wall): Equilibrium temperatures (K)
+    """
+    # Total heat input per meter (ring-averaged)
+    p_eddy_total = p_eddy_per_lim * lims_per_site * lim_sites
+    q_eddy_per_m = p_eddy_total / L_RING
+    q_total_per_m = q_eddy_per_m + q_env_per_m
+    
+    # At equilibrium, all heat exits through the external radiators.
+    # External radiator: q_total = ε_rad * σ * A_rad * (T_wall⁴ - T_space⁴)
+    # Solve for T_wall:
+    rad_coeff_ext = warm_radiator_emissivity * STEFAN_BOLTZMANN * warm_radiator_area_per_m
+    
+    if rad_coeff_ext <= 0:
+        return (500.0, 500.0)  # Fallback: no radiator
+    
+    T_wall_4 = q_total_per_m / rad_coeff_ext + T_SPACE**4
+    T_wall = T_wall_4 ** 0.25
+    
+    # Cable-to-wall radiation link:
+    # q_total = ε_eff * σ * A_cable * (T_cable⁴ - T_wall⁴)
+    # where ε_eff = 1/(1/ε_cable + 1/ε_wall - 1) for parallel surfaces
+    em_eff = 1.0 / (1.0/cable_emissivity + 1.0/wall_emissivity - 1.0)
+    rad_coeff_cw = em_eff * STEFAN_BOLTZMANN * cable_radiating_area_per_m
+    
+    if rad_coeff_cw <= 0:
+        return (500.0, T_wall)  # Fallback
+    
+    T_cable_4 = q_total_per_m / rad_coeff_cw + T_wall**4
+    T_cable = T_cable_4 ** 0.25
+    
+    return (T_cable, T_wall)
+
+
+def calc_warm_radiator_width(q_total_per_m, warm_radiator_emissivity, 
+                              warm_radiator_length, T_wall):
+    """Calculate required warm radiator width for given wall temperature.
+    
+    This is the width of external radiator panels needed to reject the
+    warm-loop heat at the thermosyphon operating temperature.
+    
+    Args:
+        q_total_per_m: Total warm-loop heat per meter of ring (W/m)
+        warm_radiator_emissivity: Emissivity of external radiators
+        warm_radiator_length: Length of radiator per LIM spacing (m)
+        T_wall: Casing wall / radiator temperature (K)
+    
+    Returns:
+        Required radiator width (m)
+    """
+    if q_total_per_m <= 0:
+        return 0.0
+    
+    q_per_m2 = warm_radiator_emissivity * STEFAN_BOLTZMANN * (T_wall**4 - T_SPACE**4)
+    
+    if q_per_m2 <= 0:
+        return 1000.0  # Fallback
+    
+    # Total heat per site spacing
+    q_per_site_length = q_total_per_m * warm_radiator_length
+    area_required = q_per_site_length / q_per_m2
+    return area_required / warm_radiator_length
+
+
+# =============================================================================
 # LEVITATION COIL HEAT LOAD
 # =============================================================================
 

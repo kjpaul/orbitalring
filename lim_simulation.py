@@ -61,6 +61,8 @@ data_E_total = []
 data_cable_temp = []
 data_radiator_width = []
 data_q_cryo_cold = []
+data_wall_temp = []
+data_warm_rad_width = []
 
 
 def clear_data():
@@ -70,6 +72,7 @@ def clear_data():
     global data_skin_depth_eff, data_skin_depth_calc, data_p_cryo, data_p_hyst
     global data_p_heat, data_p_lim, data_p_site, data_temp_plate
     global data_E_site, data_E_total, data_cable_temp, data_radiator_width, data_q_cryo_cold
+    global data_wall_temp, data_warm_rad_width
     
     data_current = []
     data_voltage = []
@@ -94,6 +97,8 @@ def clear_data():
     data_cable_temp = []
     data_radiator_width = []
     data_q_cryo_cold = []
+    data_wall_temp = []
+    data_warm_rad_width = []
 
 
 # =============================================================================
@@ -171,7 +176,13 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     print(f"T_PLATE: {cfg.T_PLATE * 1000:.1f} mm")
     print(f"EDDY_HEAT_TO_CABLE: {eddy_to_cable}")
     if eddy_to_cable:
-        print("  → Eddy current heat stays in cable (equilibrium temperature mode)")
+        print(f"  → Eddy current heat stays in cable (equilibrium temperature mode)")
+        if cfg.WARM_THERMAL_MODEL == "two_node":
+            print(f"  → Two-node model: cable → casing wall → external radiators (thermosyphon)")
+            print(f"  → Cable radiating area: {cfg.CABLE_RADIATING_AREA_PER_M:.1f} m²/m")
+            print(f"  → External warm radiator: {cfg.WARM_RADIATOR_AREA_PER_M:.2f} m²/m (ε={cfg.WARM_RADIATOR_EMISSIVITY})")
+        else:
+            print(f"  → Legacy model: cable radiates to space (effective area = {cfg.CABLE_SURFACE_AREA_PER_M} m²/m)")
     else:
         print("  → Eddy current heat goes to cryogenic system")
 
@@ -196,6 +207,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         "cable_temp_max": [0, 0, "", 0],
         "radiator_width_max": [0, 0, "", 0],
         "q_cryo_cold_max": [0, 0, "", 0],
+        "wall_temp_max": [0, 0, "", 0],
+        "warm_rad_width_max": [0, 0, "", 0],
     }
     exit_msg = "PASSED"
 
@@ -208,6 +221,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     i_peak = i_peak_init
     plate_temp = 70.0
     cable_temp = 70.0
+    wall_temp = 70.0
     heatsink_area = 0
 
     # Controller state
@@ -292,11 +306,22 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
             # Temperature calculations depend on thermal mode
             if eddy_to_cable:
-                cable_temp = phys.calc_cable_equilibrium_temperature(
-                    p_eddy, cfg.LIMS_PER_SITE, cfg.LIM_SITES,
-                    cfg.CABLE_EMISSIVITY, cfg.CABLE_SURFACE_AREA_PER_M,
-                    cfg.Q_ABSORBED_PER_M  # Environmental heat through MLI
-                )
+                if cfg.WARM_THERMAL_MODEL == "two_node":
+                    cable_temp, wall_temp = phys.calc_two_node_thermal(
+                        p_eddy, cfg.LIMS_PER_SITE, cfg.LIM_SITES,
+                        cfg.CABLE_EMISSIVITY, cfg.CABLE_RADIATING_AREA_PER_M,
+                        cfg.CASING_WALL_EMISSIVITY, cfg.WARM_RADIATOR_AREA_PER_M,
+                        cfg.WARM_RADIATOR_EMISSIVITY, cfg.Q_ABSORBED_PER_M
+                    )
+                else:
+                    # Legacy single-node model
+                    cable_temp = phys.calc_cable_equilibrium_temperature(
+                        p_eddy, cfg.LIMS_PER_SITE, cfg.LIM_SITES,
+                        cfg.CABLE_EMISSIVITY, cfg.CABLE_SURFACE_AREA_PER_M,
+                        cfg.Q_ABSORBED_PER_M
+                    )
+                    wall_temp = cable_temp  # Legacy: no separate wall temp
+                
                 temp_plate_avg = cable_temp
                 delta_temp = phys.calc_cable_local_temperature(
                     p_eddy, v_rel, cfg.L_ACTIVE, cfg.LIM_SPACING,
@@ -317,6 +342,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
                 )
                 plate_temp = temp_plate_avg + delta_temp
                 cable_temp = plate_temp
+                wall_temp = plate_temp  # In cryo mode, no separate wall tracking
 
             # Calculate levitation coil heat load (from warm cable to cold lev coils)
             q_lev_coil = phys.calc_levitation_coil_heat(
@@ -333,11 +359,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             # Calculate radiator width
             radiator_width = phys.calc_radiator_width(
                 q_cryo_cold, cfg.T_LN2_SUPPLY, cfg.T_RADIATOR_HOT,
-                cfg.CRYO_EFF, cfg.EM_HEATSINK, cfg.LIM_SPACING
-            )
-
-            heat_load = phys.calc_heat_load(
-                p_eddy, cfg.L_ACTIVE, cfg.HEATSINK_LENGTH, cfg.Q_ABSORBED_PER_SITE
+                cfg.CRYO_EFF, cfg.EM_HEATSINK, cfg.HEATSINK_LENGTH
             )
 
             if v_rel > 0:
@@ -447,14 +469,22 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             data_cable_temp.append(cable_temp)
             data_radiator_width.append(radiator_width)
             data_q_cryo_cold.append(q_cryo_cold)
+            data_wall_temp.append(wall_temp)
+            # Warm-loop heat load per meter (two-node model)
+            if cfg.WARM_THERMAL_MODEL == "two_node" and eddy_to_cable:
+                p_eddy_total_ring = p_eddy * cfg.LIMS_PER_SITE * cfg.LIM_SITES
+                q_warm_per_m = p_eddy_total_ring / phys.L_RING + cfg.Q_ABSORBED_PER_M
+            else:
+                q_warm_per_m = 0.0
+            data_warm_rad_width.append(q_warm_per_m)
 
         # Monthly progress display
         if time > month_count * cfg.MONTH:
             progress = phys.calc_deployment_progress(v_casing)
             if month_count == 0:
-                print("\nMonth | Progress | Voltage | Current | Thrust | Site Power | Radiator W")
-                print("-" * 75)
-            print(f"{month_count:5} | {progress:6.1f}% | {volts:7.0f} V | {i_peak:5.1f} A | {thrust:6.0f} N | {site_power/1e6:5.2f} MW | {radiator_width:6.2f} m")
+                print("\nMonth | Progress | Voltage | Current | Thrust | Site Power | Cryo Rad W | T_cable | T_wall")
+                print("-" * 95)
+            print(f"{month_count:5} | {progress:6.1f}% | {volts:7.0f} V | {i_peak:5.1f} A | {thrust:6.0f} N | {site_power/1e6:5.2f} MW | {radiator_width:6.2f} m    | {cable_temp:5.1f} K | {wall_temp:5.1f} K")
 
             power_track.append([
                 f"{month_count} mth", f"{round(v_casing, 1)} m/s", f"{round(i_peak, 1)} A",
@@ -521,6 +551,14 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
                 max_min["radiator_width_max"] = [round(radiator_width, 2), time, "m", radiator_width]
             if max_min["q_cryo_cold_max"][3] < q_cryo_cold:
                 max_min["q_cryo_cold_max"] = [round(q_cryo_cold/1e3, 2), time, "kW", q_cryo_cold]
+            if max_min["wall_temp_max"][3] < wall_temp:
+                max_min["wall_temp_max"] = [round(wall_temp, 2), time, "K", wall_temp]
+            # Track the warm-loop heat load per meter (useful for radiator sizing)
+            if eddy_to_cable and cfg.WARM_THERMAL_MODEL == "two_node":
+                _q_eddy_ring = p_eddy * cfg.LIMS_PER_SITE * cfg.LIM_SITES / phys.L_RING
+                _q_warm_total = _q_eddy_ring + cfg.Q_ABSORBED_PER_M
+                if max_min["warm_rad_width_max"][3] < _q_warm_total:
+                    max_min["warm_rad_width_max"] = [round(_q_warm_total, 1), time, "W/m", _q_warm_total]
 
         # Time stepping
         if time < cfg.DAY:
@@ -563,8 +601,13 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     print(f"Total energy from 1/2 m v^2: {ke_added/1e18:.8f} EJ")
     print(f"These values differ by: {ke_diff/1e18:.10f} EJ")
     print(f"\nThermal Mode: {'Cable absorbs eddy heat' if eddy_to_cable else 'Cryo handles all heat'}")
+    if eddy_to_cable and cfg.WARM_THERMAL_MODEL == "two_node":
+        print(f"Thermal Model: Two-node (cable → wall → external radiators)")
+    elif eddy_to_cable:
+        print(f"Thermal Model: Legacy single-node")
     print(f"Max cable temperature: {max_min['cable_temp_max'][0]:.1f} K")
-    print(f"Max radiator width: {max_min['radiator_width_max'][0]:.2f} m")
+    print(f"Max wall temperature: {max_min['wall_temp_max'][0]:.1f} K")
+    print(f"Max cryo radiator width: {max_min['radiator_width_max'][0]:.2f} m")
     print(f"Max cryo cold-side load: {max_min['q_cryo_cold_max'][0]:.1f} kW")
     print("=" * 70)
 
@@ -731,7 +774,9 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
         ("q_cryo", data_q_cryo_cold, "Cryo Cold-Side Heat Load", "W", "#0072B2"),
         ("plate_temp", data_temp_plate, "Plate Temperature", "K", "#E69F00"),
         ("cable_temp", data_cable_temp, "Cable Equilibrium Temperature", "K", "red"),
-        ("radiator_width", data_radiator_width, "Required Radiator Width", "m", "blue"),
+        ("wall_temp", data_wall_temp, "Casing Wall Temperature", "K", "#CC0000"),
+        ("radiator_width", data_radiator_width, "Required Cryo Radiator Width", "m", "blue"),
+        ("warm_rad_width", data_warm_rad_width, "Warm-Loop Heat Load per Meter", "W/m", "#0066CC"),
         ("skin", data_skin_depth_eff, "Effective Skin Depth", "mm", "magenta"),
         ("skin_calc", data_skin_depth_calc, "Calculated Skin Depth", "mm", "darkmagenta"),
         ("ke_site", data_E_site, "Site Kinetic Energy", "J", "green"),
@@ -772,9 +817,6 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
             # Title includes model info
             if "fulldata" in show_graphs:
                 plt.title(f"{label} | {param_str}", fontsize=12)
-                plt.xlabel(f"Time {time_str} — {model_str}", fontsize=14)
-            elif "timeonly" in show_graphs:
-                plt.title(f"{label}", fontsize=16)
                 plt.xlabel(f"Time {time_str} — {model_str}", fontsize=14)
             elif "clean" in show_graphs:
                 plt.title(f"{label}", fontsize=18)
@@ -844,7 +886,9 @@ Graph Options:
   q_cryo       Cryo cold-side heat load (W)
   plate_temp   Reaction plate temperature (K)
   cable_temp   Cable equilibrium temperature (K)
-  radiator_width  Required radiator width (m)
+  wall_temp    Casing wall temperature (K)
+  radiator_width  Required cryo radiator width (m)
+  warm_rad_width  Warm-loop heat load per meter (W/m)
   skin         Effective skin depth (mm)
   skin_calc    Calculated skin depth (mm)
   ke_site      Site kinetic energy (J)
@@ -856,7 +900,6 @@ Output Options:
   --outdir=    Set output directory (default: ./graphs)
   --dpi=       Set resolution (default: 300)
   fulldata     Show parameter list in title bar
-  timeonly     Show deployment days and years in title bar
   clean        Only show the title and axis labels
 
 Other Options:
@@ -870,7 +913,7 @@ Examples:
   python lim_simulation.py --save all clean
   python lim_simulation.py --show --thermal=cable thrust power
   python lim_simulation.py --outdir=./book_figures --dpi=600 all
-  python lim_simulation.py --quick thrust power timeonly
+  python lim_simulation.py --quick thrust power
   python lim_simulation.py --m_load=50000                   
             """)
             return

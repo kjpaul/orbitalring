@@ -18,7 +18,7 @@ import math
 # 1.1 HTS (High-Temperature Superconductor) Tape Configuration
 # -----------------------------------------------------------------------------
 HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
-HTS_TAPE_LAYERS = 2         # Layers of tape in parallel: 1, 2, or 3
+HTS_TAPE_LAYERS = 1         # Layers of tape in parallel: 1, 2, or 3
 IC_PER_MM_PER_LAYER = 66.7  # Critical current density: ~66.7 A/mm per layer
 DE_RATING_FACTOR = 1 - math.sin(math.radians(20)) # Compensates for self-inductance in multilayer HTS configurations.
 NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
@@ -26,7 +26,7 @@ NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
 # -----------------------------------------------------------------------------
 # 1.2 LIM Geometry
 # -----------------------------------------------------------------------------
-N_TURNS = 148           # Turns per phase coil (typically 50-200)
+N_TURNS = 208           # Turns per phase coil (typically 50-200)
 TAU_P = 100.0           # Pole pitch in meters
 W_COIL = 2.0            # LIM coil width in meters
 GAP = 0.20              # Air gap between coil and reaction plate (m)
@@ -44,7 +44,7 @@ D_LEV_COIL = 1.0            # Levitation coild witdth (m)
 W_LEV = D_LEV_COIL + 0.4    # Levitation plate width (m)
 
 # Reaction plate material: "aluminum", "cuni7030", "titanium", "alpha_titanium", "gamma_titanium"
-PLATE_MATERIAL = "aluminum"
+PLATE_MATERIAL = "gamma_titanium"
 
 # -----------------------------------------------------------------------------
 # 1.3 LIM Spacing and Site Configuration
@@ -55,7 +55,7 @@ LIM_SPACING = 500.0     # Distance between LIM sites (m)
 # 1.4 Operating Limits
 # -----------------------------------------------------------------------------
 VOLTS_MAX = 100e3       # Maximum induced coil voltage (V)
-MAX_SITE_POWER = 16e6   # Maximum power per LIM site (W)
+MAX_SITE_POWER = 8e6   # Maximum power per LIM site (W)
 
 # -----------------------------------------------------------------------------
 # 1.5 Slip Control Parameters
@@ -111,10 +111,28 @@ GRAPH_FORMAT = "png"                    # Output format: "png", "pdf", "svg", "j
 # 1.10 Thermal Mode Configuration
 # -----------------------------------------------------------------------------
 EDDY_HEAT_TO_CABLE = True      # True = cable heats up, False = cryo handles it
+HEATSINK_LENGTH_GAP = 50       # reduces the length of the radiators to allow for other stuctures (purely a design issue) (m)
+
+# Thermal model selection (when EDDY_HEAT_TO_CABLE = True):
+#   "legacy"   = Original single-node model (cable radiates to space through fudge factor)
+#   "two_node" = Two-node model (cable → casing wall → external radiators via thermosyphon)
+WARM_THERMAL_MODEL = "two_node"
 
 # Cable thermal properties
 CABLE_EMISSIVITY = 0.85
-CABLE_SURFACE_AREA_PER_M = 0.5  # Radiating surface area per meter (m²/m)
+CABLE_SURFACE_AREA_PER_M = 0.5  # Legacy model: effective radiating area (fudge factor) (m²/m)
+
+# Two-node model: cable-to-wall radiation
+# The cable is ~7.5 m wide with a CNT structural cross-section of ~57 m².
+# Exposed cable perimeter facing the casing inner wall, excluding MLI-wrapped
+# levitation coils (which are at 77 K and handled by the cryo system).
+# Conservative estimate: top and bottom faces of the structural cable.
+CABLE_RADIATING_AREA_PER_M = 7.5  # Cable surface area facing casing wall (7.5 m ~ top surface width) (m²/m)
+
+# Two-node model: casing wall and external radiators
+CASING_WALL_EMISSIVITY = 0.85      # Emissivity of casing inner wall
+WARM_RADIATOR_AREA_PER_M = 0.75    # External warm-loop radiator area (m²/m)
+WARM_RADIATOR_EMISSIVITY = 0.90    # Emissivity of external warm radiators
 
 # LIM coil thermal isolation
 COIL_MLI_EFFECTIVENESS = 0.001   # MLI transmission for LIM coils (0.1%)
@@ -294,7 +312,7 @@ PLATE_EM = MATERIAL_PROPS['em']
 # Mass calculations
 M_LIM_PLATE = PLATE_DENSITY * T_PLATE * W_PLATE
 M_LEV_PLATE = DENSITY_IRON * D_LEV * W_LEV
-M_HARDWARE = (2 * N_LEV_PLATES * M_LEV_PLATE + 2 * N_PLATES_PER_SIDE * M_LIM_PLATE)
+M_HARDWARE = (N_LEV_PLATES * M_LEV_PLATE + 2 * N_PLATES_PER_SIDE * M_LIM_PLATE)
 M_CABLE_M = M_CABLE_STRUCTURAL + M_HARDWARE
 
 # Total masses
@@ -306,7 +324,7 @@ CASING_WIDTH = 10.0
 Q_ABSORBED_PER_M = (Q_SUN + Q_EARTH_ALBEDO) * CASING_WIDTH * Q_SHIELDING
 Q_ABSORBED_PER_SITE = Q_ABSORBED_PER_M * LIM_SPACING
 MAX_HEATSINK_AREA = LIM_SPACING * 2 * W_COIL
-HEATSINK_LENGTH = LIM_SPACING
+HEATSINK_LENGTH = LIM_SPACING - HEATSINK_LENGTH_GAP
 V_REL_MIN_FUDGE = 10
 
 # Coil environmental heat leak (LIM coils only)
@@ -387,6 +405,7 @@ PARAM_DISPLAY = {
     "T_PLATE            mm": T_PLATE * 1000,
     "NORRIS_HYSTERESIS    ": NORRIS_HYSTERESIS,
     "EDDY_HEAT_TO_CABLE   ": EDDY_HEAT_TO_CABLE,
+    "WARM_THERMAL_MODEL    ": WARM_THERMAL_MODEL,
     "M_CABLE_STRUCT   kg/m": M_CABLE_STRUCTURAL,
     "M_HARDWARE       kg/m": M_HARDWARE,
     "M_CABLE_TOTAL    kg/m": M_CABLE_M,
@@ -405,6 +424,8 @@ def print_parameters():
     for key, value in PARAM_DISPLAY.items():
         if isinstance(value, bool):
             print(f"  {key:24} {str(value):>12}")
+        elif isinstance(value, str):
+            print(f"  {key:24} {value:>12}")
         else:
             print(f"  {key:24} {value:>12.2f}")
     print(f"{streq}\n")
