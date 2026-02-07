@@ -1,50 +1,56 @@
 """
-Mass Driver Configuration Module
-Adapted for high-mass, high-velocity sled launch.
+Mass Driver Configuration Module - Validated Engineering Constraints
 """
 import math
 
 # =============================================================================
-# 1. PAYLOAD & SLED CONFIGURATION
+# 1. HTS TAPE CONFIGURATION (THEVA TLP AP @ 70K)
 # =============================================================================
-# From mass_driver_section_v2.md: 1g operational max is 8,372 tonnes
-SLED_MASS_TOTAL = 8_372_000  # kg (Sled + Payload)
-SLED_LENGTH = 1000.0         # meters (Active length of reaction plates)
-SLED_WIDTH = 2.5             # meters (Physical width)
+HTS_TAPE_WIDTH_MM = 12.0     # Using 12mm for max current capacity
+HTS_TAPE_LAYERS = 2          # 2 layers to boost amp-turns without insane width
+IC_PER_MM_PER_LAYER = 66.7   # Theva TLP AP spec at 70K
+DE_RATING_FACTOR = 1 - math.sin(math.radians(20)) # Anisotropy/Self-field penalty
+NORRIS_HYSTERESIS = True     # Critical: 12mm tape has high AC losses
 
-# Reaction plate (Secondary)
-# Gamma-TiAl has higher resistivity than Al, but high thermal limit.
-# We compensate with higher Stator B-fields.
-PLATE_MATERIAL = "gamma_titanium" 
-PLATE_WIDTH = 1.5            # Active magnetic width (m)
-PLATE_THICKNESS = 0.10       # 50mm thick plates for heat sinking
+# Current Calculations
+# I_c total = Width * Layers * Ic/mm * De-rating
+# We apply the 80% safety margin HERE.
+_eff_layers = float(HTS_TAPE_LAYERS)
+if HTS_TAPE_LAYERS > 1:
+    _eff_layers *= DE_RATING_FACTOR
 
-# =============================================================================
-# 2. STATOR (LIM) CONFIGURATION
-# =============================================================================
-# To push 8000+ tonnes, we need massive B-fields (0.5 - 1.0 T in the gap).
-# We assume HTS Roebel cables capability.
-
-N_TURNS = 100            # Turns per coil (High current, lower turns for low inductance)
-I_PEAK = 5000.0          # Peak Amps per turn (Requires actively cooled HTS cable)
-TAU_P = 50.0             # Pole Pitch (m). Shorter than ring to maintain frequency at low V.
-W_COIL = 2.5             # Coil width (m)
-GAP = 0.15               # Air gap (m) - Tighter control than the ring cable
-
-# Derived Stator Properties
-LIM_EFFICIENCY = 0.90    # Assumes regenerative capture efficiency
-POWER_MAX_GW = 20.0      # Max power draw limit per sector (Gigawatts)
+I_C_TOTAL = IC_PER_MM_PER_LAYER * HTS_TAPE_WIDTH_MM * _eff_layers
+I_TARGET = 0.80 * I_C_TOTAL  # <--- The 80% Hard Limit
+I_PEAK_MAX = I_TARGET
 
 # =============================================================================
-# 3. LAUNCH PARAMETERS
+# 2. STATOR (LIM) GEOMETRY
 # =============================================================================
-# Launch targets from markdown
-G_FORCE_LIMIT = 29.43    # 3g limit for human-rated (or 98.1 for 10g cargo)
-V_LAUNCH_TARGET = 11000  # m/s (Interplanetary injection velocity)
-DT = 0.1                 # Simulation time step (s)
+# To get thrust with lower current, we need more turns and optimization
+N_TURNS = 300            # Increased turns to compensate for lower Amps
+TAU_P = 100.0            # Pole pitch (m)
+W_COIL = 2.0             # Coil width (m)
+GAP = 0.15               # Air gap (m)
+L_RING = 41_645_813.012  # Ring Circumference
 
-# Control Logic
-# We need high slip at low speeds to penetrate the resistive TiAl plate
-V_SLIP_MIN = 20.0        # Minimum slip velocity (m/s)
-V_SLIP_MAX = 300.0       # Max slip to prevent excessive frequency loss
-TARGET_SLIP_RATIO = 0.15 # Higher slip ratio target for resistive plates
+# =============================================================================
+# 3. REACTION PLATE (Gamma-TiAl)
+# =============================================================================
+PLATE_MATERIAL = "gamma_titanium"
+T_PLATE = 0.20           # 200mm thickness (thermal mass)
+W_PLATE = 1.5            # Plate width (m)
+SLED_MASS = 8372000      # 8,372 Tonnes (1g Limit Payload)
+SLED_LENGTH = 1000.0     # Active length of sled
+
+# =============================================================================
+# 4. SYSTEM LIMITS
+# =============================================================================
+VOLTS_MAX = 100e3        # 100 kV Insulation limit
+MAX_SITE_POWER = 8e6     # 8 MW per site limit
+CRYO_COP_PENALTY = 50.0  # W_electric / W_thermal (20:1 to 95:1 range)
+
+# =============================================================================
+# 5. LAUNCH PROFILE
+# =============================================================================
+V_LAUNCH_TARGET = 11000  # m/s
+DT = 1.0                 # Time step (s) - slower dynamics, larger step

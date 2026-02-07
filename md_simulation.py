@@ -1,86 +1,96 @@
 """
-Mass Driver Simulation Main Loop
-Simulates the launch of an 8,372-tonne sled.
+Mass Driver Simulation - Constraint Limited
 """
 import md_config as cfg
 import md_physics as phys
-import math
 
-def run_launch_simulation():
-    print(f"--- MASS DRIVER LAUNCH SIMULATION ---")
-    print(f"Payload Class: {cfg.SLED_MASS_TOTAL/1000} tonnes")
-    print(f"Target Velocity: {cfg.V_LAUNCH_TARGET} m/s")
-    print(f"Accel Limit: {cfg.G_FORCE_LIMIT:.2f} m/s^2")
-    print(f"Material: {cfg.PLATE_MATERIAL} (High Resistivity)\n")
+def run_simulation():
+    print("=== MASS DRIVER SIMULATION: CONSTRAINED ENGINEERING ===")
+    print(f"Sled Mass: {cfg.SLED_MASS/1000} tonnes")
+    print(f"HTS Limit: {cfg.I_TARGET:.1f} A (80% of Ic)")
+    print(f"Power Limit: {cfg.MAX_SITE_POWER/1e6} MW/site")
+    print(f"Cryo Penalty: {cfg.CRYO_COP_PENALTY}:1")
     
-    t = 0
-    x = 0
-    v = 0
-    temp_plate = 300.0 # Kelvin
+    t = 0.0
+    x = 0.0
+    v = 0.0
+    temp_plate = 300.0
     
-    # Header
-    print(f"{'Time(s)':<8} {'Dist(km)':<10} {'Vel(m/s)':<10} {'Accel(g)':<10} {'Thrust(MN)':<12} {'Slip(m/s)':<10} {'Temp(K)':<8} {'G-Factor':<8}")
+    # We step every 10s for output log
+    log_interval = 100 
+    
+    print(f"{'T(s)':<8} {'Vel(m/s)':<10} {'Accel(g)':<10} {'Current(A)':<10} {'Thrust(MN)':<10} {'Power(MW)':<10} {'Cryo(MW)':<10} {'Volt(kV)':<8}")
     
     while v < cfg.V_LAUNCH_TARGET:
-        # 1. Control Loop: Determine desired Thrust
-        # We want constant acceleration of G_FORCE_LIMIT
-        req_force = cfg.SLED_MASS_TOTAL * cfg.G_FORCE_LIMIT
         
-        # 2. Physics Step
-        # Optimize slip for max thrust if needed, or regulate for efficiency
-        # At low speed, we need high slip to get any induction in TiAl
-        if v < 100:
-            current_slip = 100.0
-        else:
-            current_slip = v * cfg.TARGET_SLIP_RATIO
-            current_slip = max(cfg.V_SLIP_MIN, min(cfg.V_SLIP_MAX, current_slip))
+        # --- CONTROLLER LOGIC ---
+        # We try to push max current, but respect constraints.
+        
+        # 1. Determine optimal slip (Model 1 implies slip ~ R/X peak)
+        # For Model 1, peak thrust often occurs at specific f_slip.
+        # We'll use a constant v_slip target that is efficient.
+        v_slip_target = 40.0 # m/s (Tuned for this Tau_p/Resistance)
+        
+        # 2. Binary Search for Max Permissible Current
+        # We need to find the highest I_peak that satisfies V < Vmax and P < Pmax
+        i_min = 0.0
+        i_max = cfg.I_TARGET
+        i_op = 0.0
+        
+        # Physics results placeholders
+        thrust_op = 0
+        p_total_op = 0
+        p_cryo_op = 0
+        v_induced_op = 0
+        
+        # Iteratively solve for max current
+        for _ in range(10): 
+            i_test = (i_min + i_max) / 2
             
-        avail_thrust, G, B_field = phys.calc_thrust_force(v, current_slip, temp_plate)
-        
-        # 3. Apply Limits (Throttle)
-        if avail_thrust > req_force:
-            applied_thrust = req_force
-            throttle = req_force / avail_thrust
-        else:
-            applied_thrust = avail_thrust
-            throttle = 1.0
+            F, f_sup, I_ed, B = phys.calc_thrust_model1(v, v_slip_target, i_test, temp_plate)
+            P_tot, P_cry, P_hys = phys.calc_power_balance(v, v_slip_target, i_test, F, f_sup)
+            V_ind = phys.calc_voltage(i_test, f_sup)
             
-        accel = applied_thrust / cfg.SLED_MASS_TOTAL
+            # Check constraints
+            if P_tot > cfg.MAX_SITE_POWER or V_ind > cfg.VOLTS_MAX:
+                i_max = i_test # Too high, lower ceiling
+            else:
+                i_min = i_test # Safe, try raising floor
+                i_op = i_test
+                thrust_op = F
+                p_total_op = P_tot
+                p_cryo_op = P_cry
+                v_induced_op = V_ind
+
+        # --- UPDATE STATE ---
+        accel = thrust_op / cfg.SLED_MASS
         
-        # 4. Thermal Update
-        # Heat = Power * Slip_Fraction roughly, or F * v_slip
-        # Heat goes into the TiAl plates
-        q_heat = applied_thrust * current_slip * throttle
-        plate_volume = cfg.SLED_LENGTH * cfg.PLATE_WIDTH * cfg.PLATE_THICKNESS
-        plate_mass = plate_volume * 3900 # Density of TiAl approx 3900 kg/m3
-        c_p = 600 # Specific heat approx 600 J/kgK
+        # Thermal update (Sled plates)
+        # Heat into plate = Slip Power = Thrust * v_slip
+        q_plate = thrust_op * v_slip_target
+        plate_vol = cfg.SLED_LENGTH * cfg.W_PLATE * cfg.T_PLATE
+        m_plate = plate_vol * 3900 # TiAl density
+        temp_plate += (q_plate * cfg.DT) / (m_plate * 600) # cp approx
         
-        temp_rise = (q_heat * cfg.DT) / (plate_mass * c_p)
+        # Radiative cooling
+        q_rad = 5.67e-8 * 0.8 * (cfg.SLED_LENGTH*cfg.W_PLATE*2) * (temp_plate**4 - 250**4)
+        temp_plate -= (q_rad * cfg.DT) / (m_plate * 600)
         
-        # Radiative cooling (Stefan-Boltzmann)
-        area_rad = cfg.SLED_LENGTH * cfg.PLATE_WIDTH * 2 # Top and bottom
-        q_rad = phys.STEFAN_BOLTZMANN * 0.8 * area_rad * (temp_plate**4 - 200**4)
-        temp_drop = (q_rad * cfg.DT) / (plate_mass * c_p)
-        
-        temp_plate += (temp_rise - temp_drop)
-        
-        # 5. Integration
         v += accel * cfg.DT
         x += v * cfg.DT
         t += cfg.DT
         
-        # Log every 10 seconds or significant events
-        if int(t) % 10 == 0 and (t - int(t) < cfg.DT):
-             print(f"{t:<8.1f} {x/1000:<10.1f} {v:<10.1f} {accel/9.81:<10.2f} {applied_thrust/1e6:<12.1f} {current_slip:<10.1f} {int(temp_plate):<8} {G:<8.2f}")
+        if int(t) % log_interval == 0:
+             print(f"{t:<8.0f} {v:<10.1f} {accel/9.81:<10.3f} {i_op:<10.0f} {thrust_op/1e6:<10.2f} {p_total_op/1e6:<10.2f} {p_cryo_op/1e6:<10.2f} {v_induced_op/1e3:<8.1f}")
 
-        # Safety Cutoff
-        if temp_plate > 1200:
-            print("!!! ABORT: PLATE OVERHEATING !!!")
+        # Safety
+        if t > 50000: # Timeout
+            print("timeout") 
             break
             
-    print(f"\nLaunch Complete.")
-    print(f"Final Velocity: {v:.2f} m/s")
-    print(f"Distance Covered: {x/1000:.2f} km")
-    
+    print("--- Launch Complete ---")
+    print(f"Total Time: {t/3600:.2f} hours")
+    print(f"Final Distance: {x/1000:.0f} km")
+
 if __name__ == "__main__":
-    run_launch_simulation()
+    run_simulation()

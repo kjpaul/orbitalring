@@ -1,94 +1,127 @@
 """
-Mass Driver Physics Module
-Calculates thrust, drag, and thermal loads for the launch sled.
+Mass Driver Physics Module - Model 1 & Cryo Constraints
 """
 import math
 import md_config as cfg
 
-# Physical Constants
 MU0 = 4 * math.pi * 1e-7
-STEFAN_BOLTZMANN = 5.670374e-8
 
-def get_resistivity(material, temp_K):
-    """
-    Returns resistivity in Ohm-m.
-    Gamma-TiAl is significantly more resistive than Aluminum.
-    """
-    if material == "gamma_titanium":
-        # Approx 30 micro-ohm-cm at room temp -> 3.0e-7 Ohm-m
-        # Rises with temperature
-        base_rho = 3.0e-7
-        temp_coeff = 0.001 # Approximation per degree K
-        return base_rho * (1 + temp_coeff * (temp_K - 293))
-    elif material == "aluminum":
-        return 2.65e-8 * (1 + 0.004 * (temp_K - 293))
-    return 1e-6 # Default fallback
+def get_resistivity(temp_K):
+    # Gamma-TiAl resistivity model
+    rho_293 = 7.5e-7 
+    alpha = 0.0012
+    return rho_293 * (1 + alpha * (temp_K - 293))
 
-def calc_goodness_factor(freq, tau_p, gap, rho_plate, plate_thickness):
+def q_hysteresis_norris(i_peak, i_c):
     """
-    Laithwaite's Goodness Factor (G).
-    G < 1 means the motor is effectively just a heater.
-    We need G >> 1 for efficient thrust.
+    Norris elliptical model for AC loss in superconducting strips.
     """
-    omega = 2 * math.pi * freq
-    # Equivalent conductivity calculation for the sheet rotor
-    sigma_surf = plate_thickness / rho_plate
+    if i_c <= 0: return 0.0
+    ii = i_peak / i_c
+    # Avoid log domain errors
+    ii = max(-0.999, min(0.999, ii))
     
-    # G = (2 * mu0 * f * tau^2) / (pi * rho/d * g_eff)
-    # Simplified proportional metric:
-    g_factor = (2 * MU0 * freq * tau_p**2 * sigma_surf) / (math.pi * gap)
-    return g_factor
+    # Loss per cycle per meter length
+    loss = (MU0 * i_c**2 / math.pi) * ((1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2)
+    return loss
 
-def calc_thrust_force(v_sled, v_slip, temp_K):
+def calc_thrust_model1(v_sled, v_slip, i_peak, temp_K):
     """
-    Calculates total thrust on the 1000m sled.
+    Model 1: Narrow Plate Eddy Current Model.
+    Focuses on loop inductance and resistance.
     """
-    # 1. Electromagnetic Setup
+    # 1. Frequency setup
     v_sync = v_sled + v_slip
-    freq = v_sync / (2 * cfg.TAU_P)
-    omega = 2 * math.pi * freq
-    k = math.pi / cfg.TAU_P
+    f_supply = v_sync / (2 * cfg.TAU_P)
+    f_slip = v_slip / (2 * cfg.TAU_P)
+    omega_slip = 2 * math.pi * f_slip
     
-    rho = get_resistivity(cfg.PLATE_MATERIAL, temp_K)
-    
-    # 2. Magnetic Field (Stator Surface)
-    # B_peak approx mu0 * N * I / Gap (simplified for air-cored/iron-less)
-    # We apply a factor for winding distribution
-    b_peak = (MU0 * cfg.N_TURNS * cfg.I_PEAK) / (cfg.GAP * 1.1) 
-    
-    # 3. Goodness Factor
-    G = calc_goodness_factor(freq, cfg.TAU_P, cfg.GAP, rho, cfg.PLATE_THICKNESS)
-    
-    # 4. Thrust Calculation (Rotor Efficiency Model)
-    # F_x = (Length * Width) * (B^2 / 2*mu0) * (Factor depending on G and Slip)
-    # Ideally: Thrust peaks when s * G ~ 1 (for some machine types) or increases with s
-    
-    # Calculate Slip S
-    s = v_slip / v_sync
-    
-    # Classical induction motor thrust curve approximation per m^2
-    # F_density = 0.5 * B^2/mu0 * (sG / (1 + (sG)^2)) * GeometricFactors
-    # Note: For linear motors with large gaps, we use a simplified Lorentz model
-    
-    magnetic_pressure = (b_peak**2) / (2 * MU0)
-    
-    # The "Induction Factor" determines how much B penetrates and pushes
-    # For high resistivity plates, we need high slip to get current.
-    induction_efficiency = (s * G) / (1 + (s * G)**2)
-    
-    force_density = magnetic_pressure * induction_efficiency * 2 # *2 for two sides (top/bottom or left/right)
-    
-    active_area = cfg.SLED_LENGTH * cfg.PLATE_WIDTH
-    total_thrust = force_density * active_area
-    
-    # 5. Drag (Atmospheric is negligible at 250km, but magnetic drag exists)
-    # We assume drag is handled by the efficiency loss in net force
-    
-    return total_thrust, G, b_peak
+    if f_supply <= 0.001: return 0.0, 0.0, 0.0, 0.0
 
-def calc_heating(thrust, v_slip):
+    # 2. Field Calculation
+    # B at plate (approximate with spacing decay)
+    b_coil = (MU0 * cfg.N_TURNS * i_peak) / cfg.W_COIL
+    # Decay over gap (simple exponential approx for validation)
+    b_plate = b_coil * math.exp(-math.pi * cfg.GAP / cfg.TAU_P)
+
+    # 3. Model 1 Parameters
+    rho = get_resistivity(temp_K)
+    
+    # Skin depth check (though Model 1 assumes current fills the "effective" depth)
+    delta = math.sqrt(rho / (math.pi * MU0 * f_slip)) if f_slip > 0 else 999.0
+    d_eff = min(cfg.T_PLATE, delta)
+    
+    # R (Resistance of eddy loop) & L (Inductance)
+    # R = rho * Length / Area
+    R_loop = rho * cfg.TAU_P / (d_eff * cfg.W_COIL)
+    
+    # L = Inductance of rectangular loop
+    L_loop = (MU0 * cfg.TAU_P / math.pi) * math.log(2 * cfg.TAU_P / cfg.W_COIL)
+    
+    X_loop = omega_slip * L_loop
+    Z_loop = math.sqrt(R_loop**2 + X_loop**2)
+    
+    # 4. Induced Current & Thrust
+    # EMF induced in the plate loop
+    # EMF = v_slip * B * Width (approx)
+    EMF = 4.0 * v_slip * b_plate * cfg.W_COIL / math.pi
+    
+    I_eddy = EMF / Z_loop
+    
+    # Power dissipated in Plate (Thrust Power)
+    # Number of loops active under the sled
+    n_loops = cfg.SLED_LENGTH / cfg.TAU_P
+    
+    P_thrust_mech = n_loops * I_eddy**2 * R_loop
+    
+    if v_slip > 0:
+        F_thrust = P_thrust_mech / v_slip
+    else:
+        F_thrust = 0.0
+        
+    return F_thrust, f_supply, I_eddy, b_plate
+
+def calc_power_balance(v_sled, v_slip, i_peak, thrust, f_supply):
     """
-    Heat generated in the sled plates = Thrust * Slip Velocity
-    P_heat = F * v_slip
+    Calculates total site power including the Massive Cryo Penalty.
     """
-    return thrust * v_slip
+    # 1. Mechanical Power (delivered to sled)
+    p_mech = thrust * v_sled
+    
+    # 2. Hysteresis Loss (The Cryo Killer)
+    # Loss per meter of tape * total tape length * frequency
+    loss_J_m = q_hysteresis_norris(i_peak, cfg.I_C_TOTAL)
+    
+    # Total HTS length involved per site (active coils)
+    # Approx: Turns * Circumference of coil * Phases
+    len_coil = 2 * (cfg.TAU_P + cfg.W_COIL) * cfg.N_TURNS
+    # Only active coils under sled? Or whole sector? 
+    # Standard: Losses occur in active coils. Sled covers SLED_LENGTH.
+    # Coils active = Sled_Length / Tau_P * Phases
+    n_active_coils = (cfg.SLED_LENGTH / cfg.TAU_P) * 3 # 3-phase
+    
+    p_hysteresis = loss_J_m * len_coil * n_active_coils * f_supply
+    
+    # 3. Cryogenic Penalty
+    # The heat (p_hysteresis) is at 70K. It must be pumped to 300K.
+    # COP penalty applies to the electrical wall power needed.
+    p_cryo_wall = p_hysteresis * cfg.CRYO_COP_PENALTY
+    
+    # 4. Total Electrical Load
+    p_total = p_mech + p_cryo_wall # Neglecting resistive copper losses for now
+    
+    return p_total, p_cryo_wall, p_hysteresis
+
+def calc_voltage(i_peak, f_supply):
+    """
+    Inductive voltage drop check.
+    V ~ L * di/dt ~ omega * L * I
+    """
+    omega = 2 * math.pi * f_supply
+    # Inductance of the stator coil itself
+    # Approx solenoid: mu0 * N^2 * A / l
+    A_coil = cfg.TAU_P * cfg.W_COIL
+    L_stator = (MU0 * cfg.N_TURNS**2 * A_coil) / cfg.GAP # Rough air-core approx
+    
+    V_peak = omega * L_stator * i_peak
+    return V_peak
