@@ -10,7 +10,7 @@ HTS_TAPE_WIDTH_MM = 12.0     # Using 12mm for max current capacity
 HTS_TAPE_LAYERS = 2          # 2 layers to boost amp-turns without insane width
 IC_PER_MM_PER_LAYER = 66.7   # Theva TLP AP spec at 70K
 DE_RATING_FACTOR = 1 - math.sin(math.radians(20)) # Anisotropy/Self-field penalty
-NORRIS_HYSTERESIS = True     # Critical: 12mm tape has high AC losses
+NORRIS_HYSTERESIS = False     # Critical: 12mm tape has high AC losses
 
 # Current Calculations
 # I_c total = Width * Layers * Ic/mm * De-rating
