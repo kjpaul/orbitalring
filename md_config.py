@@ -63,19 +63,19 @@ class LIMStageConfig:
 
 # Stage 1: 0 → ~0.5 km/s, τ_p=3m, f=0–83 Hz, excellent EM coupling
 STAGE_S1 = LIMStageConfig("S1", tau_p=3.0, pitches=5, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=1.0, gap=0.100, f_handoff_hz=100.0)
+    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=100.0)
 
 # Stage 2: ~0.5 → ~3 km/s, τ_p=5m, f=50–300 Hz, good coupling
 STAGE_S2 = LIMStageConfig("S2", tau_p=5.0, pitches=5, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=1.0, gap=0.100, f_handoff_hz=300.0)
+    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=300.0)
 
 # Stage 3: ~3 → ~8 km/s, τ_p=10m, f=150–400 Hz, moderate coupling
 STAGE_S3 = LIMStageConfig("S3", tau_p=10.0, pitches=3, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=1.0, gap=0.100, f_handoff_hz=400.0)
+    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=400.0)
 
 # Stage 4: ~8 → 15 km/s, τ_p=20m, f=200–375 Hz, fair coupling
 STAGE_S4 = LIMStageConfig("S4", tau_p=20.0, pitches=3, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=1.0, gap=0.100, f_handoff_hz=None)
+    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=None)
 
 LIM_STAGES = [STAGE_S1, STAGE_S2, STAGE_S3, STAGE_S4]
 
@@ -84,8 +84,8 @@ L_STAGE_GAP = 5.0
 L_REPEATING_UNIT_WITH_GAPS = L_REPEATING_UNIT + L_STAGE_GAP * len(LIM_STAGES)
 
 # ── Sled and reaction plate ─────────────────────────────────────────
-PLATE_HEIGHT = 1.0          # 1000 mm — taller gives h³ thrust scaling
-PLATE_THICKNESS = 0.100     # 100 mm — thinner = smaller gap = higher B
+PLATE_HEIGHT = 2.0          # 2000 mm — optimized for air-core B
+PLATE_THICKNESS = 0.100     # 100 mm
 SLED_LENGTH = 5000.0
 PLATE_MATERIAL = "gamma_tial"
 SLED_STRUCTURE_FRACTION = 0.15
@@ -131,7 +131,7 @@ VOLTS_MAX = 100_000.0       # Max supply voltage with PFC (V)
 # ── Launch mission ───────────────────────────────────────────────────
 V_LAUNCH = 15_000.0
 LAUNCH_CLASS = "3g"
-MAX_ACCEL_G = 2.0
+MAX_ACCEL_G = 0.5
 M_SPACECRAFT = 500_000.0
 
 # ── Simulation ───────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ DT = 0.1
 DT_QUICK = 1.0
 V_INITIAL = 0.0
 THRUST_MODEL = 1                     # Model 1 only — eddy current, narrow plate
-GRAPH_DIR = "claude/md/graphs_5"     # Output directory for plots and CSV
+GRAPH_DIR = "claude/md/graphs_7"         # Output directory for plots and CSV
 
 # ── Derived ──────────────────────────────────────────────────────────
 def get_material():

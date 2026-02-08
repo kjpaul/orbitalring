@@ -44,11 +44,24 @@ def skin_depth(rho_e, f_slip):
 # ═════════════════════════════════════════════════════════════════════
 
 def peak_B_field(stage, I_peak):
-    """B_peak = μ₀ N I / (2 g_eff)
-    g_eff = air gap + half plate thickness (field measured at plate center)
+    """Air-core B field for a flat racetrack HTS coil.
+
+    Uses the 2D rectangular current sheet model:
+      B = (2/π) × (μ₀ N I / h) × arctan(h / (2 g_eff))
+
+    where h = coil height (= w_coil), g_eff = gap + t_plate/2.
+
+    This accounts for the finite coil dimensions and the air return
+    path (no iron core). For double-sided LIMs, each side produces
+    this B independently; the total is handled by N_LIM_SIDES in
+    calc_thrust.
+
+    Returns B at the plate midplane from ONE side.
     """
     g_eff = stage.gap + cfg.PLATE_THICKNESS / 2.0
-    return MU0 * stage.n_turns * I_peak / (2.0 * g_eff)
+    B = (2.0 / math.pi) * cfg.MU0 * stage.n_turns * I_peak / stage.w_coil * (
+        math.atan(stage.w_coil / (2.0 * g_eff)))
+    return B
 
 def supply_frequency(v_wave, tau_p):
     """f = v_wave / (2 τ_p)"""
