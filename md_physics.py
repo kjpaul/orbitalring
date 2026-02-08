@@ -1,65 +1,124 @@
-"""
-Mass Driver Physics Module - Model 1 & Cryo Constraints
-"""
 import math
+import numpy as np
 import md_config as cfg
 
 MU0 = 4 * math.pi * 1e-7
 
-def get_resistivity(temp_K):
-    # Gamma-TiAl resistivity model
-    rho_293 = 7.5e-7 
-    alpha = 0.0012
-    return rho_293 * (1 + alpha * (temp_K - 293))
+def calc_resistivity(material_props, temp_K):
+    rho_0 = material_props['rho_293']
+    alpha = material_props['alpha']
+    return rho_0 * (1 + alpha * (temp_K - 293.0))
 
-def q_hysteresis_norris(i_peak, i_c):
-    if i_c <= 0: return 0.0
-    ii = i_peak / i_c
-    ii = max(-0.999, min(0.999, ii))
-    loss = (MU0 * i_c**2 / math.pi) * ((1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2)
-    return loss
+def calc_norris_loss(i_peak, tape_cfg):
+    """Calculates hysteresis loss per meter of tape."""
+    ic = tape_cfg.max_safe_current / 0.8 # Back-calculate true Ic from safe limit
+    if ic <= 0: return 0.0
+    
+    i_ratio = i_peak / ic
+    i_ratio = max(-0.999, min(0.999, i_ratio))
+    
+    # Loss J/cycle/m
+    loss = (MU0 * ic**2 / math.pi) * ((1 - i_ratio) * math.log(1 - i_ratio) + 
+                                      (1 + i_ratio) * math.log(1 + i_ratio) - 
+                                      i_ratio**2)
+    return loss * tape_cfg.layers # Loss scales with layers
 
-def calc_thrust_model1(v_sled, v_slip, i_peak, temp_K):
+def solve_stage_performance(stage, v_sled, v_slip, temp_K, sled_cfg):
+    """
+    Calculates Thrust, Voltage, Power for ONE instance of a LIM stage.
+    """
+    mat = sled_cfg.mat_props
+    
+    # 1. Frequencies
     v_sync = v_sled + v_slip
-    f_supply = v_sync / (2 * cfg.TAU_P)
-    f_slip = v_slip / (2 * cfg.TAU_P)
+    f_supply = v_sync / (2 * stage.tau_p)
+    f_slip = v_slip / (2 * stage.tau_p)
+    omega_supply = 2 * math.pi * f_supply
+    omega_slip = 2 * math.pi * f_slip
     
-    if f_supply <= 0.001: return 0.0, 0.0, 0.0, 0.0
+    # Check Handoff / Cutoff
+    if f_supply > stage.handoff_freq:
+        return 0, 0, 0, 0, 0, 0  # Stage disabled (too fast)
+    
+    # 2. Impedance (Model 1)
+    rho = calc_resistivity(mat, temp_K)
+    
+    # Skin depth
+    if f_slip > 0:
+        delta = math.sqrt(rho / (math.pi * MU0 * f_slip))
+    else:
+        delta = 999.0
+        
+    d_eff = min(sled_cfg.thickness, delta)
+    
+    # Loop Resistance & Inductance
+    # Resistance of the path in the plate
+    R_plate = rho * stage.tau_p / (d_eff * sled_cfg.height)
+    
+    # Loop Inductance (Rectangular loop approx)
+    # L = mu0/pi * tau * ln(2*tau/w)
+    # Clamp log term to avoid negatives if geometry is weird
+    geom_factor = max(1.1, 2 * stage.tau_p / sled_cfg.height)
+    L_plate = (MU0 * stage.tau_p / math.pi) * math.log(geom_factor)
+    
+    X_plate = omega_slip * L_plate
+    Z_plate = math.sqrt(R_plate**2 + X_plate**2)
+    
+    # 3. Optimize Current (Binary Search)
+    # Maximize current such that V < 100kV and I < I_limit
+    
+    i_limit = stage.tape.max_safe_current
+    i_min, i_max = 0.0, i_limit
+    
+    best_I = 0.0
+    best_F = 0.0
+    best_V = 0.0
+    
+    # Stator Inductance (for voltage calc)
+    # L_stator approx N^2 * mu0 * Area / Gap
+    area_coil = stage.tau_p * stage.w_coil
+    L_stator = (MU0 * stage.turns**2 * area_coil) / stage.gap
+    
+    for _ in range(10):
+        i_try = (i_min + i_max) / 2
+        
+        # B-field
+        B_gap = (MU0 * stage.turns * i_try) / stage.gap
+        
+        # Induced EMF in Plate
+        # EMF = v_slip * B * Height * (coupling factor 2/pi)
+        EMF = (2/math.pi) * v_slip * B_gap * sled_cfg.height
+        
+        # Eddy Current
+        I_eddy = EMF / Z_plate
+        
+        # Thrust (Power / v_slip)
+        # Active loops per stage = Length_Active / Tau
+        n_loops = stage.length_active / stage.tau_p
+        P_mech_stage = n_loops * I_eddy**2 * R_plate
+        F_stage = P_mech_stage / v_slip if v_slip > 0 else 0
+        
+        # Voltage Check (Inductive drop)
+        V_ind = omega_supply * L_stator * i_try
+        
+        if V_ind > cfg.VOLTS_MAX:
+            i_max = i_try
+        else:
+            i_min = i_try
+            best_I = i_try
+            best_F = F_stage
+            best_V = V_ind
 
-    b_coil = (MU0 * cfg.N_TURNS * i_peak) / cfg.W_COIL
-    b_plate = b_coil * math.exp(-math.pi * cfg.GAP / cfg.TAU_P)
-
-    rho = get_resistivity(temp_K)
+    # 4. Power Calcs
+    # Cryo / Hysteresis
+    loss_per_m = calc_norris_loss(best_I, stage.tape)
+    # Total tape length in this stage
+    # (Turns * 2 * (Tau + W_coil)) * Phases(3)
+    len_tape = stage.turns * 2 * (stage.tau_p + stage.w_coil) * 3
+    P_hyst = loss_per_m * len_tape * f_supply
+    P_cryo_wall = P_hyst * cfg.CRYO_PENALTY_RATIO
     
-    # Model 1 Impedance
-    delta = math.sqrt(rho / (math.pi * MU0 * f_slip)) if f_slip > 0 else 999.0
-    d_eff = min(cfg.T_PLATE, delta)
+    P_mech_total = best_F * v_sled
+    P_total_wall = P_mech_total + P_cryo_wall
     
-    R_loop = rho * cfg.TAU_P / (d_eff * cfg.W_COIL)
-    L_loop = (MU0 * cfg.TAU_P / math.pi) * math.log(2 * cfg.TAU_P / cfg.W_COIL)
-    X_loop = 2 * math.pi * f_slip * L_loop
-    Z_loop = math.sqrt(R_loop**2 + X_loop**2)
-    
-    # Thrust
-    EMF = 4.0 * v_slip * b_plate * cfg.W_COIL / math.pi
-    I_eddy = EMF / Z_loop
-    n_loops = cfg.SLED_LENGTH / cfg.TAU_P
-    P_mech = n_loops * I_eddy**2 * R_loop
-    
-    F_thrust = P_mech / v_slip if v_slip > 0 else 0.0
-    return F_thrust, f_supply, I_eddy, b_plate
-
-def calc_power_balance(v_sled, v_slip, i_peak, thrust, f_supply):
-    p_mech = thrust * v_sled
-    loss_J_m = q_hysteresis_norris(i_peak, cfg.I_C_TOTAL)
-    len_coil = 2 * (cfg.TAU_P + cfg.W_COIL) * cfg.N_TURNS
-    n_active_coils = (cfg.SLED_LENGTH / cfg.TAU_P) * 3 
-    p_hysteresis = loss_J_m * len_coil * n_active_coils * f_supply
-    p_cryo_wall = p_hysteresis * cfg.CRYO_COP_PENALTY
-    return p_mech + p_cryo_wall, p_cryo_wall, p_hysteresis
-
-def calc_voltage(i_peak, f_supply):
-    omega = 2 * math.pi * f_supply
-    A_coil = cfg.TAU_P * cfg.W_COIL
-    L_stator = (MU0 * cfg.N_TURNS**2 * A_coil) / cfg.GAP 
-    return omega * L_stator * i_peak
+    return best_F, best_I, best_V, P_total_wall, P_mech_total, P_cryo_wall
