@@ -6,22 +6,21 @@ Usage:
     python md_simulation.py [options] [graphs...]
 
 Options:
-    --model=1       (only model 1 supported)
     --v_launch=N    Target velocity (m/s)
     --accel=N       Max acceleration (g)
     --mass=N        Spacecraft mass (tonnes)
-    --quick         Larger time steps
-    --no-graphs     Skip graphs
+    --quick         Larger time steps (1s vs 0.1s)
+    --no-graphs     Skip graph generation
     --save-csv      Save time-series to CSV
 
 Graph keywords (or 'all'):
-    velocity accel thrust power eddy slip temp centrifugal energy
-    b_field frequency current voltage skin_depth ring_force occupant_g
+    velocity accel thrust power eddy slip temp occupant_g
+    b_field frequency current voltage skin_depth ring_force
     combined stage_detail
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
-import sys, os, math, datetime
+import sys, os, math
 
 try:
     import matplotlib
@@ -43,10 +42,12 @@ class SimData:
         "time", "velocity", "position", "acceleration",
         "thrust", "P_thrust", "P_eddy", "P_total",
         "slip_ratio", "slip_velocity", "T_plate",
-        "F_centrifugal", "F_ring_net", "ring_net_g", "occupant_g",
+        "F_centrifugal", "F_ring_net", "ring_net_g",
+        "g_thrust", "g_radial", "g_total",
         "KE", "B_field", "f_supply", "f_slip",
-        "current", "voltage", "skin_depth",
+        "current", "voltage", "V_coil", "skin_depth",
         "stage_index", "stage_name", "E_eddy_cumulative",
+        "P_hts_ac",
     ]
     def __init__(self):
         for f in self.FIELDS:
@@ -60,23 +61,12 @@ class SimData:
 # ═════════════════════════════════════════════════════════════════════
 
 def run_controller(v_sled, T_plate, stage, n_active, m_total):
-    """Determine I and v_slip for this timestep.
-
-    Strategy:
-    1. Start at I_target (80% I_c)
-    2. Set v_slip to achieve ~target thrust, floor by f_slip_min
-    3. Iterate: if thrust > target, reduce v_slip; if < target, increase
-    4. Throttle I if V_pfc > V_max
-    5. Throttle I if accel > max_g
-    6. Thermal protection: reduce v_slip if plate near T_max
-    """
+    """Determine I and v_slip for this timestep."""
     mat = cfg.get_material()
     I = stage.I_target
     F_target = m_total * cfg.MAX_ACCEL_G * cfg.G_ACCEL
 
-    # Slip velocity: need f_slip high enough for EM coupling
-    # f_slip_min ~ 1 Hz → v_slip_min = 2 × τ_p × 1
-    v_slip_floor = 2.0 * stage.tau_p * 1.0  # Hz
+    v_slip_floor = 2.0 * stage.tau_p * 1.0
 
     # Initial estimate based on velocity regime
     if v_sled < 10.0:
@@ -102,14 +92,22 @@ def run_controller(v_sled, T_plate, stage, n_active, m_total):
         v_slip = max(v_slip, v_slip_floor)
         r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
 
-    # Voltage throttle (PFC voltage)
-    if r["V_pfc"] > cfg.VOLTS_MAX and r["V_pfc"] > 0:
-        ratio = cfg.VOLTS_MAX / r["V_pfc"]
+    # Voltage throttle — supply voltage
+    if r["V_supply"] > cfg.VOLTS_MAX and r["V_supply"] > 0:
+        ratio = cfg.VOLTS_MAX / r["V_supply"]
         I *= ratio * 0.95
         I = max(I, 10.0)
         r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
 
-    # Acceleration throttle: thrust ∝ I² → I_new = I × √(F_target/F)
+    # Voltage throttle — coil insulation (V_coil = ωLI must be < 100 kV)
+    if r["V_coil"] > cfg.VOLTS_MAX and r["V_coil"] > 0:
+        # V_coil ∝ I (at fixed frequency), so scale I directly
+        ratio = cfg.VOLTS_MAX / r["V_coil"]
+        I *= ratio * 0.95
+        I = max(I, 10.0)
+        r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
+
+    # Acceleration throttle
     if r["thrust"] > 0 and m_total > 0:
         a = r["thrust"] / m_total
         a_max = cfg.MAX_ACCEL_G * cfg.G_ACCEL
@@ -165,9 +163,9 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
 
     print(f"\nSimulation: dt={dt}s, model=1 (eddy), target={cfg.V_LAUNCH/1000:.1f} km/s, "
           f"mass={m_total/1000:.0f}t, max_a={cfg.MAX_ACCEL_G}g")
-    hdr = (f"{'t(s)':>8} {'v(km/s)':>8} {'stage':>5} {'F(MN)':>7} "
-           f"{'a(g)':>6} {'T(K)':>7} {'P(GW)':>7} {'I(A)':>7} "
-           f"{'Vpfc(kV)':>9} {'v_slip':>7} {'f_sup':>6}")
+    hdr = (f"{'t(s)':>8} {'v(km/s)':>8} {'stg':>4} {'F(MN)':>7} "
+           f"{'a(g)':>7} {'g_rad':>7} {'g_tot':>7} {'T(K)':>7} "
+           f"{'P(GW)':>6} {'I(A)':>6} {'Vsup':>5} {'Vcoil':>5} {'vslip':>6}")
     print(hdr)
     print("-" * len(hdr))
 
@@ -202,7 +200,8 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
         f_sup = r["f_supply"]
         f_sl = r["f_slip"]
         delta = r["delta"]
-        V_pfc = r["V_pfc"]
+        V_supply = r["V_supply"]
+        V_coil = r["V_coil"]
 
         # Dynamics
         accel = thrust / m_total if m_total > 0 else 0.0
@@ -214,12 +213,16 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
         T_plate = phys.radiation_cooling(T_plate, dt)
         E_eddy_cum += P_eddy * dt
 
-        # Forces
+        # Forces — occupant feels thrust + centrifugal - gravity
+        occ = phys.occupant_forces(thrust, v_sled, m_total)
         cent = phys.centrifugal_force(v_sled, m_total)
-        occ_g = phys.occupant_g(thrust, m_total)
+
         P_thrust = thrust * v_sled
         P_total = P_thrust + P_eddy
         s_ratio = v_slip / (v_sled + v_slip) if (v_sled + v_slip) > 0 else 1.0
+
+        # HTS AC losses (from calc_thrust)
+        P_hts = r.get("P_hts_coil", 0.0)
 
         # Record
         data.record(
@@ -228,12 +231,14 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
             P_thrust=P_thrust, P_eddy=P_eddy, P_total=P_total,
             slip_ratio=s_ratio, slip_velocity=v_slip, T_plate=T_plate,
             F_centrifugal=cent["F_centrifugal"], F_ring_net=cent["F_net"],
-            ring_net_g=cent["net_g"], occupant_g=occ_g,
+            ring_net_g=cent["net_g"],
+            g_thrust=occ["g_thrust"], g_radial=occ["g_radial"],
+            g_total=occ["g_total"],
             KE=0.5 * m_total * v_sled**2,
             B_field=B, f_supply=f_sup, f_slip=f_sl,
-            current=I, voltage=V_pfc, skin_depth=delta,
+            current=I, voltage=V_supply, V_coil=V_coil, skin_depth=delta,
             stage_index=stage_idx, stage_name=stage.name,
-            E_eddy_cumulative=E_eddy_cum,
+            E_eddy_cumulative=E_eddy_cum, P_hts_ac=P_hts,
         )
 
         v_sled = v_sled_new
@@ -241,13 +246,15 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
         step += 1
 
         if step % report_interval == 0:
-            print(f"{t:>8.0f} {v_sled/1000:>8.2f} {stage.name:>5} "
-                  f"{thrust/1e6:>7.2f} {accel/cfg.G_ACCEL:>6.2f} "
-                  f"{T_plate:>7.1f} {P_total/1e9:>7.2f} {I:>7.0f} "
-                  f"{V_pfc/1000:>9.1f} {v_slip:>7.1f} {f_sup:>6.1f}")
+            print(f"{t:>8.0f} {v_sled/1000:>8.2f} {stage.name:>4} "
+                  f"{thrust/1e6:>7.2f} {occ['g_thrust']:>7.3f} "
+                  f"{occ['g_radial']:>+7.3f} {occ['g_total']:>7.3f} "
+                  f"{T_plate:>7.1f} {P_total/1e9:>6.1f} {I:>6.0f} "
+                  f"{V_supply/1000:>5.1f} {V_coil/1000:>5.1f} {v_slip:>6.1f}")
 
     # Final report
     sep = "=" * 76
+    occ_final = phys.occupant_forces(0, v_sled, m_total)  # coast after launch
     print(f"\n{sep}")
     print("SIMULATION COMPLETE")
     print(sep)
@@ -260,7 +267,14 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
     print(f"  Peak thrust          {max(data.thrust)/1e6:>10.2f} MN")
     print(f"  Peak power           {max(data.P_total)/1e9:>10.2f} GW")
     print(f"  Peak plate temp      {max(data.T_plate):>10.1f} K")
-    print(f"  Peak occupant g      {max(data.occupant_g):>10.3f} g")
+    print(f"\n  OCCUPANT G-FORCE:")
+    print(f"    At start:   g_thrust={data.g_thrust[0]:>+6.3f}, g_radial={data.g_radial[0]:>+6.3f}, g_total={data.g_total[0]:.3f}")
+    if data.g_total:
+        i_peak = max(range(len(data.g_total)), key=lambda i: data.g_total[i])
+        print(f"    Peak total: g_thrust={data.g_thrust[i_peak]:>+6.3f}, g_radial={data.g_radial[i_peak]:>+6.3f}, g_total={data.g_total[i_peak]:.3f}")
+    print(f"    At launch:  g_thrust={data.g_thrust[-1]:>+6.3f}, g_radial={data.g_radial[-1]:>+6.3f}, g_total={data.g_total[-1]:.3f}")
+    print(f"    After release (coast): g_radial={occ_final['g_radial']:>+6.3f}")
+
     if handoffs:
         print(f"\n  HANDOFFS:")
         for h in handoffs:
@@ -283,13 +297,13 @@ def _handoff_lines(ax, data):
             ax.axvline(data.time[i]/60, color='red', ls='--', alpha=0.4, lw=0.8)
             prev = s
 
-def _plot1(data, ydata, ylabel, title, fname, color='#1976D2', yscale='linear'):
+def _plot1(data, ydata, ylabel, title, fname, color='#1976D2'):
     if not HAS_MPL: return
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.plot(_t_min(data), ydata, color=color, lw=1.2)
     _handoff_lines(ax, data)
     ax.set_xlabel("Time (min)"); ax.set_ylabel(ylabel)
-    ax.set_title(title); ax.set_yscale(yscale); ax.grid(True, alpha=0.3)
+    ax.set_title(title); ax.grid(True, alpha=0.3)
     fig.tight_layout()
     os.makedirs(cfg.GRAPH_DIR, exist_ok=True)
     fig.savefig(os.path.join(cfg.GRAPH_DIR, fname), dpi=200)
@@ -299,23 +313,53 @@ def plot_combined(data):
     if not HAS_MPL: return
     tm = _t_min(data)
     fig, axes = plt.subplots(3, 3, figsize=(18, 14))
-    fig.suptitle("Mass Driver Launch — 4-Stage LIM (Model 1)", fontsize=15, y=0.98)
-    plots = [
-        (axes[0,0], [v/1000 for v in data.velocity], "Velocity (km/s)", '#1976D2'),
-        (axes[0,1], [a/cfg.G_ACCEL for a in data.acceleration], "Accel (g)", '#E65100'),
-        (axes[0,2], [F/1e6 for F in data.thrust], "Thrust (MN)", '#2E7D32'),
-        (axes[1,0], [P/1e9 for P in data.P_total], "Total Power (GW)", '#7B1FA2'),
-        (axes[1,1], [P/1e6 for P in data.P_eddy], "Eddy Losses (MW)", '#C62828'),
-        (axes[1,2], data.T_plate, "Plate Temp (K)", '#FF6F00'),
-        (axes[2,0], data.current, "Current (A)", '#1565C0'),
-        (axes[2,1], [V/1000 for V in data.voltage], "V_pfc (kV)", '#B71C1C'),
-        (axes[2,2], data.slip_velocity, "v_slip (m/s)", '#00838F'),
-    ]
-    for ax, yd, yl, c in plots:
-        ax.plot(tm, yd, color=c, lw=1.0)
-        _handoff_lines(ax, data)
-        ax.set_ylabel(yl, fontsize=9); ax.grid(True, alpha=0.3)
-        ax.tick_params(labelsize=8)
+    fig.suptitle("Mass Driver Launch — 4-Stage LIM (Model 1 Eddy Current)", fontsize=15, y=0.98)
+
+    # Disable scientific notation offset on all axes
+    for row in axes:
+        for ax in row:
+            ax.ticklabel_format(useOffset=False)
+
+    # Row 0: velocity, thrust accel, thrust force
+    axes[0,0].plot(tm, [v/1000 for v in data.velocity], color='#1976D2', lw=1.0)
+    _handoff_lines(axes[0,0], data); axes[0,0].set_ylabel("Velocity (km/s)")
+
+    axes[0,1].plot(tm, data.g_thrust, color='#E65100', lw=1.0)
+    _handoff_lines(axes[0,1], data); axes[0,1].set_ylabel("Thrust (g)")
+    axes[0,1].set_ylim(0, max(data.g_thrust) * 1.3)
+
+    axes[0,2].plot(tm, [F/1e6 for F in data.thrust], color='#2E7D32', lw=1.0)
+    _handoff_lines(axes[0,2], data); axes[0,2].set_ylabel("Thrust (MN)")
+    axes[0,2].set_ylim(0, max(data.thrust)/1e6 * 1.3)
+
+    # Row 1: KE delivery rate (P_thrust), LIM eddy losses, plate temp
+    axes[1,0].plot(tm, [P/1e9 for P in data.P_thrust], color='#7B1FA2', lw=1.0, label='KE rate')
+    axes[1,0].plot(tm, [P/1e9 for P in data.P_eddy], color='#C62828', lw=1.0, label='Eddy loss')
+    _handoff_lines(axes[1,0], data)
+    axes[1,0].set_ylabel("Power (GW)"); axes[1,0].legend(fontsize=8)
+
+    axes[1,1].plot(tm, [P/1e6 for P in data.P_eddy], color='#C62828', lw=1.0)
+    _handoff_lines(axes[1,1], data); axes[1,1].set_ylabel("Eddy Losses (MW)")
+
+    axes[1,2].plot(tm, data.T_plate, color='#FF6F00', lw=1.0)
+    _handoff_lines(axes[1,2], data); axes[1,2].set_ylabel("Plate Temp (K)")
+    axes[1,2].set_ylim(200, max(data.T_plate) * 1.1)
+
+    # Row 2: radial g, total g, V_coil
+    axes[2,0].plot(tm, data.g_radial, color='#00695C', lw=1.0)
+    axes[2,0].axhline(0, color='gray', ls='-', alpha=0.3, lw=0.5)
+    _handoff_lines(axes[2,0], data); axes[2,0].set_ylabel("Radial g (+=outward)")
+
+    axes[2,1].plot(tm, data.g_total, color='#D32F2F', lw=1.0)
+    _handoff_lines(axes[2,1], data); axes[2,1].set_ylabel("Total g-load")
+
+    axes[2,2].plot(tm, [V/1000 for V in data.V_coil], color='#B71C1C', lw=1.0)
+    axes[2,2].axhline(100, color='red', ls='--', alpha=0.5, lw=1, label='100 kV limit')
+    _handoff_lines(axes[2,2], data)
+    axes[2,2].set_ylabel("V_coil (kV)"); axes[2,2].legend(fontsize=8)
+
+    for ax in axes.flat:
+        ax.grid(True, alpha=0.3); ax.tick_params(labelsize=8)
     for ax in axes[2]:
         ax.set_xlabel("Time (min)", fontsize=9)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
@@ -352,7 +396,7 @@ def plot_stage_detail(data):
         ax1.plot(tm, [data.current[i] for i in idx], color='blue', lw=1)
         ax2.plot(tm, [data.voltage[i]/1000 for i in idx], color='red', lw=1)
         ax1.set_ylabel("Current (A)", color='blue')
-        ax2.set_ylabel("V_pfc (kV)", color='red')
+        ax2.set_ylabel("V_supply (kV)", color='red')
 
         ax3 = axes[2,col]; ax4 = ax3.twinx()
         ax3.plot(tm, [data.thrust[i]/1e6 for i in idx], color='green', lw=1)
@@ -362,14 +406,15 @@ def plot_stage_detail(data):
 
         ax5 = axes[3,col]; ax6 = ax5.twinx()
         ax5.plot(tm, [data.T_plate[i] for i in idx], color='orange', lw=1)
-        ax6.plot(tm, [data.slip_velocity[i] for i in idx], color='cyan', lw=1)
+        ax6.plot(tm, [data.g_total[i] for i in idx], color='#D32F2F', lw=1)
         ax5.set_ylabel("T_plate (K)", color='orange')
-        ax6.set_ylabel("v_slip (m/s)", color='cyan')
+        ax6.set_ylabel("Total g-load", color='#D32F2F')
         ax5.set_xlabel("Time (min)")
 
     for row in axes:
         for ax in row:
             ax.grid(True, alpha=0.2); ax.tick_params(labelsize=8)
+            ax.ticklabel_format(useOffset=False)
     fig.tight_layout(rect=[0, 0, 1, 0.97])
     os.makedirs(cfg.GRAPH_DIR, exist_ok=True)
     fig.savefig(os.path.join(cfg.GRAPH_DIR, "md_stage_detail.png"), dpi=200)
@@ -377,20 +422,19 @@ def plot_stage_detail(data):
 
 GRAPHS = {
     "velocity": lambda d: _plot1(d, [v/1000 for v in d.velocity], "km/s", "Sled Velocity", "md_velocity.png"),
-    "accel": lambda d: _plot1(d, [a/cfg.G_ACCEL for a in d.acceleration], "g", "Acceleration", "md_accel.png", '#E65100'),
+    "accel": lambda d: _plot1(d, d.g_thrust, "g", "Thrust Acceleration", "md_accel.png", '#E65100'),
     "thrust": lambda d: _plot1(d, [F/1e6 for F in d.thrust], "MN", "Thrust", "md_thrust.png", '#2E7D32'),
     "power": lambda d: _plot1(d, [P/1e9 for P in d.P_total], "GW", "Total Power", "md_power.png", '#7B1FA2'),
     "eddy": lambda d: _plot1(d, [P/1e6 for P in d.P_eddy], "MW", "Eddy Losses", "md_eddy.png", '#C62828'),
     "slip": lambda d: _plot1(d, d.slip_velocity, "m/s", "Slip Velocity", "md_slip.png", '#00838F'),
     "temp": lambda d: _plot1(d, d.T_plate, "K", "Plate Temperature", "md_temp.png", '#FF6F00'),
-    "centrifugal": lambda d: _plot1(d, [F/1e6 for F in d.F_centrifugal], "MN", "Centrifugal Force", "md_centrifugal.png", '#795548'),
     "ring_force": lambda d: _plot1(d, [F/1e6 for F in d.F_ring_net], "MN", "Net Ring Force", "md_ring_force.png"),
-    "occupant_g": lambda d: _plot1(d, d.occupant_g, "g", "Occupant G-Force", "md_occupant_g.png", '#E65100'),
+    "occupant_g": lambda d: _plot1(d, d.g_total, "g", "Total Occupant G-Load", "md_occupant_g.png", '#D32F2F'),
     "energy": lambda d: _plot1(d, [E/1e12 for E in d.KE], "TJ", "Kinetic Energy", "md_energy.png", '#0D47A1'),
     "b_field": lambda d: _plot1(d, d.B_field, "T", "B Field at Plate", "md_b_field.png", '#4527A0'),
     "frequency": lambda d: _plot1(d, d.f_supply, "Hz", "Supply Frequency", "md_frequency.png", '#00695C'),
     "current": lambda d: _plot1(d, d.current, "A", "Phase Current", "md_current.png", '#1565C0'),
-    "voltage": lambda d: _plot1(d, [V/1000 for V in d.voltage], "kV", "V_pfc", "md_voltage.png", '#B71C1C'),
+    "voltage": lambda d: _plot1(d, [V/1000 for V in d.voltage], "kV", "V_supply", "md_voltage.png", '#B71C1C'),
     "skin_depth": lambda d: _plot1(d, [sd*1000 for sd in d.skin_depth], "mm", "Skin Depth", "md_skin_depth.png", '#4E342E'),
     "combined": lambda d: plot_combined(d),
     "stage_detail": lambda d: plot_stage_detail(d),
@@ -419,7 +463,6 @@ def main():
         if arg.startswith("--v_launch="): v_launch = float(arg.split("=")[1])
         elif arg.startswith("--accel="): max_accel = float(arg.split("=")[1])
         elif arg.startswith("--mass="): mass = float(arg.split("=")[1]) * 1000
-        elif arg.startswith("--model="): pass  # only model 1
         elif arg == "--quick": quick = True
         elif arg == "--no-graphs": no_graphs = True
         elif arg == "--save-csv": do_csv = True
