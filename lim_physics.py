@@ -39,7 +39,7 @@ RHO_CNT = 1700                  # CNT density (kg/m³)
 # CABLE MASS
 # =============================================================================
 
-def calc_cable_mass(load_mass=0.0, sigma_target=12.633E9):
+def calc_cable_mass(load_mass=12000, sigma_target=12.633E9):
     """Calculate cable mass based on --m_load=NUMBER from argv. m_load must be > 999."""
     F_load_m = A_250_KM * load_mass 
     return F_load_m * R_ORBIT * RHO_CNT / sigma_target    

@@ -154,7 +154,6 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     if m_load > 999:
         cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, sigma)
         cfg.M_LOAD_M = m_load
-        print(f"New cable mass M_CABLE_M={cfg.M_CABLE_M:.0f} kg/m for M_LOAD_M={cfg.M_LOAD_M:.0f} kg/m")
     else:
         """Session proofing"""
         cfg.M_CABLE_STRUCTURAL = cfg.M_CABLE_STRUCTURAL_DEFAULT
@@ -163,6 +162,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     cfg.M_CABLE_M = cfg.M_CABLE_STRUCTURAL + cfg.M_HARDWARE
     cfg.M_CABLE_TOTAL = cfg.M_CABLE_M * cfg.L_RING
     cfg.M_LOAD_TOTAL = cfg.M_LOAD_M * cfg.L_RING
+    print(f"Cable mass M_CABLE_M={cfg.M_CABLE_M:.0f} kg/m for M_LOAD_M={cfg.M_LOAD_M:.0f} kg/m")
 
     # Print configuration
     print(f"VOLTS_MAX: {cfg.VOLTS_MAX/1000:.0f} kV")
@@ -244,6 +244,14 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     month_count = 0
 
     param_str = f"τp={cfg.TAU_P}m, N={cfg.N_TURNS}, Gap={cfg.GAP*1000:.0f}mm, Spacing={cfg.LIM_SPACING:.0f}m, HTS width={cfg.HTS_TAPE_WIDTH_MM:.0f}mm, I_max={cfg.I_TARGET:.0f}A"
+
+    # Print configuration
+    print_parameters()
+    print(f"Using Thrust Model {thrust_model}")
+    print(f"Thermal Mode: {'cable' if eddy_to_cable else 'cryo'}")
+    if quick_mode:
+        print("Quick Mode: ENABLED (larger time steps, reduced accuracy)")
+
 
     # Main loop
     while v_casing > cfg.V_GROUND_STATIONARY:
@@ -849,6 +857,57 @@ def plot_results(show_graphs, param_str, total_time, thrust_model=1, eddy_to_cab
     if cfg.SAVE_GRAPHS and plot_number > 0:
         print(f"\nSaved {plot_number} graphs at {cfg.GRAPH_DPI} DPI ({cfg.GRAPH_WIDTH_INCHES}\" × {cfg.GRAPH_HEIGHT_INCHES}\")")
 
+def print_parameters():
+        # =============================================================================
+    # SECTION 6: DISPLAY DICTIONARY
+    # =============================================================================
+
+    PARAM_DISPLAY = {
+        "N_TURNS             #": cfg.N_TURNS,
+        "TAU_P               m": cfg.TAU_P,
+        "W_COIL              m": cfg.W_COIL,
+        "SLIP_RATIO_NORMAL   %": cfg.SLIP_RATIO_NORMAL * 100,
+        "SLIP_RATIO_REDUCED  %": cfg.SLIP_RATIO_REDUCED * 100,
+        "GAP                mm": cfg.GAP * 1000,
+        "HTS_TAPE_WIDTH     mm": cfg.HTS_TAPE_WIDTH_MM,
+        "HTS_TAPE_LAYERS     #": cfg.HTS_TAPE_LAYERS,
+        "I_C                 A": round(cfg.I_C),
+        "I_PEAK              A": round(cfg.I_PEAK),
+        "I_TARGET            A": round(cfg.I_TARGET),
+        "V_SLIP_MAX        m/s": cfg.V_SLIP_MAX,
+        "V_SLIP_MIN        m/s": cfg.V_SLIP_MIN,
+        "N_PLATES_PER_SIDE   #": cfg.N_PLATES_PER_SIDE,
+        "LIMS_PER_SITE       #": cfg.LIMS_PER_SITE,
+        "PITCH_COUNT         #": cfg.PITCH_COUNT,
+        "LIM_SPACING         m": cfg.LIM_SPACING,
+        "LIM_SITES           #": cfg.LIM_SITES,
+        "THRUST_EFFICIENCY   %": cfg.THRUST_EFFICIENCY * 100,
+        "VOLTS_MAX          kV": cfg.VOLTS_MAX / 1000,
+        "MAX_SITE_POWER     MW": cfg.MAX_SITE_POWER / 1e6,
+        "T_PLATE            mm": cfg.T_PLATE * 1000,
+        "NORRIS_HYSTERESIS    ": cfg.NORRIS_HYSTERESIS,
+        "EDDY_HEAT_TO_CABLE   ": cfg.EDDY_HEAT_TO_CABLE,
+        "WARM_THERMAL_MODEL    ": cfg.WARM_THERMAL_MODEL,
+        "M_CABLE_STRUCT   kg/m": cfg.M_CABLE_STRUCTURAL,
+        "M_HARDWARE       kg/m": cfg.M_HARDWARE,
+        "M_CABLE_TOTAL    kg/m": cfg.M_CABLE_M,
+        "M_LOAD           kg/m": cfg.M_LOAD_M,
+    }
+    """Display current parameter configuration."""
+    streq = "="*70
+    print(f"\n{streq}")
+    print("SIMULATION PARAMETERS")
+    print(streq)
+    print(f"  {'PLATE_MATERIAL':24} {cfg.PLATE_MATERIAL:>12}")
+    print(f"  {'EDDY_HEAT_TO_CABLE':24} {str(cfg.EDDY_HEAT_TO_CABLE):>12}")
+    for key, value in PARAM_DISPLAY.items():
+        if isinstance(value, bool):
+            print(f"  {key:24} {str(value):>12}")
+        elif isinstance(value, str):
+            print(f"  {key:24} {value:>12}")
+        else:
+            print(f"  {key:24} {value:>12.2f}")
+    print(f"{streq}\n")
 
 # =============================================================================
 # MAIN ENTRY POINT
@@ -957,13 +1016,6 @@ Examples:
                     print(f"Invalid DPI value: {arg}")
             else:
                 show_graphs.append(arg)
-
-    # Print configuration
-    cfg.print_parameters()
-    print(f"Using Thrust Model {thrust_model}")
-    print(f"Thermal Mode: {'cable' if eddy_to_cable else 'cryo'}")
-    if quick_mode:
-        print("Quick Mode: ENABLED (larger time steps, reduced accuracy)")
 
     # Run simulation
     v_slip = cfg.V_SLIP_MAX
