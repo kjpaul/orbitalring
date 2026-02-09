@@ -107,15 +107,30 @@ def run_controller(v_sled, T_plate, stage, n_active, m_total):
         I = max(I, 10.0)
         r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
 
-    # Acceleration throttle
-    if r["thrust"] > 0 and m_total > 0:
+    # Acceleration throttle — must converge even when B is saturated
+    # With iron core, B is capped at B_SAT regardless of I, so reducing
+    # I alone may not reduce thrust. Must also reduce v_slip.
+    a_max = cfg.MAX_ACCEL_G * cfg.G_ACCEL
+    for _ in range(8):
+        if r["thrust"] <= 0 or m_total <= 0:
+            break
         a = r["thrust"] / m_total
-        a_max = cfg.MAX_ACCEL_G * cfg.G_ACCEL
-        if a > a_max * 1.05:
-            ratio = math.sqrt(a_max * m_total / r["thrust"])
-            I *= ratio * 0.98
-            I = max(I, 10.0)
-            r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
+        if a <= a_max * 1.02:
+            break
+        # Strategy: reduce both I and v_slip
+        overshoot = a / a_max
+        if overshoot > 2.0:
+            # Large overshoot — cut v_slip aggressively
+            v_slip *= 0.5
+        elif overshoot > 1.2:
+            v_slip *= 0.8
+        else:
+            v_slip *= 0.95
+        # Also reduce I if above minimum
+        I *= min(0.95, math.sqrt(a_max * m_total / r["thrust"]))
+        I = max(I, 10.0)
+        v_slip = max(v_slip, v_slip_floor)
+        r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
 
     # Thermal protection
     T_margin = (mat["T_max"] - T_plate) / (mat["T_max"] - cfg.T_AMBIENT)
@@ -463,6 +478,8 @@ def main():
         if arg.startswith("--v_launch="): v_launch = float(arg.split("=")[1])
         elif arg.startswith("--accel="): max_accel = float(arg.split("=")[1])
         elif arg.startswith("--mass="): mass = float(arg.split("=")[1]) * 1000
+        elif arg == "--iron-core": cfg.IRON_CORE = True
+        elif arg == "--air-core": cfg.IRON_CORE = False
         elif arg == "--quick": quick = True
         elif arg == "--no-graphs": no_graphs = True
         elif arg == "--save-csv": do_csv = True

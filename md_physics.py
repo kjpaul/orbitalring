@@ -44,24 +44,33 @@ def skin_depth(rho_e, f_slip):
 # ═════════════════════════════════════════════════════════════════════
 
 def peak_B_field(stage, I_peak):
-    """Air-core B field for a flat racetrack HTS coil.
+    """B field at plate midplane from ONE side of the LIM.
 
-    Uses the 2D rectangular current sheet model:
-      B = (2/π) × (μ₀ N I / h) × arctan(h / (2 g_eff))
+    Two models selected by cfg.IRON_CORE:
 
-    where h = coil height (= w_coil), g_eff = gap + t_plate/2.
+    Air-core (IRON_CORE = False):
+      Uses 2D rectangular current sheet model:
+        B = (2/π) × (μ₀ N I / w_coil) × arctan(w_coil / (2 g_eff))
+      Accounts for finite coil height and air return path.
+      No saturation limit. Typically B ≈ 0.3–0.7 T.
 
-    This accounts for the finite coil dimensions and the air return
-    path (no iron core). For double-sided LIMs, each side produces
-    this B independently; the total is handled by N_LIM_SIDES in
-    calc_thrust.
+    Iron-core (IRON_CORE = True):
+      Uses magnetic circuit formula:
+        B = μ₀ N I / (2 g_eff)
+      capped at B_SAT (iron saturation ≈ 2.0 T).
+      Valid when laminated iron provides low-reluctance return path.
 
-    Returns B at the plate midplane from ONE side.
+    Returns B at the plate midplane from ONE side. The double-sided
+    geometry is handled by N_LIM_SIDES in calc_thrust.
     """
     g_eff = stage.gap + cfg.PLATE_THICKNESS / 2.0
-    B = (2.0 / math.pi) * cfg.MU0 * stage.n_turns * I_peak / stage.w_coil * (
-        math.atan(stage.w_coil / (2.0 * g_eff)))
-    return B
+
+    if cfg.IRON_CORE:
+        B = cfg.MU0 * stage.n_turns * I_peak / (2.0 * g_eff)
+        return min(B, cfg.B_SAT)
+    else:
+        return (2.0 / math.pi) * cfg.MU0 * stage.n_turns * I_peak / (
+            stage.w_coil) * math.atan(stage.w_coil / (2.0 * g_eff))
 
 def supply_frequency(v_wave, tau_p):
     """f = v_wave / (2 τ_p)"""
@@ -236,7 +245,7 @@ def plate_temp_rise(P_eddy, dt, T_plate):
 
 def radiation_cooling(T_plate, dt):
     """Radiative cooling from plate to cryo-cooled stator surfaces.
-    
+
     Both sides of the plate face stator surfaces at T_STATOR (77 K).
     View factor ≈ 1.0 (parallel plates, 100mm gap, extending km).
     The cryo system absorbs this heat — it has the full ring grid's
