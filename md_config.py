@@ -3,7 +3,7 @@
 Mass Driver Configuration Module
 
 Orbital ring mass driver launch simulation. Four sequential LIM stages
-accelerate a sled from rest to target velocity (e.g. 15 km/s Mars transfer).
+accelerate a sled from rest to target velocity (e.g. 30 km/s).
 
 Key design features:
   - Stator coils are FIXED ON THE RING at 77 K (cryo-cooled)
@@ -129,17 +129,17 @@ MATERIALS = {
 VOLTS_MAX = 100_000.0       # Max supply voltage with PFC (V)
 
 # ── Launch mission ───────────────────────────────────────────────────
-V_LAUNCH = 15_000.0
+V_LAUNCH = 30_000.0
 LAUNCH_CLASS = "3g"
 MAX_ACCEL_G = 0.5
-M_SPACECRAFT = 500_000.0
+M_SPACECRAFT = 5_000_000.0
 
 # ── Simulation ───────────────────────────────────────────────────────
 DT = 0.1
 DT_QUICK = 1.0
 V_INITIAL = 0.0
 THRUST_MODEL = 1                     # Model 1 only — eddy current, narrow plate
-GRAPH_DIR = "claude/md/graphs_8"         # Output directory for plots and CSV
+GRAPH_DIR = "graphs_lim_md"         # Output directory for plots and CSV
 
 # ── Derived ──────────────────────────────────────────────────────────
 def get_material():

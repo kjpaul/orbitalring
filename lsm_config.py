@@ -57,7 +57,7 @@ V_COIL_LIMIT = 100_000      # V, coil insulation limit
 
 # Sled superconducting DC field
 B_SLED_NOMINAL = 0.10       # T, sled DC field at air gap (base value)
-B_SLED_ADJUSTABLE = False   # If True, controller can reduce B_sled to meet voltage limit
+B_SLED_ADJUSTABLE = True    # Controller reduces B_sled at high speed to meet voltage limit
 
 # =============================================================================
 # SECTION 4: SLED MASS
@@ -66,13 +66,13 @@ B_SLED_ADJUSTABLE = False   # If True, controller can reduce B_sled to meet volt
 L_SLED = 5000               # m, sled length
 M_SC_COILS_PER_M = 30       # kg/m, SC field coil linear density
 M_STRUCTURE_PER_M = 100     # kg/m, structural frame + bearings + cryostat
-M_SPACECRAFT = 500_000      # kg, payload mass
+M_SPACECRAFT = 5_000_000    # kg, payload mass (5,000 tonnes)
 
 # =============================================================================
 # SECTION 5: MISSION PARAMETERS
 # =============================================================================
 
-V_LAUNCH = 15_000           # m/s, target launch velocity
+V_LAUNCH = 30_000           # m/s, target launch velocity
 A_MAX_G = 0.5               # maximum acceleration in g
 DT = 0.1                    # s, timestep (default)
 DT_QUICK = 1.0              # s, timestep for --quick mode
@@ -97,7 +97,7 @@ def calc_derived():
     """Calculate all derived quantities from base parameters."""
     global L_UNIT, F_ACTIVE, N_UNITS, A_ACTIVE_TOTAL, W_ACTIVE_PER_UNIT
     global M_SLED_HARDWARE, M_TOTAL, KE_TARGET, F_MAX_SUPPLY
-    global A_STATOR_COIL, G_EFF
+    global A_STATOR_COIL
 
     # Repeating unit geometry
     L_UNIT = N_POLES_PER_UNIT * TAU_P + L_GAP  # m, length of one repeating unit
@@ -112,9 +112,6 @@ def calc_derived():
 
     # Stator coil area
     A_STATOR_COIL = TAU_P * W_COIL  # m²
-
-    # Effective gap (including coil thickness effects)
-    G_EFF = G_GAP  # For now, just the physical gap
 
     # Sled mass
     M_SLED_HARDWARE = L_SLED * (M_SC_COILS_PER_M + M_STRUCTURE_PER_M)  # kg
@@ -153,7 +150,6 @@ def get_physics_params():
         'tau_p': TAU_P,
         'w_coil': W_COIL,
         'g_gap': G_GAP,
-        'g_eff': G_EFF,
         'b_sled_nominal': B_SLED_NOMINAL,
         'b_sled_adjustable': B_SLED_ADJUSTABLE,
         'v_coil_limit': V_COIL_LIMIT,

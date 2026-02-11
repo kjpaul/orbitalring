@@ -22,6 +22,10 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 import sys, os, math
 
+# Ensure UTF-8 output on Windows (γ-TiAl, τ_p, etc.)
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 try:
     import matplotlib
     matplotlib.use('Agg')
@@ -310,13 +314,25 @@ def _handoff_lines(ax, data):
             ax.axvline(data.time[i]/60, color='red', ls='--', alpha=0.4, lw=0.8)
             prev = s
 
+def _param_subtitle():
+    """Build parameter subtitle string from current config."""
+    s0 = cfg.LIM_STAGES[0]
+    tp_min = min(s.tau_p for s in cfg.LIM_STAGES)
+    tp_max = max(s.tau_p for s in cfg.LIM_STAGES)
+    tp_str = f"{tp_min:.0f}\u2013{tp_max:.0f}" if tp_min != tp_max else f"{tp_min:.0f}"
+    return (f"(\u03c4\u209a: {tp_str} m, N: {s0.n_turns}, "
+            f"{s0.hts_layers}\u00d7{s0.hts_width_mm:.0f} mm HTS, "
+            f"m: {cfg.M_SPACECRAFT/1000:,.0f} t, "
+            f"v: {cfg.V_LAUNCH/1000:.1f} km/s)")
+
 def _plot1(data, ydata, ylabel, title, fname, color='#1976D2'):
     if not HAS_MPL: return
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.plot(_t_min(data), ydata, color=color, lw=1.2)
     _handoff_lines(ax, data)
     ax.set_xlabel("Time (min)"); ax.set_ylabel(ylabel)
-    ax.set_title(title); ax.grid(True, alpha=0.3)
+    ax.set_title(f"{title}\n{_param_subtitle()}", fontsize=12)
+    ax.grid(True, alpha=0.3)
     fig.tight_layout()
     os.makedirs(cfg.GRAPH_DIR, exist_ok=True)
     fig.savefig(os.path.join(cfg.GRAPH_DIR, fname), dpi=200)
@@ -326,7 +342,8 @@ def plot_combined(data):
     if not HAS_MPL: return
     tm = _t_min(data)
     fig, axes = plt.subplots(3, 3, figsize=(18, 14))
-    fig.suptitle("Mass Driver Launch — 4-Stage LIM (Model 1 Eddy Current)", fontsize=15, y=0.98)
+    fig.suptitle(f"Mass Driver Launch \u2014 4-Stage LIM (Model 1 Eddy Current)\n{_param_subtitle()}",
+                 fontsize=13, y=0.99)
 
     # Disable scientific notation offset on all axes
     for row in axes:
@@ -393,7 +410,7 @@ def plot_stage_detail(data):
     ncol = len(sdata)
     fig, axes = plt.subplots(4, ncol, figsize=(6*ncol, 16))
     if ncol == 1: axes = axes.reshape(-1, 1)
-    fig.suptitle("Mass Driver — Stage Detail", fontsize=14, y=0.99)
+    fig.suptitle(f"Mass Driver \u2014 Stage Detail\n{_param_subtitle()}", fontsize=12, y=0.99)
 
     for col, (nm, idx) in enumerate(sdata.items()):
         tm = [data.time[i]/60 for i in idx]

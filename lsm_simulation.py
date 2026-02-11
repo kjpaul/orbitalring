@@ -3,7 +3,7 @@
 LSM Mass Driver Simulation - Main simulation loop and plotting
 
 This simulates an LSM (Linear Synchronous Motor) mass driver launching a
-5,000 m sled with a 500-tonne spacecraft from rest to 15 km/s on an orbital
+5,000 m sled with a 5,000-tonne spacecraft from rest to 30 km/s on an orbital
 ring at 250 km altitude.
 
 Key differences from LIM:
@@ -41,6 +41,11 @@ import sys
 import math
 import csv
 import os
+
+# Ensure UTF-8 output on Windows (τ_p, etc.)
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -196,7 +201,7 @@ def run_lsm_simulation(quick_mode=False):
 
             # Calculate stator field
             B_stator = phys.calc_B_stator(
-                I_stator, cfg.N_STATOR, cfg.W_COIL, cfg.G_EFF
+                I_stator, cfg.N_STATOR, cfg.W_COIL, cfg.G_GAP
             )
 
             # Desired thrust for target acceleration
@@ -369,6 +374,13 @@ def print_parameters():
 # PLOTTING FUNCTIONS
 # =============================================================================
 
+def _param_subtitle():
+    """Build parameter subtitle string from current config."""
+    return (f"(\u03c4\u209a: {cfg.TAU_P:.0f} m, N: {cfg.N_STATOR}, "
+            f"{cfg.N_LAYERS}\u00d7{cfg.TAPE_WIDTH*1000:.0f} mm HTS, "
+            f"m: {cfg.M_SPACECRAFT/1000:,.0f} t, "
+            f"v: {cfg.V_LAUNCH/1000:.1f} km/s)")
+
 def plot_combined():
     """Create a 9-panel combined plot."""
     fig = plt.figure(figsize=(16, 12))
@@ -455,7 +467,8 @@ def plot_combined():
     ax9.set_title('Occupant G-Load')
 
     # Overall title
-    fig.suptitle('LSM Mass Driver Launch Profile', fontsize=16, fontweight='bold')
+    fig.suptitle(f"LSM Mass Driver Launch Profile\n{_param_subtitle()}",
+                 fontsize=14, fontweight='bold')
 
     if cfg.SAVE_GRAPHS:
         os.makedirs(cfg.GRAPH_OUTPUT_DIR, exist_ok=True)
@@ -495,7 +508,7 @@ def plot_individual(keyword):
     ax.plot(t_min, y_plot, color=color, linewidth=1.5)
     ax.set_xlabel('Time (min)', fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.set_title(f"{title}\n{_param_subtitle()}", fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3)
 
     if cfg.SAVE_GRAPHS:

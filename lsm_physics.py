@@ -32,19 +32,19 @@ PI = math.pi
 # STATOR MAGNETIC FIELD
 # =============================================================================
 
-def calc_B_stator_air_core(I, N, w_coil, g_eff):
+def calc_B_stator_air_core(I, N, w_coil, g_gap):
     """Calculate stator magnetic field at the air gap (air-core stator).
 
     For an air-core stator, the field is calculated using the arctangent formula
     for a finite-width coil:
 
-    B = (2/π) × (μ₀ × N × I / w_coil) × arctan(w_coil / (2 × g_eff))
+    B = (2/π) × (μ₀ × N × I / w_coil) × arctan(w_coil / (2 × g_gap))
 
     Args:
         I: Stator current (A)
         N: Turns per stator coil
         w_coil: Coil height/width (m)
-        g_eff: Effective air gap (m)
+        g_gap: Effective air gap (m)
 
     Returns:
         Stator field at air gap (T)
@@ -52,11 +52,11 @@ def calc_B_stator_air_core(I, N, w_coil, g_eff):
     if I <= 0:
         return 0.0
 
-    B = (2.0 / PI) * (MU0 * N * I / w_coil) * math.atan(w_coil / (2.0 * g_eff))
+    B = (2.0 / PI) * (MU0 * N * I / w_coil) * math.atan(w_coil / (2.0 * g_gap))
     return B
 
 
-def calc_B_stator(I, N, w_coil, g_eff):
+def calc_B_stator(I, N, w_coil, g_gap):
     """Calculate stator magnetic field at the air gap (air-core).
 
     Dispatches to air-core formula.
@@ -65,12 +65,12 @@ def calc_B_stator(I, N, w_coil, g_eff):
         I: Stator current (A)
         N: Turns per stator coil
         w_coil: Coil height (m)
-        g_eff: Effective air gap (m)
+        g_gap: Effective air gap (m)
 
     Returns:
         Stator field at air gap (T)
     """
-    return calc_B_stator_air_core(I, N, w_coil, g_eff)
+    return calc_B_stator_air_core(I, N, w_coil, g_gap)
 
 
 # =============================================================================
