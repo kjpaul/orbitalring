@@ -83,17 +83,6 @@ L_REPEATING_UNIT = sum(s.L_active for s in LIM_STAGES)
 L_STAGE_GAP = 5.0
 L_REPEATING_UNIT_WITH_GAPS = L_REPEATING_UNIT + L_STAGE_GAP * len(LIM_STAGES)
 
-# ── Stator core type ────────────────────────────────────────────────
-# IRON_CORE = False: Air-core HTS stator. B field calculated from 2D
-#   rectangular current sheet model. No saturation limit. Lighter
-#   stator but B ≈ 0.3–0.7 T typical.
-# IRON_CORE = True: Iron-laminated stator core. B = μ₀NI/(2g_eff),
-#   capped at B_SAT. Much higher field but adds stator mass. Iron
-#   works well at 77 K. Core losses (hysteresis + eddy in laminations)
-#   must be absorbed by the cryo system.
-IRON_CORE = False
-B_SAT = 2.0                 # Iron saturation limit (T)
-
 # ── Sled and reaction plate ─────────────────────────────────────────
 PLATE_HEIGHT = 2.0          # 2000 mm — optimized for air-core B
 PLATE_THICKNESS = 0.100     # 100 mm
@@ -188,8 +177,7 @@ def print_config():
     print(f"  Target velocity        {V_LAUNCH/1000:>8.1f} km/s    Max accel     {MAX_ACCEL_G:>8.2f} g")
     print(f"  Launch class           {LAUNCH_CLASS:>8}        Thrust model  {THRUST_MODEL:>8} (eddy)")
     print(f"  Stator temp            {T_STATOR:>8.0f} K       Plate T_init  {T_AMBIENT:>8.1f} K")
-    core_str = f"iron (B_sat={B_SAT:.1f}T)" if IRON_CORE else "air-core"
-    print(f"  Stator core          {core_str:>12}       LIM sides     {N_LIM_SIDES:>8}")
+    print(f"  Stator core            {'air-core':>8}       LIM sides     {N_LIM_SIDES:>8}")
     print(f"\n  PLATE: {mat['name']}, {PLATE_HEIGHT*1000:.0f}×{PLATE_THICKNESS*1000:.0f} mm, {SLED_LENGTH/1000:.0f} km, LIMs on {N_LIM_SIDES} sides")
     print(f"    Linear mass {d['plate_linear_mass']:.0f} kg/m, Total {d['plate_mass']/1000:.0f} t, "
           f"ρ_e={mat['rho_e']:.2e} Ω·m, T_max={mat['T_max']} K")

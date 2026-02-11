@@ -21,8 +21,6 @@ Options:
   --v_launch=N      Target velocity in m/s (default: 15000)
   --accel=N         Maximum acceleration in g (default: 0.5)
   --mass=N          Spacecraft mass in tonnes (default: 500)
-  --iron-core       Use iron-core stator (default)
-  --air-core        Use air-core stator
   --B_sled=N        Sled DC field in T (default: 0.10)
   --tau_p=N         Pole pitch in m (default: 20)
   --N_stator=N      Stator turns (default: 10)
@@ -161,7 +159,7 @@ def run_lsm_simulation(quick_mode=False):
     print(f"Target velocity: {cfg.V_LAUNCH:,.0f} m/s")
     print(f"Target acceleration: {cfg.A_MAX_G:.2f} g = {a_target:.3f} m/s²")
     print(f"Total mass: {cfg.M_TOTAL:,.0f} kg")
-    print(f"Stator: {'Iron-core' if cfg.USE_IRON_CORE else 'Air-core'}")
+    print("Stator: Air-core")
     print(f"B_sled adjustable: {cfg.B_SLED_ADJUSTABLE}")
     print(f"Timestep: {dt} s")
     print()
@@ -198,8 +196,7 @@ def run_lsm_simulation(quick_mode=False):
 
             # Calculate stator field
             B_stator = phys.calc_B_stator(
-                I_stator, cfg.N_STATOR, cfg.W_COIL, cfg.G_EFF,
-                cfg.USE_IRON_CORE, cfg.B_SATURATION
+                I_stator, cfg.N_STATOR, cfg.W_COIL, cfg.G_EFF
             )
 
             # Desired thrust for target acceleration
@@ -345,9 +342,7 @@ def print_parameters():
     print(f"  Stator turns:           {cfg.N_STATOR}")
     print(f"  Air gap:                {cfg.G_GAP * 1000:.1f} mm")
     print(f"  Coil height:            {cfg.W_COIL:.2f} m")
-    print(f"  Stator type:            {'Iron-core' if cfg.USE_IRON_CORE else 'Air-core'}")
-    if cfg.USE_IRON_CORE:
-        print(f"  Iron saturation:        {cfg.B_SATURATION:.2f} T")
+    print("  Stator type:            Air-core")
     print(f"  Voltage limit:          {cfg.V_COIL_LIMIT / 1000:.0f} kV")
     print()
     print(f"  Sled length:            {cfg.L_SLED:,.0f} m")
@@ -565,10 +560,6 @@ def main():
                 cfg.A_MAX_G = float(arg.split("=")[1])
             elif arg.startswith("--mass="):
                 cfg.M_SPACECRAFT = float(arg.split("=")[1]) * 1000  # Convert tonnes to kg
-            elif arg == "--iron-core":
-                cfg.USE_IRON_CORE = True
-            elif arg == "--air-core":
-                cfg.USE_IRON_CORE = False
             elif arg.startswith("--B_sled="):
                 cfg.B_SLED_NOMINAL = float(arg.split("=")[1])
             elif arg.startswith("--tau_p="):

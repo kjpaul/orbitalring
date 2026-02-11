@@ -46,31 +46,19 @@ def skin_depth(rho_e, f_slip):
 def peak_B_field(stage, I_peak):
     """B field at plate midplane from ONE side of the LIM.
 
-    Two models selected by cfg.IRON_CORE:
+    Air-core model using 2D rectangular current sheet:
+      B = (2/π) × (μ₀ N I / w_coil) × arctan(w_coil / (2 g_eff))
 
-    Air-core (IRON_CORE = False):
-      Uses 2D rectangular current sheet model:
-        B = (2/π) × (μ₀ N I / w_coil) × arctan(w_coil / (2 g_eff))
-      Accounts for finite coil height and air return path.
-      No saturation limit. Typically B ≈ 0.3–0.7 T.
-
-    Iron-core (IRON_CORE = True):
-      Uses magnetic circuit formula:
-        B = μ₀ N I / (2 g_eff)
-      capped at B_SAT (iron saturation ≈ 2.0 T).
-      Valid when laminated iron provides low-reluctance return path.
+    Accounts for finite coil height and air return path.
+    No saturation limit. Typically B ≈ 0.3–0.7 T.
 
     Returns B at the plate midplane from ONE side. The double-sided
     geometry is handled by N_LIM_SIDES in calc_thrust.
     """
     g_eff = stage.gap + cfg.PLATE_THICKNESS / 2.0
 
-    if cfg.IRON_CORE:
-        B = cfg.MU0 * stage.n_turns * I_peak / (2.0 * g_eff)
-        return min(B, cfg.B_SAT)
-    else:
-        return (2.0 / math.pi) * cfg.MU0 * stage.n_turns * I_peak / (
-            stage.w_coil) * math.atan(stage.w_coil / (2.0 * g_eff))
+    return (2.0 / math.pi) * cfg.MU0 * stage.n_turns * I_peak / (
+        stage.w_coil) * math.atan(stage.w_coil / (2.0 * g_eff))
 
 def supply_frequency(v_wave, tau_p):
     """f = v_wave / (2 τ_p)"""

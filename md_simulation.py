@@ -107,9 +107,7 @@ def run_controller(v_sled, T_plate, stage, n_active, m_total):
         I = max(I, 10.0)
         r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
 
-    # Acceleration throttle — must converge even when B is saturated
-    # With iron core, B is capped at B_SAT regardless of I, so reducing
-    # I alone may not reduce thrust. Must also reduce v_slip.
+    # Acceleration throttle
     a_max = cfg.MAX_ACCEL_G * cfg.G_ACCEL
     for _ in range(8):
         if r["thrust"] <= 0 or m_total <= 0:
@@ -478,8 +476,6 @@ def main():
         if arg.startswith("--v_launch="): v_launch = float(arg.split("=")[1])
         elif arg.startswith("--accel="): max_accel = float(arg.split("=")[1])
         elif arg.startswith("--mass="): mass = float(arg.split("=")[1]) * 1000
-        elif arg == "--iron-core": cfg.IRON_CORE = True
-        elif arg == "--air-core": cfg.IRON_CORE = False
         elif arg == "--quick": quick = True
         elif arg == "--no-graphs": no_graphs = True
         elif arg == "--save-csv": do_csv = True

@@ -3,7 +3,7 @@
 LSM Physics Module - Calculation functions for LSM mass driver simulation
 
 This module contains all the physics calculations for the LSM (Linear Synchronous Motor):
-  - Magnetic field calculations (air-core and iron-core)
+  - Magnetic field calculations (air-core)
   - Thrust from Maxwell stress
   - Back-EMF and voltage constraints
   - Power calculations
@@ -56,50 +56,21 @@ def calc_B_stator_air_core(I, N, w_coil, g_eff):
     return B
 
 
-def calc_B_stator_iron_core(I, N, g_eff, B_sat):
-    """Calculate stator magnetic field at the air gap (iron-core stator).
+def calc_B_stator(I, N, w_coil, g_eff):
+    """Calculate stator magnetic field at the air gap (air-core).
 
-    For an iron-core stator, the iron teeth concentrate the flux:
-
-    B = min(B_sat, μ₀ × N × I / (2 × g_eff))
-
-    The factor of 2 accounts for the gap crossing (up and down through the gap).
-    The iron saturation limit prevents unrealistic field strengths.
-
-    Args:
-        I: Stator current (A)
-        N: Turns per stator coil
-        g_eff: Effective air gap (m)
-        B_sat: Iron saturation field (T)
-
-    Returns:
-        Stator field at air gap (T)
-    """
-    if I <= 0:
-        return 0.0
-
-    B = MU0 * N * I / (2.0 * g_eff)
-    return min(B, B_sat)
-
-
-def calc_B_stator(I, N, w_coil, g_eff, use_iron_core, B_sat):
-    """Calculate stator magnetic field (dispatches to air-core or iron-core).
+    Dispatches to air-core formula.
 
     Args:
         I: Stator current (A)
         N: Turns per stator coil
         w_coil: Coil height (m)
         g_eff: Effective air gap (m)
-        use_iron_core: True for iron-core, False for air-core
-        B_sat: Iron saturation field (T)
 
     Returns:
         Stator field at air gap (T)
     """
-    if use_iron_core:
-        return calc_B_stator_iron_core(I, N, g_eff, B_sat)
-    else:
-        return calc_B_stator_air_core(I, N, w_coil, g_eff)
+    return calc_B_stator_air_core(I, N, w_coil, g_eff)
 
 
 # =============================================================================

@@ -48,10 +48,6 @@ I_TARGET = 0.80 * I_CRITICAL   # 1920 A operating current
 I_PEAK = 0.90 * I_CRITICAL     # 2160 A peak current
 I_MIN = 10.0                # A, minimum current
 
-# Iron-core stator option
-USE_IRON_CORE = True        # True = iron-core stator (default for LSM)
-B_SATURATION = 2.0          # T, iron saturation field limit
-
 # Voltage limit
 V_COIL_LIMIT = 100_000      # V, coil insulation limit
 
@@ -158,8 +154,6 @@ def get_physics_params():
         'w_coil': W_COIL,
         'g_gap': G_GAP,
         'g_eff': G_EFF,
-        'use_iron_core': USE_IRON_CORE,
-        'b_saturation': B_SATURATION,
         'b_sled_nominal': B_SLED_NOMINAL,
         'b_sled_adjustable': B_SLED_ADJUSTABLE,
         'v_coil_limit': V_COIL_LIMIT,
