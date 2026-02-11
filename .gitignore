@@ -8,7 +8,9 @@ diagrams/
 claude/
 helper/
 marketing/
+graphs_lim_md/
 __pycache__/
 *.png
 *.bak
 *.cvs
+*.txt
