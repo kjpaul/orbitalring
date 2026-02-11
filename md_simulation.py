@@ -16,7 +16,7 @@ Options:
 Graph keywords (or 'all'):
     velocity accel thrust power eddy slip temp occupant_g
     b_field frequency current voltage skin_depth ring_force
-    combined stage_detail
+    hysteresis radiator_width E_hyst combined stage_detail
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
@@ -51,7 +51,7 @@ class SimData:
         "KE", "B_field", "f_supply", "f_slip",
         "current", "voltage", "V_coil", "skin_depth",
         "stage_index", "stage_name", "E_eddy_cumulative",
-        "P_hts_ac",
+        "P_hts_ac", "P_hysteresis", "E_hyst_cumulative", "radiator_width",
     ]
     def __init__(self):
         for f in self.FIELDS:
@@ -172,6 +172,7 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
     x_sled = 0.0
     T_plate = cfg.T_AMBIENT
     E_eddy_cum = 0.0
+    E_hyst_cum = 0.0
     t = 0.0
 
     data = SimData()
@@ -238,8 +239,13 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
         P_total = P_thrust + P_eddy
         s_ratio = v_slip / (v_sled + v_slip) if (v_sled + v_slip) > 0 else 1.0
 
-        # HTS AC losses (from calc_thrust)
+        # HTS hysteresis losses and radiator width
         P_hts = r.get("P_hts_coil", 0.0)
+        E_hyst_cum += P_hts * dt
+        radiator_w = phys.calc_radiator_width(
+            P_hts, cfg.T_STATOR, cfg.T_RADIATOR_HOT,
+            cfg.CRYO_EFF, cfg.EM_HEATSINK,
+            stage.L_active * n_active)
 
         # Record
         data.record(
@@ -256,6 +262,8 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
             current=I, voltage=V_supply, V_coil=V_coil, skin_depth=delta,
             stage_index=stage_idx, stage_name=stage.name,
             E_eddy_cumulative=E_eddy_cum, P_hts_ac=P_hts,
+            P_hysteresis=P_hts, E_hyst_cumulative=E_hyst_cum,
+            radiator_width=radiator_w,
         )
 
         v_sled = v_sled_new
@@ -284,6 +292,9 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
     print(f"  Peak thrust          {max(data.thrust)/1e6:>10.2f} MN")
     print(f"  Peak power           {max(data.P_total)/1e9:>10.2f} GW")
     print(f"  Peak plate temp      {max(data.T_plate):>10.1f} K")
+    print(f"  Total HTS hysteresis {E_hyst_cum:>12.3e} J  ({E_hyst_cum/3.6e6:.1f} kWh)")
+    print(f"  Peak HTS hysteresis  {max(data.P_hysteresis)/1e3:>10.2f} kW")
+    print(f"  Peak radiator width  {max(data.radiator_width):>10.4f} m")
     print(f"\n  OCCUPANT G-FORCE:")
     print(f"    At start:   g_thrust={data.g_thrust[0]:>+6.3f}, g_radial={data.g_radial[0]:>+6.3f}, g_total={data.g_total[0]:.3f}")
     if data.g_total:
@@ -341,7 +352,7 @@ def _plot1(data, ydata, ylabel, title, fname, color='#1976D2'):
 def plot_combined(data):
     if not HAS_MPL: return
     tm = _t_min(data)
-    fig, axes = plt.subplots(3, 3, figsize=(18, 14))
+    fig, axes = plt.subplots(4, 3, figsize=(18, 18))
     fig.suptitle(f"Mass Driver Launch \u2014 4-Stage LIM (Model 1 Eddy Current)\n{_param_subtitle()}",
                  fontsize=13, y=0.99)
 
@@ -388,9 +399,19 @@ def plot_combined(data):
     _handoff_lines(axes[2,2], data)
     axes[2,2].set_ylabel("V_coil (kV)"); axes[2,2].legend(fontsize=8)
 
+    # Row 3: HTS hysteresis, radiator width, cumulative hysteresis energy
+    axes[3,0].plot(tm, [P/1e3 for P in data.P_hysteresis], color='#CC79A7', lw=1.0)
+    _handoff_lines(axes[3,0], data); axes[3,0].set_ylabel("HTS Hyst (kW)")
+
+    axes[3,1].plot(tm, data.radiator_width, color='#0072B2', lw=1.0)
+    _handoff_lines(axes[3,1], data); axes[3,1].set_ylabel("Radiator Width (m)")
+
+    axes[3,2].plot(tm, [E/3.6e6 for E in data.E_hyst_cumulative], color='#009E73', lw=1.0)
+    _handoff_lines(axes[3,2], data); axes[3,2].set_ylabel("Hyst Energy (kWh)")
+
     for ax in axes.flat:
         ax.grid(True, alpha=0.3); ax.tick_params(labelsize=8)
-    for ax in axes[2]:
+    for ax in axes[3]:
         ax.set_xlabel("Time (min)", fontsize=9)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     os.makedirs(cfg.GRAPH_DIR, exist_ok=True)
@@ -466,6 +487,9 @@ GRAPHS = {
     "current": lambda d: _plot1(d, d.current, "A", "Phase Current", "md_current.png", '#1565C0'),
     "voltage": lambda d: _plot1(d, [V/1000 for V in d.voltage], "kV", "V_supply", "md_voltage.png", '#B71C1C'),
     "skin_depth": lambda d: _plot1(d, [sd*1000 for sd in d.skin_depth], "mm", "Skin Depth", "md_skin_depth.png", '#4E342E'),
+    "hysteresis": lambda d: _plot1(d, [P/1e3 for P in d.P_hysteresis], "kW", "HTS Hysteresis Power", "md_hysteresis.png", '#CC79A7'),
+    "radiator_width": lambda d: _plot1(d, d.radiator_width, "m", "Cryo Radiator Width", "md_radiator_width.png", '#0072B2'),
+    "E_hyst": lambda d: _plot1(d, [E/3.6e6 for E in d.E_hyst_cumulative], "kWh", "Cumulative Hysteresis Energy", "md_E_hyst.png", '#009E73'),
     "combined": lambda d: plot_combined(d),
     "stage_detail": lambda d: plot_stage_detail(d),
 }

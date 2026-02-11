@@ -30,9 +30,10 @@ Options:
   --save-csv        Export time-series data
 
 Graph keywords:
-  combined          9-panel combined plot
+  combined          12-panel combined plot
   all               All individual plots
   velocity, accel, thrust, power, delta, frequency, voltage, bfield, gload
+  hysteresis, radiator_width, E_hyst
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
@@ -75,6 +76,9 @@ data_a_radial_net = []
 data_a_occupant_g = []
 data_KE = []
 data_x_fraction = []
+data_P_hysteresis = []
+data_E_hyst_cumulative = []
+data_radiator_width = []
 
 
 def clear_data():
@@ -83,6 +87,7 @@ def clear_data():
     global data_I_stator, data_B_stator, data_B_sled, data_delta
     global data_f_supply, data_V_coil, data_a_centrifugal
     global data_a_radial_net, data_a_occupant_g, data_KE, data_x_fraction
+    global data_P_hysteresis, data_E_hyst_cumulative, data_radiator_width
 
     data_t = []
     data_v = []
@@ -101,6 +106,9 @@ def clear_data():
     data_a_occupant_g = []
     data_KE = []
     data_x_fraction = []
+    data_P_hysteresis = []
+    data_E_hyst_cumulative = []
+    data_radiator_width = []
 
 
 # =============================================================================
@@ -134,6 +142,7 @@ def run_lsm_simulation(quick_mode=False):
     v = 0.0  # Start from rest
     x = 0.0  # Distance traveled
     KE = 0.0
+    E_hyst_cum = 0.0
 
     # Controller state
     I_stator = cfg.I_MIN
@@ -154,6 +163,8 @@ def run_lsm_simulation(quick_mode=False):
         'frequency': 0.0,
         'delta': 0.0,
         'g_load': 0.0,
+        'hysteresis': 0.0,
+        'radiator_width': 0.0,
     }
 
     # Flags
@@ -240,6 +251,15 @@ def run_lsm_simulation(quick_mode=False):
         # Calculate power
         P_mech = phys.calc_power_mechanical(F, v)
 
+        # HTS hysteresis losses and radiator width
+        P_hyst = phys.calc_hysteresis_power(f_supply, I_stator, params,
+                                            cfg.N_UNITS, cfg.NORRIS_HYSTERESIS)
+        E_hyst_cum += P_hyst * dt
+        active_length = cfg.N_UNITS * cfg.N_POLES_PER_UNIT * cfg.TAU_P
+        radiator_w = phys.calc_radiator_width(
+            P_hyst, cfg.T_STATOR, cfg.T_RADIATOR_HOT,
+            cfg.CRYO_EFF, cfg.EM_HEATSINK, active_length, cfg.T_SPACE)
+
         # Calculate accelerations and g-loads
         a_centrifugal = phys.calc_centrifugal_acceleration(v, cfg.R_ORBIT)
         a_radial_net = phys.calc_net_radial_acceleration(v, cfg.R_ORBIT, cfg.G_250)
@@ -260,6 +280,8 @@ def run_lsm_simulation(quick_mode=False):
         max_values['frequency'] = max(max_values['frequency'], f_supply)
         max_values['delta'] = max(max_values['delta'], delta)
         max_values['g_load'] = max(max_values['g_load'], a_occupant_g)
+        max_values['hysteresis'] = max(max_values['hysteresis'], P_hyst)
+        max_values['radiator_width'] = max(max_values['radiator_width'], radiator_w)
 
         # Data collection
         data_t.append(t)
@@ -279,6 +301,9 @@ def run_lsm_simulation(quick_mode=False):
         data_a_occupant_g.append(a_occupant_g)
         data_KE.append(KE)
         data_x_fraction.append(x / cfg.L_RING)
+        data_P_hysteresis.append(P_hyst)
+        data_E_hyst_cumulative.append(E_hyst_cum)
+        data_radiator_width.append(radiator_w)
 
         # Update state
         v = v_new
@@ -324,6 +349,10 @@ def run_lsm_simulation(quick_mode=False):
     print(f"Peak current:         {max_values['current']:.1f} A")
     print(f"Peak load angle:      {math.degrees(max_values['delta']):.1f}°")
     print(f"Peak g-load:          {max_values['g_load']:.3f} g")
+    print()
+    print(f"Total HTS hysteresis: {E_hyst_cum:.3e} J  ({E_hyst_cum/3.6e6:.1f} kWh)")
+    print(f"Peak HTS hysteresis:  {max_values['hysteresis']/1e3:.2f} kW")
+    print(f"Peak radiator width:  {max_values['radiator_width']:.4f} m")
     print()
     print(f"Voltage limited:      {voltage_limited}")
     print(f"Thrust limited:       {thrust_limited}")
@@ -383,8 +412,8 @@ def _param_subtitle():
 
 def plot_combined():
     """Create a 9-panel combined plot."""
-    fig = plt.figure(figsize=(16, 12))
-    gs = gridspec.GridSpec(3, 3, hspace=0.3, wspace=0.3)
+    fig = plt.figure(figsize=(16, 16))
+    gs = gridspec.GridSpec(4, 3, hspace=0.3, wspace=0.3)
 
     # Convert time to minutes
     t_min = [t / 60.0 for t in data_t]
@@ -466,6 +495,30 @@ def plot_combined():
     ax9.grid(True, alpha=0.3)
     ax9.set_title('Occupant G-Load')
 
+    # 10. HTS Hysteresis Power
+    ax10 = fig.add_subplot(gs[3, 0])
+    ax10.plot(t_min, [P / 1000 for P in data_P_hysteresis], '#CC79A7', linewidth=1)
+    ax10.set_ylabel('HTS Hyst (kW)')
+    ax10.set_xlabel('Time (min)')
+    ax10.grid(True, alpha=0.3)
+    ax10.set_title('HTS Hysteresis Power')
+
+    # 11. Radiator Width
+    ax11 = fig.add_subplot(gs[3, 1])
+    ax11.plot(t_min, data_radiator_width, '#0072B2', linewidth=1)
+    ax11.set_ylabel('Radiator Width (m)')
+    ax11.set_xlabel('Time (min)')
+    ax11.grid(True, alpha=0.3)
+    ax11.set_title('Cryo Radiator Width')
+
+    # 12. Cumulative Hysteresis Energy
+    ax12 = fig.add_subplot(gs[3, 2])
+    ax12.plot(t_min, [E / 3.6e6 for E in data_E_hyst_cumulative], '#009E73', linewidth=1)
+    ax12.set_ylabel('Energy (kWh)')
+    ax12.set_xlabel('Time (min)')
+    ax12.grid(True, alpha=0.3)
+    ax12.set_title('Cumulative Hysteresis Energy')
+
     # Overall title
     fig.suptitle(f"LSM Mass Driver Launch Profile\n{_param_subtitle()}",
                  fontsize=14, fontweight='bold')
@@ -495,6 +548,9 @@ def plot_individual(keyword):
         'current': (data_I_stator, 'Current (A)', 'Stator Current', 'blue', lambda y: y),
         'bfield': (data_B_stator, 'Magnetic Field (T)', 'Stator Field', 'navy', lambda y: y),
         'gload': (data_a_occupant_g, 'G-load (g)', 'Occupant G-Load', 'darkred', lambda y: y),
+        'hysteresis': (data_P_hysteresis, 'HTS Hyst (kW)', 'HTS Hysteresis Power', '#CC79A7', lambda y: y / 1000),
+        'radiator_width': (data_radiator_width, 'Radiator Width (m)', 'Cryo Radiator Width', '#0072B2', lambda y: y),
+        'E_hyst': (data_E_hyst_cumulative, 'Hyst Energy (kWh)', 'Cumulative Hysteresis Energy', '#009E73', lambda y: y / 3.6e6),
     }
 
     if keyword not in plots:
@@ -532,7 +588,8 @@ def save_csv():
             't (s)', 'v (m/s)', 'x (m)', 'a (m/s²)', 'F (N)', 'P_mech (W)',
             'I_stator (A)', 'B_stator (T)', 'B_sled (T)', 'delta (rad)',
             'f_supply (Hz)', 'V_coil (V)', 'a_centrifugal (m/s²)',
-            'a_radial_net (m/s²)', 'a_occupant_g (g)', 'KE (J)', 'x_fraction'
+            'a_radial_net (m/s²)', 'a_occupant_g (g)', 'KE (J)', 'x_fraction',
+            'P_hysteresis (W)', 'E_hyst_cumulative (J)', 'radiator_width (m)'
         ])
 
         for i in range(len(data_t)):
@@ -540,7 +597,8 @@ def save_csv():
                 data_t[i], data_v[i], data_x[i], data_a[i], data_F[i], data_P_mech[i],
                 data_I_stator[i], data_B_stator[i], data_B_sled[i], data_delta[i],
                 data_f_supply[i], data_V_coil[i], data_a_centrifugal[i],
-                data_a_radial_net[i], data_a_occupant_g[i], data_KE[i], data_x_fraction[i]
+                data_a_radial_net[i], data_a_occupant_g[i], data_KE[i], data_x_fraction[i],
+                data_P_hysteresis[i], data_E_hyst_cumulative[i], data_radiator_width[i]
             ])
 
     print(f"Saved CSV data: {filepath}")
@@ -603,7 +661,8 @@ def main():
             plot_combined()
         if "all" in plot_keywords:
             for kw in ['velocity', 'accel', 'thrust', 'power', 'delta',
-                      'frequency', 'voltage', 'current', 'bfield', 'gload']:
+                      'frequency', 'voltage', 'current', 'bfield', 'gload',
+                      'hysteresis', 'radiator_width', 'E_hyst']:
                 plot_individual(kw)
         else:
             for kw in plot_keywords:

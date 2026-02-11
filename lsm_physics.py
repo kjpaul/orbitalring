@@ -26,6 +26,7 @@ import math
 # =============================================================================
 
 MU0 = 4 * math.pi * 1e-7    # Permeability of free space (H/m)
+STEFAN_BOLTZMANN = 5.670374e-8  # Stefan-Boltzmann constant (W/m²K⁴)
 PI = math.pi
 
 # =============================================================================
@@ -348,3 +349,107 @@ def calc_kinetic_energy(m, v):
         Kinetic energy (J)
     """
     return 0.5 * m * v**2
+
+
+# =============================================================================
+# HTS HYSTERESIS LOSSES
+#
+# The LSM stator uses HTS coils at 77 K. As the sled passes, the AC
+# magnetization cycle generates hysteresis losses in the superconducting
+# tape. These must be pumped out by the cryogenic system.
+# =============================================================================
+
+def q_hts_loss_factor(i_peak, n_turns, w_coil, w_tape, alpha_tape):
+    """Hysteresis loss factor for HTS tape (Bean model approximation).
+
+    Returns energy loss per meter of tape per cycle (J/m/cycle).
+    """
+    b_coil = MU0 * n_turns * i_peak / w_coil
+    return b_coil * i_peak * w_tape * math.sin(alpha_tape)
+
+
+def q_hysteresis_norris(i_now, i_c):
+    """Norris strip formula for hysteresis loss per meter per cycle.
+
+    More accurate than loss-factor model at high I/Ic ratios.
+    Returns energy loss per meter of tape per cycle (J/m/cycle).
+    """
+    ii = i_now / i_c
+    if ii >= 1:
+        ii = 0.999
+    if ii <= -1:
+        ii = -0.999
+    return (MU0 * i_c**2 / math.pi) * (
+        (1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2
+    )
+
+
+def calc_hysteresis_power(f_supply, I_stator, params, n_units, norris=False):
+    """Total HTS hysteresis power for all active stator coils.
+
+    Args:
+        f_supply: Electrical supply frequency (Hz)
+        I_stator: Stator operating current (A)
+        params: Physics parameter dict from lsm_config.get_physics_params()
+        n_units: Number of repeating units on the sled
+        norris: Use Norris formula if True, else loss-factor model
+
+    Returns:
+        Total hysteresis power (W) for all active coils
+    """
+    if norris:
+        q = q_hysteresis_norris(I_stator, params['i_c'])
+    else:
+        q = q_hts_loss_factor(I_stator, params['n_turns'], params['w_coil'],
+                              params['w_tape'], params['alpha_tape'])
+
+    # Power per phase coil = q (J/m/cycle) × tape_length (m) × frequency (Hz)
+    p_coil = q * params['l_hts_coil'] * f_supply
+
+    # Total: phases × sides × n_units
+    n_coils = params['lim_phases'] * params['n_lim_sides'] * n_units
+    return p_coil * n_coils
+
+
+# =============================================================================
+# CRYOGENIC RADIATOR WIDTH
+# =============================================================================
+
+def calc_radiator_width(q_cold, T_cold, T_hot, efficiency, em_heatsink,
+                        radiator_length, T_space):
+    """Required cryogenic radiator width to reject hysteresis heat.
+
+    The cryo system pumps heat from T_cold (77 K stator) to T_hot
+    (400 K radiator). The radiator must reject both the cold-side heat
+    AND the compressor work.
+
+    Args:
+        q_cold: Cold-side heat load (W)
+        T_cold: Cold temperature (K), typically 77 K
+        T_hot: Hot-side radiator temperature (K)
+        efficiency: Fraction of Carnot COP achieved
+        em_heatsink: Radiator emissivity
+        radiator_length: Length of radiator along ring (m)
+        T_space: Background space temperature (K)
+
+    Returns:
+        Required radiator width (m) perpendicular to ring
+    """
+    if q_cold <= 0:
+        return 0.0
+    if T_hot <= T_cold:
+        T_hot = T_cold + 1
+
+    cop_carnot = T_cold / (T_hot - T_cold)
+    cop_real = cop_carnot * efficiency
+    if cop_real <= 0:
+        cop_real = 0.01
+
+    q_reject = q_cold * (1 + 1 / cop_real)
+    p_per_m2 = em_heatsink * STEFAN_BOLTZMANN * (T_hot**4 - T_space**4)
+
+    if p_per_m2 <= 0:
+        return 1000.0
+
+    area_required = q_reject / p_per_m2
+    return area_required / radiator_length

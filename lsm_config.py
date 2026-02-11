@@ -47,6 +47,10 @@ I_CRITICAL = IC_PER_MM_LAYER * (TAPE_WIDTH * 1000) * N_LAYERS  # = 2400 A
 I_TARGET = 0.80 * I_CRITICAL   # 1920 A operating current
 I_PEAK = 0.90 * I_CRITICAL     # 2160 A peak current
 I_MIN = 10.0                # A, minimum current
+W_TAPE = TAPE_WIDTH             # m, HTS tape width (0.012 m)
+L_HTS_COIL = N_STATOR * 2.0 * (W_COIL + 0.1)  # m, HTS tape per phase coil
+N_LIM_SIDES = 2                # Stator on both sides of sled
+LIM_PHASES = 3                 # Three-phase system
 
 # Voltage limit
 V_COIL_LIMIT = 100_000      # V, coil insulation limit
@@ -88,6 +92,15 @@ DELTA_TARGET = math.pi / 6  # rad, target load angle (30°) for normal operation
 MU0 = 4 * math.pi * 1e-7    # H/m, permeability of free space
 STEFAN_BOLTZMANN = 5.670374e-8  # W/m²K⁴, Stefan-Boltzmann constant
 T_SPACE = 2.7               # K, deep space temperature
+T_STATOR = 77.0             # K, stator coil operating temperature (LN2)
+
+# HTS hysteresis and cryogenic parameters
+ALPHA_PENETRATION_DEG = 20.0         # HTS tape field penetration angle (degrees)
+ALPHA_TAPE = ALPHA_PENETRATION_DEG * math.pi / 180.0
+NORRIS_HYSTERESIS = False            # False=loss-factor model, True=Norris strip formula
+CRYO_EFF = 0.05                      # Cryocooler efficiency (fraction of Carnot COP)
+T_RADIATOR_HOT = 400.0               # Cryo hot-side radiator temperature (K)
+EM_HEATSINK = 0.9                    # Emissivity of cryo radiator surfaces
 
 # =============================================================================
 # SECTION 7: DERIVED PARAMETERS
@@ -159,6 +172,14 @@ def get_physics_params():
         'm_total': M_TOTAL,
         'r_orbit': R_ORBIT,
         'g_250': G_250,
+        # HTS hysteresis parameters
+        'w_tape': W_TAPE,
+        'alpha_tape': ALPHA_TAPE,
+        'i_c': I_CRITICAL,
+        'n_turns': N_STATOR,
+        'l_hts_coil': L_HTS_COIL,
+        'lim_phases': LIM_PHASES,
+        'n_lim_sides': N_LIM_SIDES,
     }
 
 # =============================================================================

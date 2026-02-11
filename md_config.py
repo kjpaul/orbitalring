@@ -27,6 +27,14 @@ T_SPACE = 2.7
 T_AMBIENT = 293.15              # Initial plate temperature (K)
 T_STATOR = 77.0                 # Stator temperature (K) — cryo LN2
 
+# ── HTS hysteresis and cryo parameters ─────────────────────────────
+ALPHA_PENETRATION_DEG = 20.0         # HTS tape field penetration angle (degrees)
+ALPHA_TAPE = ALPHA_PENETRATION_DEG * math.pi / 180.0
+NORRIS_HYSTERESIS = False            # False=loss-factor model, True=Norris strip formula
+CRYO_EFF = 0.05                      # Cryocooler efficiency (fraction of Carnot COP)
+T_RADIATOR_HOT = 400.0               # Cryo hot-side radiator temperature (K)
+EM_HEATSINK = 0.9                    # Emissivity of cryo radiator surfaces
+
 # ── Orbital ring parameters ─────────────────────────────────────────
 R_EARTH_EQ = 6_378_137.0
 ALT = 250_000.0
@@ -60,6 +68,8 @@ class LIMStageConfig:
         self.I_c = self.Ic_per_mm_per_layer * hts_width_mm * hts_layers
         self.I_peak = 0.90 * self.I_c
         self.I_target = 0.80 * self.I_c
+        self.w_tape = hts_width_mm / 1000.0
+        self.l_hts_coil = n_turns * 2.0 * (w_coil + 0.1)  # HTS tape per phase coil (m)
 
 # Stage 1: 0 → ~0.5 km/s, τ_p=3m, f=0–83 Hz, excellent EM coupling
 STAGE_S1 = LIMStageConfig("S1", tau_p=3.0, pitches=5, n_turns=360,

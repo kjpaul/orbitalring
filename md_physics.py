@@ -136,12 +136,9 @@ def calc_thrust(stage, I_peak, v_slip, v_sled, T_plate, n_active):
     # V_coil = inductive voltage across coil insulation (must be < 100 kV)
     V_coil = 2.0 * math.pi * f_sup * L_coil * I_peak
 
-    # HTS AC losses per coil (hysteresis + coupling + stabilizer eddy)
-    # ~0.5 J/m per cycle at I/Ic ≈ 0.8
-    tape_per_coil = stage.n_turns * 2.0 * (stage.w_coil + 0.1)
-    P_hts_per_coil = 0.5 * tape_per_coil * f_sup
-    n_coils = 3 * cfg.N_LIM_SIDES * n_active
-    P_hts_total = P_hts_per_coil * n_coils
+    # HTS hysteresis losses (proper model — replaces simplified 0.5 J/m estimate)
+    P_hts_total = calc_hysteresis_power_stage(stage, I_peak, f_sup, n_active,
+                                              norris=cfg.NORRIS_HYSTERESIS)
 
     # ── Eddy current loop model (in reaction plate) ──────────────
     # EMF per loop: ε = B × h_plate × v_slip
@@ -180,38 +177,109 @@ def calc_thrust(stage, I_peak, v_slip, v_sled, T_plate, n_active):
     }
 
 # ═════════════════════════════════════════════════════════════════════
-# HTS COIL THERMAL
+# HTS HYSTERESIS LOSS MODELS
 #
-# HTS tape at 77 K has AC losses (coupling + magnetization) but they
-# are very small: ~10 kW total for all active coils at peak frequency.
-# The cryo system easily handles this with LN2 reserves.
+# HTS tape at 77 K experiences AC magnetization losses as the stator
+# field cycles. Two models are available:
+#   1. Loss-factor (Bean model approximation) — conservative
+#   2. Norris strip formula — more accurate at high I/Ic
 #
-# No hysteresis in the stator core — the core is non-magnetic (the
-# field is created by HTS coils alone, no iron).
+# The cryo system must pump this heat from 77 K to hot-side radiators.
 # ═════════════════════════════════════════════════════════════════════
 
-def hts_ac_loss_estimate(stage, I_peak, f_supply, n_active):
-    """Estimate HTS tape AC losses in active stator coils.
+def q_hts_loss_factor(i_peak, n_turns, w_coil, w_tape, alpha_tape):
+    """Hysteresis loss factor for HTS tape (Bean model approximation).
 
-    Model: P_ac ≈ p₀ × (I/I_ref) × (f/f_ref) per meter of tape
-    p₀ ≈ 0.5 mW/m at I_ref=100 A, f_ref=50 Hz (conservative YBCO)
+    Returns energy loss per meter of tape per cycle (J/m/cycle).
+    """
+    b_coil = MU0 * n_turns * i_peak / w_coil
+    return b_coil * i_peak * w_tape * math.sin(alpha_tape)
+
+
+def q_hysteresis_norris(i_now, i_c):
+    """Norris strip formula for hysteresis loss per meter per cycle.
+
+    More accurate than loss-factor model at high I/Ic ratios.
+    Returns energy loss per meter of tape per cycle (J/m/cycle).
+    """
+    ii = i_now / i_c
+    if ii >= 1:
+        ii = 0.999
+    if ii <= -1:
+        ii = -0.999
+    return (MU0 * i_c**2 / math.pi) * (
+        (1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2
+    )
+
+
+def calc_hysteresis_power_stage(stage, I_peak, f_supply, n_active, norris=False):
+    """Total HTS hysteresis power for one stage's active coils.
+
+    Args:
+        stage: LIMStageConfig for the active stage
+        I_peak: Operating current (A)
+        f_supply: Electrical supply frequency (Hz)
+        n_active: Number of repeating units the sled spans
+        norris: Use Norris formula if True, else loss-factor model
 
     Returns:
-        Total AC loss power (W) for all active coils
+        Total hysteresis power (W) for all active coils in this stage
     """
-    p_0 = 0.5e-3        # W/m at reference conditions
-    I_ref = 100.0        # A
-    f_ref = 50.0         # Hz
+    if norris:
+        q = q_hysteresis_norris(I_peak, stage.I_c)
+    else:
+        q = q_hts_loss_factor(I_peak, stage.n_turns, stage.w_coil,
+                              stage.w_tape, cfg.ALPHA_TAPE)
 
-    P_per_m = p_0 * (I_peak / I_ref) * (max(f_supply, 0.1) / f_ref)
+    # Power per phase coil = q (J/m/cycle) × tape_length (m) × frequency (Hz)
+    p_coil = q * stage.l_hts_coil * f_supply
 
-    # Tape length: turns × perimeter per turn × phases × sides × units
-    perimeter_per_turn = 2.0 * (stage.w_coil + 0.1)  # approx coil depth 100mm
-    tape_per_coil = stage.n_turns * perimeter_per_turn
-    n_coils = 3 * cfg.N_LIM_SIDES * n_active  # 3 phases × 2 sides × units
-    total_tape = n_coils * tape_per_coil
+    # Total: 3 phases × 2 sides × n_active repeating units
+    n_coils = 3 * cfg.N_LIM_SIDES * n_active
+    return p_coil * n_coils
 
-    return P_per_m * total_tape
+
+# ═════════════════════════════════════════════════════════════════════
+# CRYOGENIC RADIATOR WIDTH
+# ═════════════════════════════════════════════════════════════════════
+
+def calc_radiator_width(q_cold, T_cold, T_hot, efficiency, em_heatsink,
+                        radiator_length):
+    """Required cryogenic radiator width to reject hysteresis heat.
+
+    The cryo system pumps heat from T_cold (77 K stator) to T_hot
+    (400 K radiator). The radiator must reject both the cold-side heat
+    AND the compressor work.
+
+    Args:
+        q_cold: Cold-side heat load (W)
+        T_cold: Cold temperature (K), typically T_STATOR = 77 K
+        T_hot: Hot-side radiator temperature (K)
+        efficiency: Fraction of Carnot COP achieved
+        em_heatsink: Radiator emissivity
+        radiator_length: Length of radiator along ring (m)
+
+    Returns:
+        Required radiator width (m) perpendicular to ring
+    """
+    if q_cold <= 0:
+        return 0.0
+    if T_hot <= T_cold:
+        T_hot = T_cold + 1
+
+    cop_carnot = T_cold / (T_hot - T_cold)
+    cop_real = cop_carnot * efficiency
+    if cop_real <= 0:
+        cop_real = 0.01
+
+    q_reject = q_cold * (1 + 1 / cop_real)
+    p_per_m2 = em_heatsink * cfg.STEFAN_BOLTZMANN * (T_hot**4 - cfg.T_SPACE**4)
+
+    if p_per_m2 <= 0:
+        return 1000.0
+
+    area_required = q_reject / p_per_m2
+    return area_required / radiator_length
 
 # ═════════════════════════════════════════════════════════════════════
 # THERMAL MODEL
