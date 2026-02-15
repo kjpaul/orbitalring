@@ -102,8 +102,16 @@ RECONFIG_STAGES = [
 # =============================================================================
 
 L_SLED = 10_000             # m, sled length (10 km for adequate thrust)
-M_SC_COILS_PER_M = 30       # kg/m, SC field coil linear density
-M_STRUCTURE_PER_M = 100     # kg/m, structural frame + bearings + cryostat
+M_SLED_PER_M = 525          # kg/m, total sled hardware linear density
+# Breakdown:
+#   SC field coils (76 LSM modules)          30 kg/m
+#   Bearing system (EML+EDL, top+bottom)    110 kg/m
+#   Cryostats (LSM coils + EML bearings)     60 kg/m
+#   LN2 reservoir                             5 kg/m
+#   Structural frame                        250 kg/m
+#   Spacecraft rails + locking mechanisms    40 kg/m
+#   SC coil structural mounts + alignment    15 kg/m
+#   Misc (wiring, sensors, thermal shields)  15 kg/m
 M_SPACECRAFT = 5_000_000    # kg, payload mass (5,000 tonnes)
 
 # =============================================================================
@@ -163,7 +171,7 @@ def calc_derived():
     A_STATOR_COIL = TAU_P * W_COIL  # m²
 
     # Sled mass
-    M_SLED_HARDWARE = L_SLED * (M_SC_COILS_PER_M + M_STRUCTURE_PER_M)  # kg
+    M_SLED_HARDWARE = L_SLED * M_SLED_PER_M  # kg
     M_TOTAL = M_SLED_HARDWARE + M_SPACECRAFT  # kg
 
     # Target kinetic energy
