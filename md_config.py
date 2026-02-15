@@ -25,15 +25,33 @@ STEFAN_BOLTZMANN = 5.670374e-8
 G_ACCEL = 9.80665
 T_SPACE = 2.7
 T_AMBIENT = 293.15              # Initial plate temperature (K)
-T_STATOR = 77.0                 # Stator temperature (K) — cryo LN2
+T_STATOR = 77.0                 # Stator temperature (K) — HTS cryo LN2
 
-# ── HTS hysteresis and cryo parameters ─────────────────────────────
-ALPHA_PENETRATION_DEG = 20.0         # HTS tape field penetration angle (degrees)
-ALPHA_TAPE = ALPHA_PENETRATION_DEG * math.pi / 180.0
-NORRIS_HYSTERESIS = False            # False=loss-factor model, True=Norris strip formula
-CRYO_EFF = 0.05                      # Cryocooler efficiency (fraction of Carnot COP)
-T_RADIATOR_HOT = 400.0               # Cryo hot-side radiator temperature (K)
-EM_HEATSINK = 0.9                    # Emissivity of cryo radiator surfaces
+# ── Plate radiation coolant ───────────────────────────────────────────
+# Thermal shield between hot plate and cryo coils absorbs plate radiation.
+# "water" = water-cooled shield at ~350 K (large liquid range, easy to reject)
+# "ln2"   = plate radiates directly to 77 K cryo surfaces
+PLATE_COOLANT = "water"
+
+# Water properties (plate radiation coolant)
+T_WATER_SUPPLY = 300.0         # K — supply temperature (~27°C)
+T_WATER_BOIL = 373.0           # K — boiling point at 1 atm
+C_P_WATER = 4186               # J/(kg·K) — specific heat
+L_V_WATER = 2_260_000          # J/kg — latent heat of vaporization
+RHO_WATER = 1000.0             # kg/m³
+T_SHIELD_WATER = 350.0         # K — thermal shield operating temperature
+
+# LN2 properties (HTS cryo system; also plate coolant if PLATE_COOLANT="ln2")
+T_LN2_BOIL = 77.4              # K — boiling point at 1 atm
+T_LN2_SUPPLY = 70.0            # K — subcooled supply temperature
+C_P_LN2 = 2040                 # J/(kg·K) — specific heat (liquid)
+L_V_LN2 = 199_000              # J/kg — latent heat of vaporization
+RHO_LN2 = 807.0                # kg/m³ — liquid density at 77 K
+
+# ── HTS tape and Gömöry hysteresis parameters ────────────────────
+ALPHA_TAPE_FIELD = 20.0                      # degrees — Gömöry perpendicular field angle
+SIN_ALPHA = math.sin(math.radians(ALPHA_TAPE_FIELD))  # 0.34202
+I_C_PER_MM_LAYER = 66.7                      # A/mm-width/layer (critical current density)
 
 # ── Orbital ring parameters ─────────────────────────────────────────
 R_EARTH_EQ = 6_378_137.0
@@ -52,6 +70,27 @@ RING_SAFETY_FACTOR = 0.50
 # ── LIM stage definitions ───────────────────────────────────────────
 
 class LIMStageConfig:
+    """Configuration for one LIM stage.
+
+    Per-stage settable parameters:
+      tau_p        — pole pitch (m)
+      pitches      — number of pole pitches per stage section
+      n_turns      — turns per phase coil
+      hts_width_mm — HTS tape width (3, 4, 6, or 12 mm)
+      hts_layers   — number of HTS tape layers (1 = no de-rating)
+      w_coil       — coil width (m), max 2.0
+      gap          — mechanical air gap (m)
+      f_handoff_hz — supply frequency at which to hand off to next stage
+
+    Derived quantities:
+      de_rating    — Ic reduction factor for multi-layer stacks:
+                     1.0 for 1 layer, (1 - sin(α)) per layer for >1
+      I_c_per_layer — effective critical current per layer (A)
+      I_c          — total critical current (A)
+      I_peak       — max operating current, 90% of I_c (A)
+      I_target     — nominal operating current, 80% of I_c (A)
+      L_active     — active stator length per section (m)
+    """
     def __init__(self, name, tau_p, pitches, n_turns, hts_width_mm,
                  hts_layers, w_coil, gap, f_handoff_hz):
         self.name = name
@@ -63,29 +102,41 @@ class LIMStageConfig:
         self.w_coil = w_coil
         self.gap = gap
         self.f_handoff_hz = f_handoff_hz
-        self.L_active = pitches * tau_p + (2.0/3.0) * tau_p
-        self.Ic_per_mm_per_layer = 66.7
-        self.I_c = self.Ic_per_mm_per_layer * hts_width_mm * hts_layers
+
+        # Derived geometry
+        self.L_active = pitches * tau_p + (2.0 / 3.0) * tau_p
+
+        # HTS critical current with de-rating for multi-layer stacks
+        # Single layer: full Ic.  Multiple layers: perpendicular field
+        # from adjacent layers reduces Ic by sin(α) per layer.
+        if hts_layers <= 1:
+            self.de_rating = 1.0
+        else:
+            self.de_rating = 1.0 - SIN_ALPHA       # 0.658
+
+        I_c_per_layer_nominal = I_C_PER_MM_LAYER * hts_width_mm   # A
+        self.I_c_per_layer = I_c_per_layer_nominal * self.de_rating
+        self.I_c = self.I_c_per_layer * hts_layers
         self.I_peak = 0.90 * self.I_c
         self.I_target = 0.80 * self.I_c
-        self.w_tape = hts_width_mm / 1000.0
-        self.l_hts_coil = n_turns * 2.0 * (w_coil + 0.1)  # HTS tape per phase coil (m)
 
-# Stage 1: 0 → ~0.5 km/s, τ_p=3m, f=0–83 Hz, excellent EM coupling
-STAGE_S1 = LIMStageConfig("S1", tau_p=3.0, pitches=5, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=100.0)
+# Stage 1: 0 → ~0.6 km/s, τ_p=32m, f=0–10 Hz
+# Large τ_p keeps HTS hysteresis under 500 kW; per-stage tiling
+# gives n_active ≈ 35 on the 10 km sled for strong thrust.
+STAGE_S1 = LIMStageConfig("S1", tau_p=32.0, pitches=8, n_turns=360,
+    hts_width_mm=3.0, hts_layers=16, w_coil=2.0, gap=0.100, f_handoff_hz=10.0)
 
-# Stage 2: ~0.5 → ~3 km/s, τ_p=5m, f=50–300 Hz, good coupling
-STAGE_S2 = LIMStageConfig("S2", tau_p=5.0, pitches=5, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=300.0)
+# Stage 2: ~0.6 → ~3.2 km/s, τ_p=56m, f=5–30 Hz
+STAGE_S2 = LIMStageConfig("S2", tau_p=56.0, pitches=8, n_turns=360,
+    hts_width_mm=3.0, hts_layers=16, w_coil=2.0, gap=0.100, f_handoff_hz=30.0)
 
-# Stage 3: ~3 → ~8 km/s, τ_p=10m, f=150–400 Hz, moderate coupling
-STAGE_S3 = LIMStageConfig("S3", tau_p=10.0, pitches=3, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=400.0)
+# Stage 3: ~3.2 → ~10.2 km/s, τ_p=82m, f=20–66 Hz
+STAGE_S3 = LIMStageConfig("S3", tau_p=82.0, pitches=8, n_turns=360,
+    hts_width_mm=3.0, hts_layers=16, w_coil=2.0, gap=0.100, f_handoff_hz=66.0)
 
-# Stage 4: ~8 → 15 km/s, τ_p=20m, f=200–375 Hz, fair coupling
-STAGE_S4 = LIMStageConfig("S4", tau_p=20.0, pitches=3, n_turns=360,
-    hts_width_mm=12, hts_layers=3, w_coil=2.0, gap=0.100, f_handoff_hz=None)
+# Stage 4: ~10.2 → 30 km/s, τ_p=130m, f=40–124 Hz
+STAGE_S4 = LIMStageConfig("S4", tau_p=130.0, pitches=8, n_turns=360,
+    hts_width_mm=3.0, hts_layers=16, w_coil=2.0, gap=0.100, f_handoff_hz=None)
 
 LIM_STAGES = [STAGE_S1, STAGE_S2, STAGE_S3, STAGE_S4]
 
@@ -96,8 +147,8 @@ L_REPEATING_UNIT_WITH_GAPS = L_REPEATING_UNIT + L_STAGE_GAP * len(LIM_STAGES)
 # ── Sled and reaction plate ─────────────────────────────────────────
 PLATE_HEIGHT = 2.0          # 2000 mm — optimized for air-core B
 PLATE_THICKNESS = 0.100     # 100 mm
-SLED_LENGTH = 5000.0
-PLATE_MATERIAL = "gamma_tial"
+SLED_LENGTH = 10_000.0
+PLATE_MATERIAL = "molybdenum"
 SLED_STRUCTURE_FRACTION = 0.15
 N_LIM_SIDES = 2            # LIMs on both sides of the plate
 
@@ -133,10 +184,30 @@ MATERIALS = {
         "rho_e": 7.40e-7, "density": 7990, "Cp": 500, "T_max": 1100,
         "alpha_rho": 0.0010, "emissivity": 0.40, "UTS": 485e6,
     },
+    "molybdenum": {
+        "name": "Molybdenum (Mo)",
+        "rho_e": 5.3e-8, "density": 10220, "Cp": 251, "T_max": 2000,
+        "alpha_rho": 0.0047, "emissivity": 0.30, "UTS": 585e6,
+    },
+    "mo_tzm": {
+        "name": "Mo-TZM (Mo-0.5Ti-0.1Zr)",
+        "rho_e": 5.7e-8, "density": 10160, "Cp": 255, "T_max": 1900,
+        "alpha_rho": 0.0047, "emissivity": 0.35, "UTS": 860e6,
+    },
+    "niobium": {
+        "name": "Niobium (Nb)",
+        "rho_e": 1.52e-7, "density": 8570, "Cp": 265, "T_max": 2200,
+        "alpha_rho": 0.0039, "emissivity": 0.35, "UTS": 275e6,
+    },
+    "nb_c103": {
+        "name": "Nb-C103 (Nb-10Hf-1Ti)",
+        "rho_e": 1.36e-7, "density": 8850, "Cp": 272, "T_max": 1920,
+        "alpha_rho": 0.0038, "emissivity": 0.35, "UTS": 390e6,
+    },
 }
 
 # ── Operating limits ─────────────────────────────────────────────────
-VOLTS_MAX = 100_000.0       # Max supply voltage with PFC (V)
+VOLTS_COIL_MAX = 100_000.0      # Max coil insulation voltage (V) — cryo limit
 
 # ── Launch mission ───────────────────────────────────────────────────
 V_LAUNCH = 30_000.0
@@ -149,7 +220,7 @@ DT = 0.1
 DT_QUICK = 1.0
 V_INITIAL = 0.0
 THRUST_MODEL = 1                     # Model 1 only — eddy current, narrow plate
-GRAPH_DIR = "graphs_lim_md"         # Output directory for plots and CSV
+GRAPH_DIR = "graphs_lim_md_3"         # Output directory for plots and CSV
 
 # ── Derived ──────────────────────────────────────────────────────────
 def get_material():
@@ -198,8 +269,11 @@ def print_config():
     print(f"\n  STAGES:")
     for s in LIM_STAGES:
         hoff = f"→{s.f_handoff_hz:.0f}Hz" if s.f_handoff_hz else "→END"
+        na_stage = SLED_LENGTH / (s.L_active + L_STAGE_GAP)
         print(f"    {s.name}: τ_p={s.tau_p:>5.0f}m  L={s.L_active:>6.1f}m  N={s.n_turns:>4}  "
-              f"I_c={s.I_c:>6.0f}A  gap={s.gap*1000:.0f}mm  {hoff}")
+              f"{s.hts_layers}×{s.hts_width_mm:.0f}mm  "
+              f"I_c={s.I_c:>6.0f}A  gap={s.gap*1000:.0f}mm  "
+              f"n_a={na_stage:>5.1f}  {hoff}")
     print(f"    Repeating unit {L_REPEATING_UNIT_WITH_GAPS:.1f} m, "
           f"{d['n_active']:.1f} active on {SLED_LENGTH/1000:.0f} km sled")
     print(f"\n  EST: {d['t_launch_est']:.0f}s ({d['t_launch_est']/60:.1f}min), "

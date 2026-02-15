@@ -15,8 +15,9 @@ Options:
 
 Graph keywords (or 'all'):
     velocity accel thrust power eddy slip temp occupant_g
-    b_field frequency current voltage skin_depth ring_force
-    hysteresis radiator_width E_hyst combined stage_detail
+    b_field frequency current v_coil skin_depth ring_force
+    hysteresis radiator_width E_hyst cryo_load ln2
+    combined stage_detail
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
@@ -49,9 +50,11 @@ class SimData:
         "F_centrifugal", "F_ring_net", "ring_net_g",
         "g_thrust", "g_radial", "g_total",
         "KE", "B_field", "f_supply", "f_slip",
-        "current", "voltage", "V_coil", "skin_depth",
+        "current", "V_coil", "skin_depth",
         "stage_index", "stage_name", "E_eddy_cumulative",
         "P_hts_ac", "P_hysteresis", "E_hyst_cumulative", "radiator_width",
+        "P_rad_to_stator", "q_stator_per_m", "E_rad_cumulative",
+        "E_per_m_per_pass",
     ]
     def __init__(self):
         for f in self.FIELDS:
@@ -73,40 +76,39 @@ def run_controller(v_sled, T_plate, stage, n_active, m_total):
     v_slip_floor = 2.0 * stage.tau_p * 1.0
 
     # Initial estimate based on velocity regime
+    # With large τ_p, eddy loops have high resistance → need higher v_slip
     if v_sled < 10.0:
         v_slip = max(v_slip_floor, 100.0)
     elif v_sled < 500.0:
-        v_slip = max(v_slip_floor, 0.10 * v_sled)
+        v_slip = max(v_slip_floor, 0.20 * v_sled)
     elif v_sled < 3000.0:
-        v_slip = max(v_slip_floor, 0.05 * v_sled)
+        v_slip = max(v_slip_floor, 0.10 * v_sled)
     else:
-        v_slip = max(v_slip_floor, 0.02 * v_sled)
+        v_slip = max(v_slip_floor, 0.05 * v_sled)
 
     # Calculate initial thrust
     r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
 
     # Iterate to find v_slip that gives ~F_target
-    for _ in range(8):
-        if r["thrust"] < 0.3 * F_target:
-            v_slip *= 1.5
+    # Use more iterations with larger adjustment range for convergence
+    for _ in range(20):
+        if r["thrust"] < 0.5 * F_target:
+            v_slip *= 1.8
+        elif r["thrust"] < 0.8 * F_target:
+            v_slip *= 1.3
         elif r["thrust"] > 1.5 * F_target:
-            v_slip *= 0.7
+            v_slip *= 0.6
+        elif r["thrust"] > 1.2 * F_target:
+            v_slip *= 0.85
         else:
             break
         v_slip = max(v_slip, v_slip_floor)
         r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
 
-    # Voltage throttle — supply voltage
-    if r["V_supply"] > cfg.VOLTS_MAX and r["V_supply"] > 0:
-        ratio = cfg.VOLTS_MAX / r["V_supply"]
-        I *= ratio * 0.95
-        I = max(I, 10.0)
-        r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
-
-    # Voltage throttle — coil insulation (V_coil = ωLI must be < 100 kV)
-    if r["V_coil"] > cfg.VOLTS_MAX and r["V_coil"] > 0:
+    # Voltage throttle — coil insulation (V_coil = ωLI, inside cryo)
+    if r["V_coil"] > cfg.VOLTS_COIL_MAX and r["V_coil"] > 0:
         # V_coil ∝ I (at fixed frequency), so scale I directly
-        ratio = cfg.VOLTS_MAX / r["V_coil"]
+        ratio = cfg.VOLTS_COIL_MAX / r["V_coil"]
         I *= ratio * 0.95
         I = max(I, 10.0)
         r = phys.calc_thrust(stage, I, v_slip, v_sled, T_plate, n_active)
@@ -166,13 +168,14 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
     d = cfg.calc_derived()
     m_total = d["total_mass"]
     mat = d["mat"]
-    n_active = phys.count_active_segments()
+    # n_active is now computed per-stage in the loop
 
     v_sled = cfg.V_INITIAL
     x_sled = 0.0
     T_plate = cfg.T_AMBIENT
     E_eddy_cum = 0.0
     E_hyst_cum = 0.0
+    E_rad_cum = 0.0
     t = 0.0
 
     data = SimData()
@@ -183,7 +186,7 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
           f"mass={m_total/1000:.0f}t, max_a={cfg.MAX_ACCEL_G}g")
     hdr = (f"{'t(s)':>8} {'v(km/s)':>8} {'stg':>4} {'F(MN)':>7} "
            f"{'a(g)':>7} {'g_rad':>7} {'g_tot':>7} {'T(K)':>7} "
-           f"{'P(GW)':>6} {'I(A)':>6} {'Vsup':>5} {'Vcoil':>5} {'vslip':>6}")
+           f"{'P(GW)':>6} {'I(A)':>6} {'Vcoil':>5} {'vslip':>6}")
     print(hdr)
     print("-" * len(hdr))
 
@@ -196,6 +199,7 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
         v_slip_est = max(1.0, 0.02 * max(v_sled, 50.0))
         stage_idx = phys.select_active_stage(v_sled, v_slip_est)
         stage = cfg.LIM_STAGES[stage_idx]
+        n_active = phys.count_active_segments(stage)
 
         if stage_idx != prev_stage_idx:
             if prev_stage_idx >= 0:
@@ -218,7 +222,6 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
         f_sup = r["f_supply"]
         f_sl = r["f_slip"]
         delta = r["delta"]
-        V_supply = r["V_supply"]
         V_coil = r["V_coil"]
 
         # Dynamics
@@ -228,8 +231,11 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
 
         # Thermal
         T_plate = phys.plate_temp_rise(P_eddy, dt, T_plate)
+        P_rad_stator, q_stator = phys.calc_stator_heat_flux(T_plate)
         T_plate = phys.radiation_cooling(T_plate, dt)
         E_eddy_cum += P_eddy * dt
+        E_rad_cum += P_rad_stator * dt
+        E_per_m_pass = phys.calc_energy_per_m_per_pass(q_stator, v_sled)
 
         # Forces — occupant feels thrust + centrifugal - gravity
         occ = phys.occupant_forces(thrust, v_sled, m_total)
@@ -242,10 +248,7 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
         # HTS hysteresis losses and radiator width
         P_hts = r.get("P_hts_coil", 0.0)
         E_hyst_cum += P_hts * dt
-        radiator_w = phys.calc_radiator_width(
-            P_hts, cfg.T_STATOR, cfg.T_RADIATOR_HOT,
-            cfg.CRYO_EFF, cfg.EM_HEATSINK,
-            stage.L_active * n_active)
+        radiator_w = phys.calc_radiator_width(P_hts, stage.L_active * n_active)
 
         # Record
         data.record(
@@ -259,11 +262,13 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
             g_total=occ["g_total"],
             KE=0.5 * m_total * v_sled**2,
             B_field=B, f_supply=f_sup, f_slip=f_sl,
-            current=I, voltage=V_supply, V_coil=V_coil, skin_depth=delta,
+            current=I, V_coil=V_coil, skin_depth=delta,
             stage_index=stage_idx, stage_name=stage.name,
             E_eddy_cumulative=E_eddy_cum, P_hts_ac=P_hts,
             P_hysteresis=P_hts, E_hyst_cumulative=E_hyst_cum,
             radiator_width=radiator_w,
+            P_rad_to_stator=P_rad_stator, q_stator_per_m=q_stator,
+            E_rad_cumulative=E_rad_cum, E_per_m_per_pass=E_per_m_pass,
         )
 
         v_sled = v_sled_new
@@ -275,7 +280,7 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
                   f"{thrust/1e6:>7.2f} {occ['g_thrust']:>7.3f} "
                   f"{occ['g_radial']:>+7.3f} {occ['g_total']:>7.3f} "
                   f"{T_plate:>7.1f} {P_total/1e9:>6.1f} {I:>6.0f} "
-                  f"{V_supply/1000:>5.1f} {V_coil/1000:>5.1f} {v_slip:>6.1f}")
+                  f"{V_coil/1000:>5.1f} {v_slip:>6.1f}")
 
     # Final report
     sep = "=" * 76
@@ -295,6 +300,34 @@ def run_simulation(v_launch=None, max_accel_g=None, m_spacecraft=None,
     print(f"  Total HTS hysteresis {E_hyst_cum:>12.3e} J  ({E_hyst_cum/3.6e6:.1f} kWh)")
     print(f"  Peak HTS hysteresis  {max(data.P_hysteresis)/1e3:>10.2f} kW")
     print(f"  Peak radiator width  {max(data.radiator_width):>10.4f} m")
+
+    # Plate radiation heat load report
+    n_laps = x_sled / cfg.L_RING
+    peak_q = max(data.q_stator_per_m)
+    peak_E_per_m = max(data.E_per_m_per_pass)
+    coolant_cap, coolant_name, coolant_rho = phys.calc_coolant_absorption()
+    T_sink = phys.plate_sink_temperature()
+    peak_coolant_per_m = peak_E_per_m / coolant_cap if coolant_cap > 0 else 0.0
+    total_coolant = E_rad_cum / coolant_cap if coolant_cap > 0 else 0.0
+    coolant_per_m_ring = total_coolant / cfg.L_RING
+    coolant_vol_per_m = coolant_per_m_ring / coolant_rho * 1000  # litres/m
+    t_recover_final = (cfg.L_RING - cfg.SLED_LENGTH) / v_sled if v_sled > 0 else float('inf')
+    v_early = data.velocity[min(100, len(data.velocity) - 1)]
+    t_recover_early = (cfg.L_RING - cfg.SLED_LENGTH) / max(v_early, 1.0)
+
+    print(f"\n  PLATE RADIATION HEAT LOAD (coolant: {coolant_name}, T_sink={T_sink:.0f} K):")
+    print(f"    Total energy to stator  {E_rad_cum:>12.3e} J  ({E_rad_cum/3.6e12:.2f} GWh)")
+    print(f"    Number of laps          {n_laps:>12.1f}")
+    print(f"    Peak heat flux/m        {peak_q/1e3:>12.2f} kW/m")
+    print(f"    Peak energy/m/pass      {peak_E_per_m/1e6:>12.3f} MJ/m")
+    print(f"    Absorption capacity     {coolant_cap/1e3:>12.1f} kJ/kg")
+    print(f"    Peak boiloff/m/pass     {peak_coolant_per_m:>12.2f} kg/m")
+    print(f"    Total {coolant_name:>5} consumed   {total_coolant/1000:>12.1f} tonnes")
+    print(f"    {coolant_name:>5}/metre of ring    {coolant_per_m_ring:>12.3f} kg/m")
+    print(f"    Volume per metre        {coolant_vol_per_m:>12.3f} L/m")
+    print(f"    Recovery time (final v) {t_recover_final:>10.1f} s  ({t_recover_final/60:.1f} min)")
+    print(f"    Recovery time (early v) {t_recover_early:>10.1f} s  ({t_recover_early/60:.1f} min)")
+
     print(f"\n  OCCUPANT G-FORCE:")
     print(f"    At start:   g_thrust={data.g_thrust[0]:>+6.3f}, g_radial={data.g_radial[0]:>+6.3f}, g_total={data.g_total[0]:.3f}")
     if data.g_total:
@@ -319,10 +352,16 @@ def _t_min(data):
     return [t/60 for t in data.time]
 
 def _handoff_lines(ax, data):
+    """Add vertical dashed lines at stage handoff points.
+    Reads the x-axis limits to infer whether time is in minutes or hours."""
     prev = data.stage_index[0] if data.stage_index else 0
+    # Infer time divisor from x-axis: if xlim max < data duration in minutes,
+    # we're plotting in hours (divisor=3600), else minutes (divisor=60)
+    t_total_min = data.time[-1] / 60.0
+    divisor = 3600.0 if t_total_min > 120 else 60.0
     for i, s in enumerate(data.stage_index):
         if s != prev:
-            ax.axvline(data.time[i]/60, color='red', ls='--', alpha=0.4, lw=0.8)
+            ax.axvline(data.time[i] / divisor, color='red', ls='--', alpha=0.4, lw=0.8)
             prev = s
 
 def _param_subtitle():
@@ -331,17 +370,32 @@ def _param_subtitle():
     tp_min = min(s.tau_p for s in cfg.LIM_STAGES)
     tp_max = max(s.tau_p for s in cfg.LIM_STAGES)
     tp_str = f"{tp_min:.0f}\u2013{tp_max:.0f}" if tp_min != tp_max else f"{tp_min:.0f}"
+    # Show HTS config — note if stages differ
+    hts_configs = set((s.hts_layers, s.hts_width_mm) for s in cfg.LIM_STAGES)
+    if len(hts_configs) == 1:
+        layers, width = hts_configs.pop()
+        hts_str = f"{layers}\u00d7{width:.0f} mm HTS"
+    else:
+        hts_str = "mixed HTS"
     return (f"(\u03c4\u209a: {tp_str} m, N: {s0.n_turns}, "
-            f"{s0.hts_layers}\u00d7{s0.hts_width_mm:.0f} mm HTS, "
+            f"{hts_str}, "
             f"m: {cfg.M_SPACECRAFT/1000:,.0f} t, "
             f"v: {cfg.V_LAUNCH/1000:.1f} km/s)")
 
 def _plot1(data, ydata, ylabel, title, fname, color='#1976D2'):
     if not HAS_MPL: return
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(_t_min(data), ydata, color=color, lw=1.2)
+    t_total_min = data.time[-1] / 60.0
+    if t_total_min > 120:
+        tx = [t / 3600 for t in data.time]
+        t_label = "Time (hr)"
+    else:
+        tx = _t_min(data)
+        t_label = "Time (min)"
+    ax.plot(tx, ydata, color=color, lw=1.2)
     _handoff_lines(ax, data)
-    ax.set_xlabel("Time (min)"); ax.set_ylabel(ylabel)
+    ax.set_xlim(0, tx[-1] * 1.02)
+    ax.set_xlabel(t_label); ax.set_ylabel(ylabel)
     ax.set_title(f"{title}\n{_param_subtitle()}", fontsize=12)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -351,7 +405,15 @@ def _plot1(data, ydata, ylabel, title, fname, color='#1976D2'):
 
 def plot_combined(data):
     if not HAS_MPL: return
-    tm = _t_min(data)
+    # Choose time unit based on duration
+    t_total_min = data.time[-1] / 60.0
+    if t_total_min > 120:
+        tx = [t / 3600 for t in data.time]
+        t_label = "Time (hr)"
+    else:
+        tx = [t / 60 for t in data.time]
+        t_label = "Time (min)"
+
     fig, axes = plt.subplots(4, 3, figsize=(18, 18))
     fig.suptitle(f"Mass Driver Launch \u2014 4-Stage LIM (Model 1 Eddy Current)\n{_param_subtitle()}",
                  fontsize=13, y=0.99)
@@ -361,58 +423,68 @@ def plot_combined(data):
         for ax in row:
             ax.ticklabel_format(useOffset=False)
 
-    # Row 0: velocity, thrust accel, thrust force
-    axes[0,0].plot(tm, [v/1000 for v in data.velocity], color='#1976D2', lw=1.0)
-    _handoff_lines(axes[0,0], data); axes[0,0].set_ylabel("Velocity (km/s)")
+    # Handoff lines helper using the chosen time unit
+    def _hoff(ax):
+        prev = data.stage_index[0] if data.stage_index else 0
+        for i, s in enumerate(data.stage_index):
+            if s != prev:
+                ax.axvline(tx[i], color='red', ls='--', alpha=0.4, lw=0.8)
+                prev = s
 
-    axes[0,1].plot(tm, data.g_thrust, color='#E65100', lw=1.0)
-    _handoff_lines(axes[0,1], data); axes[0,1].set_ylabel("Thrust (g)")
+    # Row 0: velocity, thrust accel, thrust force
+    axes[0,0].plot(tx, [v/1000 for v in data.velocity], color='#1976D2', lw=1.0)
+    _hoff(axes[0,0]); axes[0,0].set_ylabel("Velocity (km/s)")
+
+    axes[0,1].plot(tx, data.g_thrust, color='#E65100', lw=1.0)
+    _hoff(axes[0,1]); axes[0,1].set_ylabel("Thrust (g)")
     axes[0,1].set_ylim(0, max(data.g_thrust) * 1.3)
 
-    axes[0,2].plot(tm, [F/1e6 for F in data.thrust], color='#2E7D32', lw=1.0)
-    _handoff_lines(axes[0,2], data); axes[0,2].set_ylabel("Thrust (MN)")
+    axes[0,2].plot(tx, [F/1e6 for F in data.thrust], color='#2E7D32', lw=1.0)
+    _hoff(axes[0,2]); axes[0,2].set_ylabel("Thrust (MN)")
     axes[0,2].set_ylim(0, max(data.thrust)/1e6 * 1.3)
 
     # Row 1: KE delivery rate (P_thrust), LIM eddy losses, plate temp
-    axes[1,0].plot(tm, [P/1e9 for P in data.P_thrust], color='#7B1FA2', lw=1.0, label='KE rate')
-    axes[1,0].plot(tm, [P/1e9 for P in data.P_eddy], color='#C62828', lw=1.0, label='Eddy loss')
-    _handoff_lines(axes[1,0], data)
+    axes[1,0].plot(tx, [P/1e9 for P in data.P_thrust], color='#7B1FA2', lw=1.0, label='KE rate')
+    axes[1,0].plot(tx, [P/1e9 for P in data.P_eddy], color='#C62828', lw=1.0, label='Eddy loss')
+    _hoff(axes[1,0])
     axes[1,0].set_ylabel("Power (GW)"); axes[1,0].legend(fontsize=8)
 
-    axes[1,1].plot(tm, [P/1e6 for P in data.P_eddy], color='#C62828', lw=1.0)
-    _handoff_lines(axes[1,1], data); axes[1,1].set_ylabel("Eddy Losses (MW)")
+    axes[1,1].plot(tx, [P/1e6 for P in data.P_eddy], color='#C62828', lw=1.0)
+    _hoff(axes[1,1]); axes[1,1].set_ylabel("Eddy Losses (MW)")
 
-    axes[1,2].plot(tm, data.T_plate, color='#FF6F00', lw=1.0)
-    _handoff_lines(axes[1,2], data); axes[1,2].set_ylabel("Plate Temp (K)")
+    axes[1,2].plot(tx, data.T_plate, color='#FF6F00', lw=1.0)
+    _hoff(axes[1,2]); axes[1,2].set_ylabel("Plate Temp (K)")
     axes[1,2].set_ylim(200, max(data.T_plate) * 1.1)
 
     # Row 2: radial g, total g, V_coil
-    axes[2,0].plot(tm, data.g_radial, color='#00695C', lw=1.0)
+    axes[2,0].plot(tx, data.g_radial, color='#00695C', lw=1.0)
     axes[2,0].axhline(0, color='gray', ls='-', alpha=0.3, lw=0.5)
-    _handoff_lines(axes[2,0], data); axes[2,0].set_ylabel("Radial g (+=outward)")
+    _hoff(axes[2,0]); axes[2,0].set_ylabel("Radial g (+=outward)")
 
-    axes[2,1].plot(tm, data.g_total, color='#D32F2F', lw=1.0)
-    _handoff_lines(axes[2,1], data); axes[2,1].set_ylabel("Total g-load")
+    axes[2,1].plot(tx, data.g_total, color='#D32F2F', lw=1.0)
+    _hoff(axes[2,1]); axes[2,1].set_ylabel("Total g-load")
 
-    axes[2,2].plot(tm, [V/1000 for V in data.V_coil], color='#B71C1C', lw=1.0)
+    axes[2,2].plot(tx, [V/1000 for V in data.V_coil], color='#B71C1C', lw=1.0)
     axes[2,2].axhline(100, color='red', ls='--', alpha=0.5, lw=1, label='100 kV limit')
-    _handoff_lines(axes[2,2], data)
+    _hoff(axes[2,2])
     axes[2,2].set_ylabel("V_coil (kV)"); axes[2,2].legend(fontsize=8)
 
     # Row 3: HTS hysteresis, radiator width, cumulative hysteresis energy
-    axes[3,0].plot(tm, [P/1e3 for P in data.P_hysteresis], color='#CC79A7', lw=1.0)
-    _handoff_lines(axes[3,0], data); axes[3,0].set_ylabel("HTS Hyst (kW)")
+    axes[3,0].plot(tx, [P/1e3 for P in data.P_hysteresis], color='#CC79A7', lw=1.0)
+    _hoff(axes[3,0]); axes[3,0].set_ylabel("HTS Hyst (kW)")
 
-    axes[3,1].plot(tm, data.radiator_width, color='#0072B2', lw=1.0)
-    _handoff_lines(axes[3,1], data); axes[3,1].set_ylabel("Radiator Width (m)")
+    axes[3,1].plot(tx, data.radiator_width, color='#0072B2', lw=1.0)
+    _hoff(axes[3,1]); axes[3,1].set_ylabel("Radiator Width (m)")
 
-    axes[3,2].plot(tm, [E/3.6e6 for E in data.E_hyst_cumulative], color='#009E73', lw=1.0)
-    _handoff_lines(axes[3,2], data); axes[3,2].set_ylabel("Hyst Energy (kWh)")
+    axes[3,2].plot(tx, [E/3.6e6 for E in data.E_hyst_cumulative], color='#009E73', lw=1.0)
+    _hoff(axes[3,2]); axes[3,2].set_ylabel("Hyst Energy (kWh)")
 
+    # Set explicit x limits and labels
     for ax in axes.flat:
+        ax.set_xlim(0, tx[-1] * 1.02)
         ax.grid(True, alpha=0.3); ax.tick_params(labelsize=8)
     for ax in axes[3]:
-        ax.set_xlabel("Time (min)", fontsize=9)
+        ax.set_xlabel(t_label, fontsize=9)
     fig.tight_layout(rect=[0, 0, 1, 0.96])
     os.makedirs(cfg.GRAPH_DIR, exist_ok=True)
     fig.savefig(os.path.join(cfg.GRAPH_DIR, "md_combined.png"), dpi=200)
@@ -434,7 +506,13 @@ def plot_stage_detail(data):
     fig.suptitle(f"Mass Driver \u2014 Stage Detail\n{_param_subtitle()}", fontsize=12, y=0.99)
 
     for col, (nm, idx) in enumerate(sdata.items()):
-        tm = [data.time[i]/60 for i in idx]
+        t_total_min = data.time[-1] / 60.0
+        if t_total_min > 120:
+            tm = [data.time[i]/3600 for i in idx]
+            t_unit = "hr"
+        else:
+            tm = [data.time[i]/60 for i in idx]
+            t_unit = "min"
         si = snames.index(nm)
         c = scolors[si]
         tp = cfg.LIM_STAGES[si].tau_p
@@ -445,9 +523,9 @@ def plot_stage_detail(data):
 
         ax1 = axes[1,col]; ax2 = ax1.twinx()
         ax1.plot(tm, [data.current[i] for i in idx], color='blue', lw=1)
-        ax2.plot(tm, [data.voltage[i]/1000 for i in idx], color='red', lw=1)
+        ax2.plot(tm, [data.V_coil[i]/1000 for i in idx], color='red', lw=1)
         ax1.set_ylabel("Current (A)", color='blue')
-        ax2.set_ylabel("V_supply (kV)", color='red')
+        ax2.set_ylabel("V_coil (kV)", color='red')
 
         ax3 = axes[2,col]; ax4 = ax3.twinx()
         ax3.plot(tm, [data.thrust[i]/1e6 for i in idx], color='green', lw=1)
@@ -460,7 +538,7 @@ def plot_stage_detail(data):
         ax6.plot(tm, [data.g_total[i] for i in idx], color='#D32F2F', lw=1)
         ax5.set_ylabel("T_plate (K)", color='orange')
         ax6.set_ylabel("Total g-load", color='#D32F2F')
-        ax5.set_xlabel("Time (min)")
+        ax5.set_xlabel(f"Time ({t_unit})")
 
     for row in axes:
         for ax in row:
@@ -485,11 +563,13 @@ GRAPHS = {
     "b_field": lambda d: _plot1(d, d.B_field, "T", "B Field at Plate", "md_b_field.png", '#4527A0'),
     "frequency": lambda d: _plot1(d, d.f_supply, "Hz", "Supply Frequency", "md_frequency.png", '#00695C'),
     "current": lambda d: _plot1(d, d.current, "A", "Phase Current", "md_current.png", '#1565C0'),
-    "voltage": lambda d: _plot1(d, [V/1000 for V in d.voltage], "kV", "V_supply", "md_voltage.png", '#B71C1C'),
+    "v_coil": lambda d: _plot1(d, [V/1000 for V in d.V_coil], "kV", "V_coil (Insulation)", "md_v_coil.png", '#B71C1C'),
     "skin_depth": lambda d: _plot1(d, [sd*1000 for sd in d.skin_depth], "mm", "Skin Depth", "md_skin_depth.png", '#4E342E'),
     "hysteresis": lambda d: _plot1(d, [P/1e3 for P in d.P_hysteresis], "kW", "HTS Hysteresis Power", "md_hysteresis.png", '#CC79A7'),
     "radiator_width": lambda d: _plot1(d, d.radiator_width, "m", "Cryo Radiator Width", "md_radiator_width.png", '#0072B2'),
     "E_hyst": lambda d: _plot1(d, [E/3.6e6 for E in d.E_hyst_cumulative], "kWh", "Cumulative Hysteresis Energy", "md_E_hyst.png", '#009E73'),
+    "cryo_load": lambda d: _plot1(d, [q/1e3 for q in d.q_stator_per_m], "kW/m", "Stator Heat Flux per Metre", "md_cryo_load.png", '#D84315'),
+    "ln2": lambda d: _plot1(d, [E/1e6 for E in d.E_per_m_per_pass], "MJ/m", "Energy per Metre per Pass", "md_ln2.png", '#01579B'),
     "combined": lambda d: plot_combined(d),
     "stage_detail": lambda d: plot_stage_detail(d),
 }

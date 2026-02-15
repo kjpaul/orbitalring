@@ -9,6 +9,21 @@ Key difference from LIM: The LSM uses superconducting DC field coils on the sled
 that interact directly with the track's AC stator. No eddy currents, no slip,
 no thermal limit on the sled. The voltage limit is the primary constraint.
 
+Design choices:
+  - τ_p = 130 m: Large pole pitch minimizes HTS hysteresis losses, which scale
+    as ~1/τ_p³ (B_coil_peak ~ N×I/l_coil where l_coil = τ_p/3).
+  - The LSM requires periodic alternating N/S SC poles on the sled (not uniform
+    DC field). The stator AC field locks to the sled pole pattern synchronously.
+
+Launch modes:
+  - "crew": v_target = 15,000 m/s (Mars transfer), 3g human physiological limit
+  - "cargo": v_target = 30,000 m/s (deep solar system), 13g structural limit
+
+Sled architecture:
+  - "fixed" (Option A): Single pole pitch, sled SC coils at τ_p. Simple, default.
+  - "reconfig" (Option B): Reconfigurable coils at base pitch τ_base, grouped to
+    create effective pitch = n × τ_base. Multi-stage operation like the LIM.
+
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
@@ -30,7 +45,7 @@ L_RING = 41_646_000         # m, ring circumference
 # =============================================================================
 
 # Pole pitch and layout
-TAU_P = 20.0                # m, pole pitch (single value for entire launch)
+TAU_P = 130.0               # m, pole pitch — large pitch minimizes hysteresis (P ~ 1/τ_p³)
 N_POLES_PER_UNIT = 3        # pole pitches per repeating unit
 L_GAP = 2.0                 # m, structural gap between repeating units
 W_COIL = 2.0                # m, coil height (tangential extent)
@@ -39,16 +54,22 @@ G_GAP = 0.100               # m, air gap (stator face to sled coil face)
 # Stator coil configuration
 N_STATOR = 10               # turns per stator coil
 
-# HTS tape specification (same as LIM)
-TAPE_WIDTH = 0.012          # m (12 mm)
-N_LAYERS = 3                # layers of tape in parallel
-IC_PER_MM_LAYER = 66.7      # A/mm-width/layer (critical current density)
-I_CRITICAL = IC_PER_MM_LAYER * (TAPE_WIDTH * 1000) * N_LAYERS  # = 2400 A
-I_TARGET = 0.80 * I_CRITICAL   # 1920 A operating current
-I_PEAK = 0.90 * I_CRITICAL     # 2160 A peak current
+# HTS tape specification (Gömöry model)
+# 12 mm × 4 layers: simpler winding than LIM's 3 mm × 16 layers.
+# Hysteresis is 4× higher but still negligible for LSM (kW not GW).
+ALPHA_TAPE_FIELD = 20.0                      # degrees — Gömöry perpendicular field angle
+SIN_ALPHA = math.sin(math.radians(ALPHA_TAPE_FIELD))  # 0.34202
+DE_RATING_FACTOR = 1 - SIN_ALPHA             # 0.658 — Ic reduction per layer
+TAPE_WIDTH_MM = 12.0                         # mm — 12 mm tape (simpler winding, 4 layers)
+TAPE_WIDTH = TAPE_WIDTH_MM / 1000.0          # m
+I_C_PER_MM_LAYER = 66.7                      # A/mm-width/layer (critical current density)
+N_HTS_LAYERS = 4                             # layers of 12 mm tape
+I_C_PER_LAYER_NOMINAL = I_C_PER_MM_LAYER * TAPE_WIDTH_MM   # 800 A nominal
+I_C_PER_LAYER = I_C_PER_LAYER_NOMINAL * DE_RATING_FACTOR   # 526.4 A effective
+I_CRITICAL = I_C_PER_LAYER * N_HTS_LAYERS    # 2106 A total
+I_TARGET = 0.80 * I_CRITICAL                 # 1685 A operating current
+I_PEAK = 0.90 * I_CRITICAL                   # 1895 A peak current
 I_MIN = 10.0                # A, minimum current
-W_TAPE = TAPE_WIDTH             # m, HTS tape width (0.012 m)
-L_HTS_COIL = N_STATOR * 2.0 * (W_COIL + 0.1)  # m, HTS tape per phase coil
 N_LIM_SIDES = 2                # Stator on both sides of sled
 LIM_PHASES = 3                 # Three-phase system
 
@@ -63,11 +84,24 @@ V_COIL_LIMIT = 100_000      # V, coil insulation limit
 B_SLED_NOMINAL = 0.10       # T, sled DC field at air gap (base value)
 B_SLED_ADJUSTABLE = True    # Controller reduces B_sled at high speed to meet voltage limit
 
+# Sled architecture: "fixed" (Option A) or "reconfig" (Option B)
+SLED_ARCHITECTURE = "fixed"
+
+# Option B reconfigurable coil parameters
+TAU_BASE = 43.0              # m, base SC coil spacing on sled
+# Effective pitches available: 43, 86, 129 m (1×, 2×, 3× base)
+
+RECONFIG_STAGES = [
+    {"name": "RC1", "effective_pitch": TAU_BASE,       "f_handoff_hz": 30.0},
+    {"name": "RC2", "effective_pitch": 2 * TAU_BASE,   "f_handoff_hz": 60.0},
+    {"name": "RC3", "effective_pitch": 3 * TAU_BASE,   "f_handoff_hz": None},  # final stage
+]
+
 # =============================================================================
 # SECTION 4: SLED MASS
 # =============================================================================
 
-L_SLED = 5000               # m, sled length
+L_SLED = 10_000             # m, sled length (10 km for adequate thrust)
 M_SC_COILS_PER_M = 30       # kg/m, SC field coil linear density
 M_STRUCTURE_PER_M = 100     # kg/m, structural frame + bearings + cryostat
 M_SPACECRAFT = 5_000_000    # kg, payload mass (5,000 tonnes)
@@ -76,8 +110,18 @@ M_SPACECRAFT = 5_000_000    # kg, payload mass (5,000 tonnes)
 # SECTION 5: MISSION PARAMETERS
 # =============================================================================
 
-V_LAUNCH = 30_000           # m/s, target launch velocity
-A_MAX_G = 0.5               # maximum acceleration in g
+# Launch mode: "crew" or "cargo"
+LAUNCH_MODE = "cargo"
+
+# Mode-dependent parameters
+if LAUNCH_MODE == "crew":
+    V_LAUNCH = 15_000       # m/s — Mars transfer velocity
+    G_LOAD_MAX = 3.0        # g — human physiological limit
+elif LAUNCH_MODE == "cargo":
+    V_LAUNCH = 30_000       # m/s — deep solar system resupply
+    G_LOAD_MAX = 13.0       # g — structural limit only
+
+A_MAX_G = 0.5               # maximum tangential acceleration in g
 DT = 0.1                    # s, timestep (default)
 DT_QUICK = 1.0              # s, timestep for --quick mode
 
@@ -93,14 +137,6 @@ MU0 = 4 * math.pi * 1e-7    # H/m, permeability of free space
 STEFAN_BOLTZMANN = 5.670374e-8  # W/m²K⁴, Stefan-Boltzmann constant
 T_SPACE = 2.7               # K, deep space temperature
 T_STATOR = 77.0             # K, stator coil operating temperature (LN2)
-
-# HTS hysteresis and cryogenic parameters
-ALPHA_PENETRATION_DEG = 20.0         # HTS tape field penetration angle (degrees)
-ALPHA_TAPE = ALPHA_PENETRATION_DEG * math.pi / 180.0
-NORRIS_HYSTERESIS = False            # False=loss-factor model, True=Norris strip formula
-CRYO_EFF = 0.05                      # Cryocooler efficiency (fraction of Carnot COP)
-T_RADIATOR_HOT = 400.0               # Cryo hot-side radiator temperature (K)
-EM_HEATSINK = 0.9                    # Emissivity of cryo radiator surfaces
 
 # =============================================================================
 # SECTION 7: DERIVED PARAMETERS
@@ -172,15 +208,25 @@ def get_physics_params():
         'm_total': M_TOTAL,
         'r_orbit': R_ORBIT,
         'g_250': G_250,
-        # HTS hysteresis parameters
-        'w_tape': W_TAPE,
-        'alpha_tape': ALPHA_TAPE,
-        'i_c': I_CRITICAL,
+        # HTS Gömöry hysteresis parameters
         'n_turns': N_STATOR,
-        'l_hts_coil': L_HTS_COIL,
+        'tape_width_mm': TAPE_WIDTH_MM,
+        'n_hts_layers': N_HTS_LAYERS,
+        'i_c_per_layer': I_C_PER_LAYER,
+        'sin_alpha': SIN_ALPHA,
         'lim_phases': LIM_PHASES,
         'n_lim_sides': N_LIM_SIDES,
     }
+
+def apply_launch_mode():
+    """Apply launch mode settings (call after CLI overrides)."""
+    global V_LAUNCH, G_LOAD_MAX
+    if LAUNCH_MODE == "crew":
+        V_LAUNCH = 15_000
+        G_LOAD_MAX = 3.0
+    elif LAUNCH_MODE == "cargo":
+        V_LAUNCH = 30_000
+        G_LOAD_MAX = 13.0
 
 # =============================================================================
 # SECTION 9: DISPLAY CONFIGURATION

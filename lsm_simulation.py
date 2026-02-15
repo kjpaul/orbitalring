@@ -3,29 +3,36 @@
 LSM Mass Driver Simulation - Main simulation loop and plotting
 
 This simulates an LSM (Linear Synchronous Motor) mass driver launching a
-5,000 m sled with a 5,000-tonne spacecraft from rest to 30 km/s on an orbital
-ring at 250 km altitude.
+10 km sled with a 5,000-tonne spacecraft from rest to target velocity on
+an orbital ring at 250 km altitude.
 
 Key differences from LIM:
   - No slip (synchronous operation)
   - No eddy current losses (no sled heating)
   - Load angle δ is the control variable (not slip velocity)
   - Voltage limit is the primary constraint at high speed
-  - Single pole pitch works across entire velocity range
+  - Single pole pitch works across entire velocity range (Option A)
+  - Option B: reconfigurable multi-pitch sled for staged operation
   - No thermal limit on the sled
 
 Usage:
     python lsm_simulation.py [options] [graph keywords]
 
 Options:
-  --v_launch=N      Target velocity in m/s (default: 15000)
+  --v_launch=N      Target velocity in m/s
   --accel=N         Maximum acceleration in g (default: 0.5)
-  --mass=N          Spacecraft mass in tonnes (default: 500)
+  --mass=N          Spacecraft mass in tonnes (default: 5000)
   --B_sled=N        Sled DC field in T (default: 0.10)
-  --tau_p=N         Pole pitch in m (default: 20)
+  --tau_p=N         Pole pitch in m (default: 130)
   --N_stator=N      Stator turns (default: 10)
-  --adjustable-B    Allow controller to reduce B_sled
-  --sled-length=N   Sled length in m (default: 5000)
+  --adjustable-B    Allow controller to reduce B_sled [default]
+  --sled-length=N   Sled length in m (default: 10000)
+  --crew            Crew launch mode (15 km/s, 3g limit)
+  --cargo           Cargo launch mode (30 km/s, 13g limit) [default]
+  --sled-fixed      Fixed single-pitch sled (Option A) [default]
+  --sled-reconfig   Reconfigurable multi-pitch sled (Option B)
+  --tau_base=N      Base pitch for Option B (default: 43 m)
+  --g-limit=N       Override g-load limit (in g)
   --quick           Use 1-second timesteps
   --save-csv        Export time-series data
 
@@ -79,6 +86,7 @@ data_x_fraction = []
 data_P_hysteresis = []
 data_E_hyst_cumulative = []
 data_radiator_width = []
+data_stage_name = []
 
 
 def clear_data():
@@ -88,6 +96,7 @@ def clear_data():
     global data_f_supply, data_V_coil, data_a_centrifugal
     global data_a_radial_net, data_a_occupant_g, data_KE, data_x_fraction
     global data_P_hysteresis, data_E_hyst_cumulative, data_radiator_width
+    global data_stage_name
 
     data_t = []
     data_v = []
@@ -109,6 +118,39 @@ def clear_data():
     data_P_hysteresis = []
     data_E_hyst_cumulative = []
     data_radiator_width = []
+    data_stage_name = []
+
+
+# =============================================================================
+# OPTION B: RECONFIGURABLE SLED HELPERS
+# =============================================================================
+
+def get_reconfig_stage(v, stages):
+    """Select the active reconfigurable stage based on supply frequency.
+
+    Returns (stage_index, stage_dict) for the stage whose handoff frequency
+    has not been exceeded.
+    """
+    for i, stage in enumerate(stages):
+        tau_eff = stage["effective_pitch"]
+        f = v / (2.0 * tau_eff)
+        if stage["f_handoff_hz"] is None or f <= stage["f_handoff_hz"]:
+            return i, stage
+    # Default to last stage
+    return len(stages) - 1, stages[-1]
+
+
+def calc_reconfig_derived(tau_eff):
+    """Compute derived parameters for a given effective pitch.
+
+    Returns (n_units, A_active_total, active_length) for the effective pitch.
+    """
+    l_unit = cfg.N_POLES_PER_UNIT * tau_eff + cfg.L_GAP
+    w_active = cfg.N_POLES_PER_UNIT * tau_eff
+    n_units = int(cfg.L_SLED / l_unit)
+    A_active = 2 * n_units * w_active * cfg.W_COIL
+    active_length = n_units * w_active
+    return n_units, A_active, active_length
 
 
 # =============================================================================
@@ -170,10 +212,31 @@ def run_lsm_simulation(quick_mode=False):
     # Flags
     voltage_limited = False
     thrust_limited = False
+    g_load_limited = False
+    g_load_engage_v = None  # velocity at which g-load limiting first engages
+
+    # Option B stage tracking
+    reconfig = (cfg.SLED_ARCHITECTURE == "reconfig")
+    rc_stage_idx = 0
+    rc_stage_name = ""
+    rc_stage_times = {}  # stage_name -> cumulative time in stage
+    rc_handoffs = []
+    if reconfig:
+        rc_stage_idx, rc_stg = get_reconfig_stage(0, cfg.RECONFIG_STAGES)
+        rc_stage_name = rc_stg["name"]
+        for s in cfg.RECONFIG_STAGES:
+            rc_stage_times[s["name"]] = 0.0
 
     print(f"\nStarting simulation...")
+    print(f"Launch mode: {cfg.LAUNCH_MODE} (v_target={cfg.V_LAUNCH/1000:.0f} km/s, g_limit={cfg.G_LOAD_MAX:.1f}g)")
+    print(f"Sled architecture: {cfg.SLED_ARCHITECTURE}")
+    if reconfig:
+        for s in cfg.RECONFIG_STAGES:
+            hoff = f" -> {s['f_handoff_hz']:.0f} Hz" if s['f_handoff_hz'] else " -> END"
+            print(f"  {s['name']}: tau_eff={s['effective_pitch']:.0f} m{hoff}")
     print(f"Target velocity: {cfg.V_LAUNCH:,.0f} m/s")
     print(f"Target acceleration: {cfg.A_MAX_G:.2f} g = {a_target:.3f} m/s²")
+    print(f"G-load limit: {cfg.G_LOAD_MAX:.1f} g")
     print(f"Total mass: {cfg.M_TOTAL:,.0f} kg")
     print("Stator: Air-core")
     print(f"B_sled adjustable: {cfg.B_SLED_ADJUSTABLE}")
@@ -183,14 +246,38 @@ def run_lsm_simulation(quick_mode=False):
     step_count = 0
     next_report_time = 600.0  # Report every 10 minutes
 
+    # Determine effective parameters for current architecture
+    tau_p_eff = cfg.TAU_P
+    n_units_eff = cfg.N_UNITS
+    A_active_eff = cfg.A_ACTIVE_TOTAL
+    active_length_eff = cfg.N_UNITS * cfg.N_POLES_PER_UNIT * cfg.TAU_P
+
     # Main simulation loop
     while v < cfg.V_LAUNCH:
 
+        # Option B: select stage and update effective pitch
+        if reconfig:
+            new_idx, rc_stg = get_reconfig_stage(v, cfg.RECONFIG_STAGES)
+            if new_idx != rc_stage_idx:
+                old_name = cfg.RECONFIG_STAGES[rc_stage_idx]["name"]
+                rc_stage_idx = new_idx
+                rc_stage_name = rc_stg["name"]
+                rc_handoffs.append((t, v, old_name, rc_stage_name))
+                print(f"  >>> STAGE {old_name} -> {rc_stage_name} at v={v/1000:.2f} km/s, t={t:.0f}s")
+            tau_p_eff = rc_stg["effective_pitch"]
+            n_units_eff, A_active_eff, active_length_eff = calc_reconfig_derived(tau_p_eff)
+            # B_sled_effective = B_SLED_NOMINAL for all effective pitches
+            # (approximation: SC coils designed to produce target field at each config)
+        else:
+            tau_p_eff = cfg.TAU_P
+            n_units_eff = cfg.N_UNITS
+            A_active_eff = cfg.A_ACTIVE_TOTAL
+            active_length_eff = cfg.N_UNITS * cfg.N_POLES_PER_UNIT * cfg.TAU_P
+
         # Controller: adjust current to achieve desired thrust
-        # This iterates to find the right current and load angle
-        for _ in range(5):  # Iterate to converge
+        for _ in range(5):
             # Calculate supply frequency (synchronous)
-            f_supply = phys.calc_frequency(v, cfg.TAU_P)
+            f_supply = phys.calc_frequency(v, tau_p_eff)
 
             # Calculate back-EMF
             V_coil = phys.calc_EMF(cfg.N_STATOR, v, B_sled, cfg.W_COIL)
@@ -205,7 +292,6 @@ def run_lsm_simulation(quick_mode=False):
                     )
                     V_coil = cfg.V_COIL_LIMIT
                 else:
-                    # Can't reduce B_sled - voltage limit prevents further acceleration
                     print(f"\nVoltage limit reached at v = {v:.1f} m/s")
                     print(f"Cannot achieve target velocity without adjustable B_sled")
                     break
@@ -220,54 +306,70 @@ def run_lsm_simulation(quick_mode=False):
 
             # Calculate required load angle for desired thrust
             delta, limited = phys.calc_delta_for_thrust(
-                F_desired, B_stator, B_sled, cfg.A_ACTIVE_TOTAL, cfg.DELTA_MAX
+                F_desired, B_stator, B_sled, A_active_eff, cfg.DELTA_MAX
             )
 
             if limited:
                 thrust_limited = True
-                # Need more current to achieve target thrust
                 if I_stator < cfg.I_PEAK:
                     I_stator = min(cfg.I_PEAK, I_stator * 1.1)
-                    continue  # Recalculate with new current
+                    continue
                 else:
-                    # Already at max current, accept limited thrust
-                    F = phys.calc_thrust(B_stator, B_sled, cfg.DELTA_MAX, cfg.A_ACTIVE_TOTAL)
+                    F = phys.calc_thrust(B_stator, B_sled, cfg.DELTA_MAX, A_active_eff)
                     a = F / cfg.M_TOTAL
                     break
             else:
-                # Can achieve desired thrust
                 F = F_desired
                 a = a_target
 
-                # Check if we can reduce current (operating below target load angle)
                 if delta < cfg.DELTA_TARGET and I_stator > cfg.I_MIN:
                     I_stator = max(cfg.I_MIN, I_stator * 0.99)
                 break
 
-        # Exit if voltage limit hit
+        # Exit if voltage limit hit without adjustable B
         if V_coil > cfg.V_COIL_LIMIT and not cfg.B_SLED_ADJUSTABLE:
             break
+
+        # G-load limiting
+        a_radial_net = phys.calc_net_radial_acceleration(v, cfg.R_ORBIT, cfg.G_250)
+        a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
+
+        if a_total_g > cfg.G_LOAD_MAX:
+            g_load_limited = True
+            if g_load_engage_v is None:
+                g_load_engage_v = v
+            a_radial = abs(a_radial_net)
+            a_max_tangential_sq = (cfg.G_LOAD_MAX * cfg.G_0)**2 - a_radial**2
+            if a_max_tangential_sq > 0:
+                a = min(a, math.sqrt(a_max_tangential_sq))
+                F = a * cfg.M_TOTAL
+            else:
+                # Radial acceleration alone exceeds g-limit
+                print(f"\nRadial g-load alone exceeds {cfg.G_LOAD_MAX:.1f}g at v={v/1000:.2f} km/s")
+                print(f"Maximum achievable velocity for this g-limit reached.")
+                break
+            # Recompute g-load after throttle
+            a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
 
         # Calculate power
         P_mech = phys.calc_power_mechanical(F, v)
 
         # HTS hysteresis losses and radiator width
-        P_hyst = phys.calc_hysteresis_power(f_supply, I_stator, params,
-                                            cfg.N_UNITS, cfg.NORRIS_HYSTERESIS)
+        # Build params with current effective pitch for hysteresis calc
+        hyst_params = dict(params)
+        hyst_params['tau_p'] = tau_p_eff
+        P_hyst = phys.calc_hysteresis_power(f_supply, I_stator, hyst_params,
+                                            n_units_eff)
         E_hyst_cum += P_hyst * dt
-        active_length = cfg.N_UNITS * cfg.N_POLES_PER_UNIT * cfg.TAU_P
-        radiator_w = phys.calc_radiator_width(
-            P_hyst, cfg.T_STATOR, cfg.T_RADIATOR_HOT,
-            cfg.CRYO_EFF, cfg.EM_HEATSINK, active_length, cfg.T_SPACE)
+        radiator_w = phys.calc_radiator_width(P_hyst, active_length_eff)
 
-        # Calculate accelerations and g-loads
+        # Calculate g-loads
         a_centrifugal = phys.calc_centrifugal_acceleration(v, cfg.R_ORBIT)
-        a_radial_net = phys.calc_net_radial_acceleration(v, cfg.R_ORBIT, cfg.G_250)
-        a_occupant_g = phys.calc_occupant_g_load(a, a_radial_net, cfg.G_0)
+        a_occupant_g = a_total_g
 
         # Update velocity and position
         v_new = v + a * dt
-        x_new = x + v * dt  # Use old velocity for distance (midpoint would be more accurate)
+        x_new = x + v * dt
 
         # Update kinetic energy
         KE = phys.calc_kinetic_energy(cfg.M_TOTAL, v_new)
@@ -284,6 +386,7 @@ def run_lsm_simulation(quick_mode=False):
         max_values['radiator_width'] = max(max_values['radiator_width'], radiator_w)
 
         # Data collection
+        stage_name = rc_stage_name if reconfig else "fixed"
         data_t.append(t)
         data_v.append(v)
         data_x.append(x)
@@ -304,6 +407,11 @@ def run_lsm_simulation(quick_mode=False):
         data_P_hysteresis.append(P_hyst)
         data_E_hyst_cumulative.append(E_hyst_cum)
         data_radiator_width.append(radiator_w)
+        data_stage_name.append(stage_name)
+
+        # Option B: accumulate stage time
+        if reconfig:
+            rc_stage_times[rc_stage_name] = rc_stage_times.get(rc_stage_name, 0) + dt
 
         # Update state
         v = v_new
@@ -315,14 +423,17 @@ def run_lsm_simulation(quick_mode=False):
         if t >= next_report_time:
             minutes = t / 60.0
             km = x / 1000.0
+            stg_str = f" [{rc_stage_name}]" if reconfig else ""
+            g_lim_str = " G-LIM" if (a_total_g >= cfg.G_LOAD_MAX * 0.99) else ""
             print(f"t = {minutes:7.1f} min | v = {v:8.1f} m/s | x = {km:10.1f} km | "
                   f"F = {F/1e6:6.2f} MN | P = {P_mech/1e9:6.2f} GW | "
-                  f"I = {I_stator:6.1f} A | delta = {math.degrees(delta):5.1f} deg | g = {a_occupant_g:.3f}")
-            next_report_time += 600.0  # Next report in 10 minutes
+                  f"I = {I_stator:6.1f} A | delta = {math.degrees(delta):5.1f} deg | "
+                  f"g = {a_occupant_g:.3f}{stg_str}{g_lim_str}")
+            next_report_time += 600.0
 
-        # Safety check: stop if time exceeds reasonable limit (10 hours)
-        if t > 36000:
-            print("\nSimulation time exceeded 10 hours - stopping")
+        # Safety check
+        if t > 72000:
+            print("\nSimulation time exceeded 20 hours - stopping")
             break
 
     # Final report
@@ -334,6 +445,8 @@ def run_lsm_simulation(quick_mode=False):
     print("\n" + "=" * 80)
     print("SIMULATION COMPLETE")
     print("=" * 80)
+    print(f"Launch mode:          {cfg.LAUNCH_MODE}")
+    print(f"Sled architecture:    {cfg.SLED_ARCHITECTURE}")
     print(f"Final velocity:       {v:,.1f} m/s")
     print(f"Target velocity:      {cfg.V_LAUNCH:,.1f} m/s")
     print(f"Achievement:          {100 * v / cfg.V_LAUNCH:.1f}%")
@@ -347,7 +460,7 @@ def run_lsm_simulation(quick_mode=False):
     print(f"Peak frequency:       {max_values['frequency']:.1f} Hz")
     print(f"Peak voltage:         {max_values['voltage']/1e3:.1f} kV")
     print(f"Peak current:         {max_values['current']:.1f} A")
-    print(f"Peak load angle:      {math.degrees(max_values['delta']):.1f}°")
+    print(f"Peak load angle:      {math.degrees(max_values['delta']):.1f} deg")
     print(f"Peak g-load:          {max_values['g_load']:.3f} g")
     print()
     print(f"Total HTS hysteresis: {E_hyst_cum:.3e} J  ({E_hyst_cum/3.6e6:.1f} kWh)")
@@ -356,10 +469,24 @@ def run_lsm_simulation(quick_mode=False):
     print()
     print(f"Voltage limited:      {voltage_limited}")
     print(f"Thrust limited:       {thrust_limited}")
+    print(f"G-load limited:       {g_load_limited}", end="")
+    if g_load_engage_v is not None:
+        print(f" (engaged at {g_load_engage_v/1000:.2f} km/s)")
+    else:
+        print()
+
+    if reconfig and rc_handoffs:
+        print(f"\nOption B stage transitions:")
+        for t_h, v_h, frm, to in rc_handoffs:
+            print(f"  {frm} -> {to} at t={t_h:.0f}s, v={v_h/1000:.2f} km/s")
+        print(f"\nTime in each stage:")
+        for s_name, s_time in rc_stage_times.items():
+            if s_time > 0:
+                print(f"  {s_name}: {s_time:.0f}s ({s_time/60:.1f} min)")
+
     print("=" * 80)
 
-    success = (v >= cfg.V_LAUNCH * 0.99)  # Within 1% of target
-
+    success = (v >= cfg.V_LAUNCH * 0.99)
     return success
 
 
@@ -372,6 +499,8 @@ def print_parameters():
     derived = cfg.calc_derived()
 
     print(f"\nConfiguration:")
+    print(f"  Launch mode:            {cfg.LAUNCH_MODE}")
+    print(f"  Sled architecture:      {cfg.SLED_ARCHITECTURE}")
     print(f"  Pole pitch:             {cfg.TAU_P:.1f} m")
     print(f"  Stator turns:           {cfg.N_STATOR}")
     print(f"  Air gap:                {cfg.G_GAP * 1000:.1f} mm")
@@ -394,9 +523,17 @@ def print_parameters():
     print()
     print(f"  Target velocity:        {cfg.V_LAUNCH:,.0f} m/s")
     print(f"  Max acceleration:       {cfg.A_MAX_G:.2f} g")
+    print(f"  G-load limit:           {cfg.G_LOAD_MAX:.1f} g")
     print(f"  Target KE:              {derived['KE_target'] / 1e12:.3f} TJ")
     print(f"  Max supply frequency:   {derived['f_max_supply']:.1f} Hz")
     print()
+
+    if cfg.SLED_ARCHITECTURE == "reconfig":
+        print(f"  Option B stages:")
+        for s in cfg.RECONFIG_STAGES:
+            hoff = f" -> {s['f_handoff_hz']:.0f} Hz" if s['f_handoff_hz'] else " -> END"
+            print(f"    {s['name']}: tau_eff={s['effective_pitch']:.0f} m{hoff}")
+        print()
 
 
 # =============================================================================
@@ -405,117 +542,133 @@ def print_parameters():
 
 def _param_subtitle():
     """Build parameter subtitle string from current config."""
-    return (f"(\u03c4\u209a: {cfg.TAU_P:.0f} m, N: {cfg.N_STATOR}, "
-            f"{cfg.N_LAYERS}\u00d7{cfg.TAPE_WIDTH*1000:.0f} mm HTS, "
+    arch_str = "fixed" if cfg.SLED_ARCHITECTURE == "fixed" else "reconfig"
+    return (f"({cfg.LAUNCH_MODE}, {arch_str}, "
+            f"\u03c4\u209a: {cfg.TAU_P:.0f} m, N: {cfg.N_STATOR}, "
+            f"{cfg.N_HTS_LAYERS}\u00d7{cfg.TAPE_WIDTH_MM:.0f} mm HTS, "
             f"m: {cfg.M_SPACECRAFT/1000:,.0f} t, "
             f"v: {cfg.V_LAUNCH/1000:.1f} km/s)")
 
+
+def _time_axis(data_t):
+    """Choose time unit (minutes or hours) based on duration."""
+    if not data_t:
+        return data_t, "Time (min)"
+    t_total_min = data_t[-1] / 60.0
+    if t_total_min > 120:
+        return [t / 3600 for t in data_t], "Time (hr)"
+    else:
+        return [t / 60 for t in data_t], "Time (min)"
+
+
 def plot_combined():
-    """Create a 9-panel combined plot."""
+    """Create a 12-panel combined plot."""
     fig = plt.figure(figsize=(16, 16))
     gs = gridspec.GridSpec(4, 3, hspace=0.3, wspace=0.3)
 
-    # Convert time to minutes
-    t_min = [t / 60.0 for t in data_t]
+    tx, t_label = _time_axis(data_t)
 
     # 1. Velocity
     ax1 = fig.add_subplot(gs[0, 0])
-    ax1.plot(t_min, [v / 1000 for v in data_v], 'b-', linewidth=1)
+    ax1.plot(tx, [v / 1000 for v in data_v], 'b-', linewidth=1)
     ax1.set_ylabel('Velocity (km/s)')
-    ax1.set_xlabel('Time (min)')
+    ax1.set_xlabel(t_label)
     ax1.grid(True, alpha=0.3)
     ax1.set_title('Velocity')
 
     # 2. Acceleration
     ax2 = fig.add_subplot(gs[0, 1])
-    ax2.plot(t_min, [a / cfg.G_0 for a in data_a], 'r-', linewidth=1)
+    ax2.plot(tx, [a / cfg.G_0 for a in data_a], 'r-', linewidth=1)
     ax2.set_ylabel('Acceleration (g)')
-    ax2.set_xlabel('Time (min)')
+    ax2.set_xlabel(t_label)
     ax2.grid(True, alpha=0.3)
     ax2.set_title('Acceleration')
 
     # 3. Thrust
     ax3 = fig.add_subplot(gs[0, 2])
-    ax3.plot(t_min, [F / 1e6 for F in data_F], 'purple', linewidth=1)
+    ax3.plot(tx, [F / 1e6 for F in data_F], 'purple', linewidth=1)
     ax3.set_ylabel('Thrust (MN)')
-    ax3.set_xlabel('Time (min)')
+    ax3.set_xlabel(t_label)
     ax3.grid(True, alpha=0.3)
     ax3.set_title('Thrust')
 
     # 4. Power
     ax4 = fig.add_subplot(gs[1, 0])
-    ax4.plot(t_min, [P / 1e9 for P in data_P_mech], 'green', linewidth=1)
+    ax4.plot(tx, [P / 1e9 for P in data_P_mech], 'green', linewidth=1)
     ax4.set_ylabel('Power (GW)')
-    ax4.set_xlabel('Time (min)')
+    ax4.set_xlabel(t_label)
     ax4.grid(True, alpha=0.3)
     ax4.set_title('Mechanical Power')
 
     # 5. Load angle
     ax5 = fig.add_subplot(gs[1, 1])
-    ax5.plot(t_min, [math.degrees(d) for d in data_delta], 'orange', linewidth=1)
-    ax5.set_ylabel('Load Angle (°)')
-    ax5.set_xlabel('Time (min)')
+    ax5.plot(tx, [math.degrees(d) for d in data_delta], 'orange', linewidth=1)
+    ax5.set_ylabel('Load Angle (deg)')
+    ax5.set_xlabel(t_label)
     ax5.grid(True, alpha=0.3)
-    ax5.set_title('Load Angle δ')
+    ax5.set_title('Load Angle delta')
 
     # 6. Supply frequency
     ax6 = fig.add_subplot(gs[1, 2])
-    ax6.plot(t_min, data_f_supply, 'brown', linewidth=1)
+    ax6.plot(tx, data_f_supply, 'brown', linewidth=1)
     ax6.set_ylabel('Frequency (Hz)')
-    ax6.set_xlabel('Time (min)')
+    ax6.set_xlabel(t_label)
     ax6.grid(True, alpha=0.3)
     ax6.set_title('Supply Frequency')
 
     # 7. Current and Voltage (dual axis)
     ax7 = fig.add_subplot(gs[2, 0])
     ax7_twin = ax7.twinx()
-    ax7.plot(t_min, data_I_stator, 'b-', linewidth=1, label='Current')
-    ax7_twin.plot(t_min, [V / 1000 for V in data_V_coil], 'r-', linewidth=1, label='Voltage')
+    ax7.plot(tx, data_I_stator, 'b-', linewidth=1, label='Current')
+    ax7_twin.plot(tx, [V / 1000 for V in data_V_coil], 'r-', linewidth=1, label='Voltage')
     ax7.set_ylabel('Current (A)', color='b')
     ax7_twin.set_ylabel('Voltage (kV)', color='r')
-    ax7.set_xlabel('Time (min)')
+    ax7.set_xlabel(t_label)
     ax7.grid(True, alpha=0.3)
     ax7.set_title('Stator Current & Coil Voltage')
 
     # 8. Magnetic fields
     ax8 = fig.add_subplot(gs[2, 1])
-    ax8.plot(t_min, data_B_stator, 'b-', linewidth=1, label='B_stator')
-    ax8.plot(t_min, data_B_sled, 'r--', linewidth=1, label='B_sled')
+    ax8.plot(tx, data_B_stator, 'b-', linewidth=1, label='B_stator')
+    ax8.plot(tx, data_B_sled, 'r--', linewidth=1, label='B_sled')
     ax8.set_ylabel('Magnetic Field (T)')
-    ax8.set_xlabel('Time (min)')
+    ax8.set_xlabel(t_label)
     ax8.legend()
     ax8.grid(True, alpha=0.3)
     ax8.set_title('Magnetic Fields')
 
     # 9. Occupant g-load
     ax9 = fig.add_subplot(gs[2, 2])
-    ax9.plot(t_min, data_a_occupant_g, 'darkred', linewidth=1)
+    ax9.plot(tx, data_a_occupant_g, 'darkred', linewidth=1)
+    ax9.axhline(cfg.G_LOAD_MAX, color='red', ls='--', alpha=0.5, lw=1,
+                label=f'{cfg.G_LOAD_MAX:.0f}g limit')
     ax9.set_ylabel('G-load (g)')
-    ax9.set_xlabel('Time (min)')
+    ax9.set_xlabel(t_label)
+    ax9.legend()
     ax9.grid(True, alpha=0.3)
     ax9.set_title('Occupant G-Load')
 
     # 10. HTS Hysteresis Power
     ax10 = fig.add_subplot(gs[3, 0])
-    ax10.plot(t_min, [P / 1000 for P in data_P_hysteresis], '#CC79A7', linewidth=1)
+    ax10.plot(tx, [P / 1000 for P in data_P_hysteresis], '#CC79A7', linewidth=1)
     ax10.set_ylabel('HTS Hyst (kW)')
-    ax10.set_xlabel('Time (min)')
+    ax10.set_xlabel(t_label)
     ax10.grid(True, alpha=0.3)
     ax10.set_title('HTS Hysteresis Power')
 
     # 11. Radiator Width
     ax11 = fig.add_subplot(gs[3, 1])
-    ax11.plot(t_min, data_radiator_width, '#0072B2', linewidth=1)
+    ax11.plot(tx, data_radiator_width, '#0072B2', linewidth=1)
     ax11.set_ylabel('Radiator Width (m)')
-    ax11.set_xlabel('Time (min)')
+    ax11.set_xlabel(t_label)
     ax11.grid(True, alpha=0.3)
     ax11.set_title('Cryo Radiator Width')
 
     # 12. Cumulative Hysteresis Energy
     ax12 = fig.add_subplot(gs[3, 2])
-    ax12.plot(t_min, [E / 3.6e6 for E in data_E_hyst_cumulative], '#009E73', linewidth=1)
+    ax12.plot(tx, [E / 3.6e6 for E in data_E_hyst_cumulative], '#009E73', linewidth=1)
     ax12.set_ylabel('Energy (kWh)')
-    ax12.set_xlabel('Time (min)')
+    ax12.set_xlabel(t_label)
     ax12.grid(True, alpha=0.3)
     ax12.set_title('Cumulative Hysteresis Energy')
 
@@ -535,14 +688,14 @@ def plot_combined():
 
 def plot_individual(keyword):
     """Create individual plot based on keyword."""
-    t_min = [t / 60.0 for t in data_t]
+    tx, t_label = _time_axis(data_t)
 
     plots = {
         'velocity': (data_v, 'Velocity (m/s)', 'Velocity', 'blue', lambda y: y),
         'accel': (data_a, 'Acceleration (g)', 'Acceleration', 'red', lambda y: y / cfg.G_0),
         'thrust': (data_F, 'Thrust (MN)', 'Thrust', 'purple', lambda y: y / 1e6),
         'power': (data_P_mech, 'Power (GW)', 'Mechanical Power', 'green', lambda y: y / 1e9),
-        'delta': (data_delta, 'Load Angle (°)', 'Load Angle δ', 'orange', lambda y: math.degrees(y)),
+        'delta': (data_delta, 'Load Angle (deg)', 'Load Angle delta', 'orange', lambda y: math.degrees(y)),
         'frequency': (data_f_supply, 'Frequency (Hz)', 'Supply Frequency', 'brown', lambda y: y),
         'voltage': (data_V_coil, 'Voltage (kV)', 'Coil Voltage', 'red', lambda y: y / 1000),
         'current': (data_I_stator, 'Current (A)', 'Stator Current', 'blue', lambda y: y),
@@ -561,8 +714,8 @@ def plot_individual(keyword):
     y_plot = [transform(y) for y in data]
 
     fig, ax = plt.subplots(figsize=(cfg.GRAPH_WIDTH_INCHES, cfg.GRAPH_HEIGHT_INCHES))
-    ax.plot(t_min, y_plot, color=color, linewidth=1.5)
-    ax.set_xlabel('Time (min)', fontsize=12)
+    ax.plot(tx, y_plot, color=color, linewidth=1.5)
+    ax.set_xlabel(t_label, fontsize=12)
     ax.set_ylabel(ylabel, fontsize=12)
     ax.set_title(f"{title}\n{_param_subtitle()}", fontsize=12, fontweight='bold')
     ax.grid(True, alpha=0.3)
@@ -579,17 +732,18 @@ def plot_individual(keyword):
 
 def save_csv():
     """Export time-series data to CSV."""
-    os.makedirs("./output", exist_ok=True)
-    filepath = "./output/lsm_data.csv"
+    os.makedirs(cfg.GRAPH_OUTPUT_DIR, exist_ok=True)
+    filepath = os.path.join(cfg.GRAPH_OUTPUT_DIR, "lsm_data.csv")
 
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([
-            't (s)', 'v (m/s)', 'x (m)', 'a (m/s²)', 'F (N)', 'P_mech (W)',
+            't (s)', 'v (m/s)', 'x (m)', 'a (m/s^2)', 'F (N)', 'P_mech (W)',
             'I_stator (A)', 'B_stator (T)', 'B_sled (T)', 'delta (rad)',
-            'f_supply (Hz)', 'V_coil (V)', 'a_centrifugal (m/s²)',
-            'a_radial_net (m/s²)', 'a_occupant_g (g)', 'KE (J)', 'x_fraction',
-            'P_hysteresis (W)', 'E_hyst_cumulative (J)', 'radiator_width (m)'
+            'f_supply (Hz)', 'V_coil (V)', 'a_centrifugal (m/s^2)',
+            'a_radial_net (m/s^2)', 'a_occupant_g (g)', 'KE (J)', 'x_fraction',
+            'P_hysteresis (W)', 'E_hyst_cumulative (J)', 'radiator_width (m)',
+            'stage_name'
         ])
 
         for i in range(len(data_t)):
@@ -598,7 +752,8 @@ def save_csv():
                 data_I_stator[i], data_B_stator[i], data_B_sled[i], data_delta[i],
                 data_f_supply[i], data_V_coil[i], data_a_centrifugal[i],
                 data_a_radial_net[i], data_a_occupant_g[i], data_KE[i], data_x_fraction[i],
-                data_P_hysteresis[i], data_E_hyst_cumulative[i], data_radiator_width[i]
+                data_P_hysteresis[i], data_E_hyst_cumulative[i], data_radiator_width[i],
+                data_stage_name[i]
             ])
 
     print(f"Saved CSV data: {filepath}")
@@ -625,12 +780,30 @@ def main():
                 quick_mode = True
             elif arg == "--save-csv":
                 save_csv_flag = True
+            elif arg == "--crew":
+                cfg.LAUNCH_MODE = "crew"
+            elif arg == "--cargo":
+                cfg.LAUNCH_MODE = "cargo"
+            elif arg == "--sled-fixed":
+                cfg.SLED_ARCHITECTURE = "fixed"
+            elif arg == "--sled-reconfig":
+                cfg.SLED_ARCHITECTURE = "reconfig"
+            elif arg.startswith("--tau_base="):
+                cfg.TAU_BASE = float(arg.split("=")[1])
+                # Rebuild reconfig stages with new base
+                cfg.RECONFIG_STAGES = [
+                    {"name": "RC1", "effective_pitch": cfg.TAU_BASE,       "f_handoff_hz": 30.0},
+                    {"name": "RC2", "effective_pitch": 2 * cfg.TAU_BASE,   "f_handoff_hz": 60.0},
+                    {"name": "RC3", "effective_pitch": 3 * cfg.TAU_BASE,   "f_handoff_hz": None},
+                ]
+            elif arg.startswith("--g-limit="):
+                cfg.G_LOAD_MAX = float(arg.split("=")[1])
             elif arg.startswith("--v_launch="):
                 cfg.V_LAUNCH = float(arg.split("=")[1])
             elif arg.startswith("--accel="):
                 cfg.A_MAX_G = float(arg.split("=")[1])
             elif arg.startswith("--mass="):
-                cfg.M_SPACECRAFT = float(arg.split("=")[1]) * 1000  # Convert tonnes to kg
+                cfg.M_SPACECRAFT = float(arg.split("=")[1]) * 1000
             elif arg.startswith("--B_sled="):
                 cfg.B_SLED_NOMINAL = float(arg.split("=")[1])
             elif arg.startswith("--tau_p="):
@@ -642,10 +815,14 @@ def main():
             elif arg.startswith("--sled-length="):
                 cfg.L_SLED = float(arg.split("=")[1])
             else:
-                # Assume it's a plot keyword
                 plot_keywords.append(arg)
 
-    # Recalculate derived parameters if anything changed
+    # Apply launch mode (sets V_LAUNCH and G_LOAD_MAX unless overridden)
+    # Only apply if V_LAUNCH wasn't explicitly set via --v_launch
+    if not any(a.startswith("--v_launch=") for a in sys.argv[1:]):
+        cfg.apply_launch_mode()
+
+    # Recalculate derived parameters
     cfg.calc_derived()
 
     # Run simulation

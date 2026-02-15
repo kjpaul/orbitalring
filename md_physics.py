@@ -68,17 +68,6 @@ def slip_frequency(v_slip, tau_p):
     """f_slip = v_slip / (2 τ_p)"""
     return v_slip / (2.0 * tau_p)
 
-def coil_supply_voltage(stage, B_peak, v_slip):
-    """Supply voltage with power factor correction.
-
-    With PFC capacitor banks on the stator, the reactive magnetizing
-    current is handled locally. The power supply only provides real
-    power, so the voltage scales with v_slip (tens of m/s) rather
-    than v_wave (km/s).
-
-    V_supply ≈ N × B × w_coil × v_slip × (2/π)
-    """
-    return stage.n_turns * B_peak * stage.w_coil * v_slip * (2.0 / math.pi)
 
 # ═════════════════════════════════════════════════════════════════════
 # THRUST MODEL 1 — NARROW PLATE EDDY CURRENT
@@ -113,7 +102,7 @@ def calc_thrust(stage, I_peak, v_slip, v_sled, T_plate, n_active):
 
     Returns:
         dict with thrust, P_eddy, B_peak, f_supply, f_slip, delta,
-             v_wave, V_supply, t_eff, and eddy loop diagnostics
+             v_wave, t_eff, and eddy loop diagnostics
     """
     mat = cfg.get_material()
     rho = resistivity_at_T(T_plate, mat)
@@ -124,7 +113,6 @@ def calc_thrust(stage, I_peak, v_slip, v_sled, T_plate, n_active):
     f_sl = slip_frequency(v_slip, stage.tau_p)
     delta = skin_depth(rho, f_sl)
     t_eff = min(cfg.PLATE_THICKNESS, delta)
-    V_supply = coil_supply_voltage(stage, B, v_slip)
 
     # ── Stator coil inductance and voltage ───────────────────────
     # L = μ₀ N² A_field / l_coil
@@ -136,9 +124,8 @@ def calc_thrust(stage, I_peak, v_slip, v_sled, T_plate, n_active):
     # V_coil = inductive voltage across coil insulation (must be < 100 kV)
     V_coil = 2.0 * math.pi * f_sup * L_coil * I_peak
 
-    # HTS hysteresis losses (proper model — replaces simplified 0.5 J/m estimate)
-    P_hts_total = calc_hysteresis_power_stage(stage, I_peak, f_sup, n_active,
-                                              norris=cfg.NORRIS_HYSTERESIS)
+    # HTS hysteresis losses (Gömöry perpendicular field model)
+    P_hts_total = calc_hysteresis_power_stage(stage, I_peak, f_sup, n_active)
 
     # ── Eddy current loop model (in reaction plate) ──────────────
     # EMF per loop: ε = B × h_plate × v_slip
@@ -170,116 +157,85 @@ def calc_thrust(stage, I_peak, v_slip, v_sled, T_plate, n_active):
     return {
         "thrust": thrust, "P_eddy": P_eddy,
         "B_peak": B, "f_supply": f_sup, "f_slip": f_sl,
-        "delta": delta, "v_wave": v_wave, "V_supply": V_supply,
+        "delta": delta, "v_wave": v_wave,
         "V_coil": V_coil, "L_coil": L_coil, "P_hts_coil": P_hts_total,
         "t_eff": t_eff, "R_loop": R_loop, "Z_loop": Z_loop,
         "I_eddy": I_eddy, "emf_loop": emf,
     }
 
 # ═════════════════════════════════════════════════════════════════════
-# HTS HYSTERESIS LOSS MODELS
+# HTS HYSTERESIS LOSS — GÖMÖRY PERPENDICULAR FIELD MODEL
 #
 # HTS tape at 77 K experiences AC magnetization losses as the stator
-# field cycles. Two models are available:
-#   1. Loss-factor (Bean model approximation) — conservative
-#   2. Norris strip formula — more accurate at high I/Ic
+# field cycles. The Gömöry model calculates the energy loss per meter
+# of tape per cycle from the coil self-field and critical current:
 #
-# The cryo system must pump this heat from 77 K to hot-side radiators.
+#   Q_hyst = B_coil_peak × Ic_per_layer × w_tape × sin(α_tape_field)
+#
+# where B_coil_peak = μ₀ × N × I / l_coil is the field inside the
+# winding, and α_tape_field = 20° is the perpendicular field angle.
 # ═════════════════════════════════════════════════════════════════════
 
-def q_hts_loss_factor(i_peak, n_turns, w_coil, w_tape, alpha_tape):
-    """Hysteresis loss factor for HTS tape (Bean model approximation).
-
-    Returns energy loss per meter of tape per cycle (J/m/cycle).
-    """
-    b_coil = MU0 * n_turns * i_peak / w_coil
-    return b_coil * i_peak * w_tape * math.sin(alpha_tape)
-
-
-def q_hysteresis_norris(i_now, i_c):
-    """Norris strip formula for hysteresis loss per meter per cycle.
-
-    More accurate than loss-factor model at high I/Ic ratios.
-    Returns energy loss per meter of tape per cycle (J/m/cycle).
-    """
-    ii = i_now / i_c
-    if ii >= 1:
-        ii = 0.999
-    if ii <= -1:
-        ii = -0.999
-    return (MU0 * i_c**2 / math.pi) * (
-        (1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2
-    )
-
-
-def calc_hysteresis_power_stage(stage, I_peak, f_supply, n_active, norris=False):
-    """Total HTS hysteresis power for one stage's active coils.
+def calc_hysteresis_power_stage(stage, I_operating, f_supply, n_active):
+    """Total HTS hysteresis power using Gömöry perpendicular field model.
 
     Args:
         stage: LIMStageConfig for the active stage
-        I_peak: Operating current (A)
+        I_operating: Operating current (A)
         f_supply: Electrical supply frequency (Hz)
         n_active: Number of repeating units the sled spans
-        norris: Use Norris formula if True, else loss-factor model
 
     Returns:
         Total hysteresis power (W) for all active coils in this stage
     """
-    if norris:
-        q = q_hysteresis_norris(I_peak, stage.I_c)
-    else:
-        q = q_hts_loss_factor(I_peak, stage.n_turns, stage.w_coil,
-                              stage.w_tape, cfg.ALPHA_TAPE)
+    # Coil self-field (field inside the winding)
+    l_coil = stage.tau_p / 3.0                    # coil slot length
+    B_coil_peak = MU0 * stage.n_turns * I_operating / l_coil
 
-    # Power per phase coil = q (J/m/cycle) × tape_length (m) × frequency (Hz)
-    p_coil = q * stage.l_hts_coil * f_supply
+    # Tape geometry per layer
+    coil_depth = stage.n_turns * 0.15e-3          # winding depth (m)
+    turn_perimeter = 2.0 * (stage.w_coil + coil_depth)
+    L_tape_per_layer = stage.n_turns * turn_perimeter
+
+    # Gömöry loss per meter of tape per cycle (J/m/cycle)
+    w_tape = stage.hts_width_mm * 1e-3
+    Q_hyst = B_coil_peak * stage.I_c_per_layer * w_tape * cfg.SIN_ALPHA
+
+    # Power per phase coil = layers × tape_length × Q_hyst × frequency
+    P_hts_per_coil = stage.hts_layers * L_tape_per_layer * Q_hyst * f_supply
 
     # Total: 3 phases × 2 sides × n_active repeating units
-    n_coils = 3 * cfg.N_LIM_SIDES * n_active
-    return p_coil * n_coils
+    n_coils_active = 3 * cfg.N_LIM_SIDES * n_active
+    return P_hts_per_coil * n_coils_active
 
 
 # ═════════════════════════════════════════════════════════════════════
 # CRYOGENIC RADIATOR WIDTH
+#
+# LN2 absorbs HTS hysteresis heat at 77 K; radiators at ~100 K reject
+# it to space (~3 K background). Two-sided radiator panels run along
+# the stator section.
 # ═════════════════════════════════════════════════════════════════════
 
-def calc_radiator_width(q_cold, T_cold, T_hot, efficiency, em_heatsink,
-                        radiator_length):
-    """Required cryogenic radiator width to reject hysteresis heat.
-
-    The cryo system pumps heat from T_cold (77 K stator) to T_hot
-    (400 K radiator). The radiator must reject both the cold-side heat
-    AND the compressor work.
+def calc_radiator_width(P_hts_total, L_stator_active):
+    """Required radiator width for LN2-cooled HTS heat rejection.
 
     Args:
-        q_cold: Cold-side heat load (W)
-        T_cold: Cold temperature (K), typically T_STATOR = 77 K
-        T_hot: Hot-side radiator temperature (K)
-        efficiency: Fraction of Carnot COP achieved
-        em_heatsink: Radiator emissivity
-        radiator_length: Length of radiator along ring (m)
+        P_hts_total: Total HTS hysteresis power to reject (W)
+        L_stator_active: Length of active stator section (m)
 
     Returns:
         Required radiator width (m) perpendicular to ring
     """
-    if q_cold <= 0:
+    if P_hts_total <= 0 or L_stator_active <= 0:
         return 0.0
-    if T_hot <= T_cold:
-        T_hot = T_cold + 1
 
-    cop_carnot = T_cold / (T_hot - T_cold)
-    cop_real = cop_carnot * efficiency
-    if cop_real <= 0:
-        cop_real = 0.01
-
-    q_reject = q_cold * (1 + 1 / cop_real)
-    p_per_m2 = em_heatsink * cfg.STEFAN_BOLTZMANN * (T_hot**4 - cfg.T_SPACE**4)
-
-    if p_per_m2 <= 0:
-        return 1000.0
-
-    area_required = q_reject / p_per_m2
-    return area_required / radiator_length
+    epsilon = 0.9       # radiator emissivity
+    sigma = 5.67e-8     # Stefan-Boltzmann
+    T_rad = 100.0       # K, radiator temperature (slightly above LN2)
+    q_rad = epsilon * sigma * T_rad**4   # W/m² per side
+    # Two-sided radiator:
+    return P_hts_total / (2.0 * q_rad * L_stator_active)
 
 # ═════════════════════════════════════════════════════════════════════
 # THERMAL MODEL
@@ -299,22 +255,71 @@ def plate_temp_rise(P_eddy, dt, T_plate):
     dT = dE / (d["plate_mass"] * mat["Cp"])
     return T_plate + dT
 
-def radiation_cooling(T_plate, dt):
-    """Radiative cooling from plate to cryo-cooled stator surfaces.
+def plate_sink_temperature():
+    """Temperature of the surface the plate radiates to.
 
-    Both sides of the plate face stator surfaces at T_STATOR (77 K).
-    View factor ≈ 1.0 (parallel plates, 100mm gap, extending km).
-    The cryo system absorbs this heat — it has the full ring grid's
-    power and LN2 reserves, and only 5 km of 41,646 km ring is active.
+    With water cooling: thermal shield at T_SHIELD_WATER (~350 K).
+    With LN2: plate faces cryo stator surfaces at T_STATOR (77 K).
     """
-    d = cfg.calc_derived()
-    mat = d["mat"]
+    if cfg.PLATE_COOLANT == "water":
+        return cfg.T_SHIELD_WATER
+    return cfg.T_STATOR
+
+def calc_stator_heat_flux(T_plate):
+    """Radiation heat flux from hot plate to thermal shield / stator surfaces.
+
+    Both sides of the plate radiate to the nearest surface (thermal shield
+    or cryo stator face). Returns total power and per-metre heat flux.
+
+    Returns:
+        (P_rad, q_per_m): total radiated power (W) and heat flux
+        per metre of stator currently under the sled (W/m)
+    """
+    mat = cfg.get_material()
+    T_sink = plate_sink_temperature()
     A_surface = 2.0 * cfg.SLED_LENGTH * cfg.PLATE_HEIGHT
     P_rad = mat["emissivity"] * cfg.STEFAN_BOLTZMANN * A_surface * (
-        T_plate**4 - cfg.T_STATOR**4)
+        T_plate**4 - T_sink**4)
+    q_per_m = P_rad / cfg.SLED_LENGTH
+    return P_rad, q_per_m
+
+def radiation_cooling(T_plate, dt):
+    """Radiative cooling from plate to thermal shield / stator surfaces.
+
+    View factor ≈ 1.0 (parallel plates, 100mm gap, extending km).
+    """
+    d = cfg.calc_derived()
+    P_rad, _ = calc_stator_heat_flux(T_plate)
     dE = P_rad * dt
-    dT = dE / (d["plate_mass"] * mat["Cp"])
+    dT = dE / (d["plate_mass"] * d["mat"]["Cp"])
     return T_plate - dT
+
+def calc_coolant_absorption():
+    """Absorption capacity of the plate radiation coolant.
+
+    Returns:
+        (capacity, name, density): J/kg, display name, kg/m³
+    """
+    if cfg.PLATE_COOLANT == "water":
+        sensible = cfg.C_P_WATER * (cfg.T_WATER_BOIL - cfg.T_WATER_SUPPLY)
+        capacity = sensible + cfg.L_V_WATER
+        return capacity, "Water", cfg.RHO_WATER
+    sensible = cfg.C_P_LN2 * (cfg.T_LN2_BOIL - cfg.T_LN2_SUPPLY)
+    capacity = sensible + cfg.L_V_LN2
+    return capacity, "LN2", cfg.RHO_LN2
+
+def calc_energy_per_m_per_pass(q_per_m, v_sled):
+    """Energy deposited per metre of stator per sled pass.
+
+    A fixed stator section sees the sled for t_exposure = SLED_LENGTH / v_sled.
+    During that time it absorbs q_per_m watts per metre.
+
+    Returns:
+        Energy per metre per pass (J/m)
+    """
+    if v_sled <= 0:
+        return 0.0
+    return q_per_m * cfg.SLED_LENGTH / v_sled
 
 # ═════════════════════════════════════════════════════════════════════
 # STAGE SELECTION
@@ -330,8 +335,18 @@ def select_active_stage(v_sled, v_slip):
             return i
     return len(cfg.LIM_STAGES) - 1
 
-def count_active_segments():
-    """Number of repeating units the sled spans."""
+def count_active_segments(stage=None):
+    """Number of repeating units the sled spans for the active stage.
+
+    Each stage's coils tile the ring independently. When S1 is active,
+    only S1 coils are energized — the sled passes over S2/S3/S4 coils
+    without activating them. So n_active depends on the active stage's
+    own L_active, not the combined repeating unit.
+
+    If stage is None, uses the combined repeating unit (legacy behavior).
+    """
+    if stage is not None:
+        return cfg.SLED_LENGTH / (stage.L_active + cfg.L_STAGE_GAP)
     return cfg.SLED_LENGTH / cfg.L_REPEATING_UNIT_WITH_GAPS
 
 # ═════════════════════════════════════════════════════════════════════

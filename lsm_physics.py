@@ -81,16 +81,17 @@ def calc_B_stator(I, N, w_coil, g_gap):
 def calc_EMF(N, v, B_sled, w_coil):
     """Calculate back-EMF per stator coil from moving sled field.
 
-    As the sled moves at velocity v, its DC field B_sled sweeps past the
-    stationary stator coils, inducing a back-EMF:
+    Derivation from Faraday's law:
+      Each stator coil spans one pole pitch τ_p with N turns and width w_coil.
+      The sled's sinusoidal field B₀sin(πx/τ_p) gives peak flux linkage:
+        Λ_peak = N × w_coil × (2τ_p/π) × B₀
+      With ω = πv/τ_p, taking dΛ/dt:
+        EMF_peak = ω × Λ_peak = (πv/τ_p) × N × w_coil × (2τ_p/π) × B₀
+                 = 2 × N × v × B₀ × w_coil
+      The τ_p cancels. The coefficient is 2, not 2π.
 
-    EMF = N × 2π × v × B_sled × w_coil
-
-    Key insight: This is INDEPENDENT of pole pitch τ_p. The pole pitch cancels
-    when you substitute f = v/(2τ_p) and Φ = B_sled × 2τ_p × w_coil.
-
-    This EMF grows linearly with velocity and is the primary voltage constraint
-    at high speed.
+    This is INDEPENDENT of pole pitch τ_p and grows linearly with velocity,
+    making it the primary voltage constraint at high speed.
 
     Args:
         N: Turns per stator coil
@@ -101,17 +102,13 @@ def calc_EMF(N, v, B_sled, w_coil):
     Returns:
         Back-EMF per coil (V)
     """
-    return N * 2.0 * PI * v * B_sled * w_coil
+    return 2.0 * N * v * B_sled * w_coil
 
 
 def calc_max_B_sled_for_voltage(V_limit, N, v, w_coil):
     """Calculate maximum B_sled allowed by voltage limit at given velocity.
 
-    At high velocities, the back-EMF can exceed the coil insulation limit.
-    This function calculates the maximum sled field that keeps the voltage
-    within limits:
-
-    B_sled_max = V_limit / (N × 2π × v × w_coil)
+    Inverts the EMF formula: B_sled_max = V_limit / (2 × N × v × w_coil)
 
     Args:
         V_limit: Coil voltage limit (V)
@@ -125,7 +122,7 @@ def calc_max_B_sled_for_voltage(V_limit, N, v, w_coil):
     if v <= 0:
         return float('inf')
 
-    return V_limit / (N * 2.0 * PI * v * w_coil)
+    return V_limit / (2.0 * N * v * w_coil)
 
 
 # =============================================================================
@@ -133,16 +130,19 @@ def calc_max_B_sled_for_voltage(V_limit, N, v, w_coil):
 # =============================================================================
 
 def calc_thrust(B_stator, B_sled, delta, A_active):
-    """Calculate LSM thrust from Maxwell stress.
+    """Calculate LSM thrust from Maxwell stress with spatial averaging.
 
-    The thrust comes from the magnetic shear stress at the air gap:
+    When both B_stator and B_sled are peak fundamental amplitudes of
+    sinusoidal field distributions, the time-and-space-averaged shear
+    stress includes a factor of 1/2 from averaging sin²(kx) over a
+    pole pitch:
 
-    σ_shear = (B_stator × B_sled × sin(δ)) / μ₀
+    σ_shear = (B_stator × B_sled × sin(δ)) / (2 × μ₀)
     F = σ_shear × A_active
 
     where:
-      - B_stator = stator AC field amplitude (T)
-      - B_sled = sled DC field amplitude (T)
+      - B_stator = peak stator AC field amplitude (T)
+      - B_sled = peak sled DC field amplitude (T)
       - δ = load angle (electrical angle between stator and sled fields)
       - A_active = total active magnetic area (m²)
 
@@ -161,7 +161,7 @@ def calc_thrust(B_stator, B_sled, delta, A_active):
     if B_stator <= 0 or B_sled <= 0 or A_active <= 0:
         return 0.0
 
-    sigma_shear = (B_stator * B_sled * math.sin(delta)) / MU0
+    sigma_shear = (B_stator * B_sled * math.sin(delta)) / (2.0 * MU0)
     F = sigma_shear * A_active
     return F
 
@@ -169,11 +169,12 @@ def calc_thrust(B_stator, B_sled, delta, A_active):
 def calc_delta_for_thrust(F_desired, B_stator, B_sled, A_active, delta_max):
     """Calculate required load angle to achieve desired thrust.
 
-    Inverts the thrust equation to find the load angle:
+    Inverts the spatially-averaged thrust equation:
 
-    sin(δ) = F_desired × μ₀ / (B_stator × B_sled × A_active)
+    sin(δ) = (F_desired × 2 × μ₀) / (B_stator × B_sled × A_active)
 
-    If the required sin(δ) exceeds sin(delta_max), the thrust is limited.
+    The factor of 2 in the numerator matches the 1/2 in the thrust
+    denominator from spatial averaging of sinusoidal fields.
 
     Args:
         F_desired: Desired thrust (N)
@@ -190,7 +191,7 @@ def calc_delta_for_thrust(F_desired, B_stator, B_sled, A_active, delta_max):
     if B_stator <= 0 or B_sled <= 0 or A_active <= 0:
         return (0.0, True)
 
-    sin_delta_required = (F_desired * MU0) / (B_stator * B_sled * A_active)
+    sin_delta_required = (F_desired * 2.0 * MU0) / (B_stator * B_sled * A_active)
 
     sin_delta_max = math.sin(delta_max)
 
@@ -352,104 +353,78 @@ def calc_kinetic_energy(m, v):
 
 
 # =============================================================================
-# HTS HYSTERESIS LOSSES
+# HTS HYSTERESIS LOSSES — GÖMÖRY PERPENDICULAR FIELD MODEL
 #
 # The LSM stator uses HTS coils at 77 K. As the sled passes, the AC
 # magnetization cycle generates hysteresis losses in the superconducting
-# tape. These must be pumped out by the cryogenic system.
+# tape. The Gömöry model calculates:
+#
+#   Q_hyst = B_coil_peak × Ic_per_layer × w_tape × sin(α_tape_field)
+#
+# where B_coil_peak = μ₀ × N × I / l_coil is the field inside the winding.
 # =============================================================================
 
-def q_hts_loss_factor(i_peak, n_turns, w_coil, w_tape, alpha_tape):
-    """Hysteresis loss factor for HTS tape (Bean model approximation).
-
-    Returns energy loss per meter of tape per cycle (J/m/cycle).
-    """
-    b_coil = MU0 * n_turns * i_peak / w_coil
-    return b_coil * i_peak * w_tape * math.sin(alpha_tape)
-
-
-def q_hysteresis_norris(i_now, i_c):
-    """Norris strip formula for hysteresis loss per meter per cycle.
-
-    More accurate than loss-factor model at high I/Ic ratios.
-    Returns energy loss per meter of tape per cycle (J/m/cycle).
-    """
-    ii = i_now / i_c
-    if ii >= 1:
-        ii = 0.999
-    if ii <= -1:
-        ii = -0.999
-    return (MU0 * i_c**2 / math.pi) * (
-        (1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2
-    )
-
-
-def calc_hysteresis_power(f_supply, I_stator, params, n_units, norris=False):
-    """Total HTS hysteresis power for all active stator coils.
+def calc_hysteresis_power(f_supply, I_stator, params, n_units):
+    """Total HTS hysteresis power using Gömöry perpendicular field model.
 
     Args:
         f_supply: Electrical supply frequency (Hz)
         I_stator: Stator operating current (A)
         params: Physics parameter dict from lsm_config.get_physics_params()
         n_units: Number of repeating units on the sled
-        norris: Use Norris formula if True, else loss-factor model
 
     Returns:
         Total hysteresis power (W) for all active coils
     """
-    if norris:
-        q = q_hysteresis_norris(I_stator, params['i_c'])
-    else:
-        q = q_hts_loss_factor(I_stator, params['n_turns'], params['w_coil'],
-                              params['w_tape'], params['alpha_tape'])
+    n_turns = params['n_turns']
+    tau_p = params['tau_p']
+    w_coil = params['w_coil']
 
-    # Power per phase coil = q (J/m/cycle) × tape_length (m) × frequency (Hz)
-    p_coil = q * params['l_hts_coil'] * f_supply
+    # Coil self-field (field inside the winding)
+    l_coil = tau_p / 3.0
+    B_coil_peak = MU0 * n_turns * I_stator / l_coil
+
+    # Tape geometry per layer
+    coil_depth = n_turns * 0.15e-3          # winding depth (m)
+    turn_perimeter = 2.0 * (w_coil + coil_depth)
+    L_tape_per_layer = n_turns * turn_perimeter
+
+    # Gömöry loss per meter of tape per cycle (J/m/cycle)
+    w_tape = params['tape_width_mm'] * 1e-3
+    Q_hyst = B_coil_peak * params['i_c_per_layer'] * w_tape * params['sin_alpha']
+
+    # Power per phase coil = layers × tape_length × Q_hyst × frequency
+    P_hts_per_coil = params['n_hts_layers'] * L_tape_per_layer * Q_hyst * f_supply
 
     # Total: phases × sides × n_units
-    n_coils = params['lim_phases'] * params['n_lim_sides'] * n_units
-    return p_coil * n_coils
+    n_coils_active = params['lim_phases'] * params['n_lim_sides'] * n_units
+    return P_hts_per_coil * n_coils_active
 
 
 # =============================================================================
 # CRYOGENIC RADIATOR WIDTH
+#
+# LN2 absorbs HTS hysteresis heat at 77 K; radiators at ~100 K reject
+# it to space (~3 K background). Two-sided radiator panels run along
+# the stator section.
 # =============================================================================
 
-def calc_radiator_width(q_cold, T_cold, T_hot, efficiency, em_heatsink,
-                        radiator_length, T_space):
-    """Required cryogenic radiator width to reject hysteresis heat.
-
-    The cryo system pumps heat from T_cold (77 K stator) to T_hot
-    (400 K radiator). The radiator must reject both the cold-side heat
-    AND the compressor work.
+def calc_radiator_width(P_hts_total, L_stator_active):
+    """Required radiator width for LN2-cooled HTS heat rejection.
 
     Args:
-        q_cold: Cold-side heat load (W)
-        T_cold: Cold temperature (K), typically 77 K
-        T_hot: Hot-side radiator temperature (K)
-        efficiency: Fraction of Carnot COP achieved
-        em_heatsink: Radiator emissivity
-        radiator_length: Length of radiator along ring (m)
-        T_space: Background space temperature (K)
+        P_hts_total: Total HTS hysteresis power to reject (W)
+        L_stator_active: Length of active stator section (m)
 
     Returns:
         Required radiator width (m) perpendicular to ring
     """
-    if q_cold <= 0:
+    if P_hts_total <= 0 or L_stator_active <= 0:
         return 0.0
-    if T_hot <= T_cold:
-        T_hot = T_cold + 1
 
-    cop_carnot = T_cold / (T_hot - T_cold)
-    cop_real = cop_carnot * efficiency
-    if cop_real <= 0:
-        cop_real = 0.01
-
-    q_reject = q_cold * (1 + 1 / cop_real)
-    p_per_m2 = em_heatsink * STEFAN_BOLTZMANN * (T_hot**4 - T_space**4)
-
-    if p_per_m2 <= 0:
-        return 1000.0
-
-    area_required = q_reject / p_per_m2
-    return area_required / radiator_length
+    epsilon = 0.9       # radiator emissivity
+    sigma = 5.67e-8     # Stefan-Boltzmann
+    T_rad = 100.0       # K, radiator temperature (slightly above LN2)
+    q_rad = epsilon * sigma * T_rad**4   # W/m² per side
+    # Two-sided radiator:
+    return P_hts_total / (2.0 * q_rad * L_stator_active)
