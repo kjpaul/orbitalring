@@ -10,6 +10,11 @@ that interact directly with the track's AC stator. No eddy currents, no slip,
 no thermal limit on the sled. The voltage limit is the primary constraint.
 
 Design choices:
+  - N_stator = 50: Fixed stator turn count. Optimization analysis shows the
+    product F×v_cross = P/L = 37.5 MW/m is invariant with N and B_sled.
+    N=50 gives only 2.3% time overhead vs the theoretical minimum (N→∞).
+    Switchable windings provide zero benefit: cargo always wants max N,
+    crewed missions are g-limited so N is irrelevant.
   - τ_p = 130 m: Large pole pitch minimizes HTS hysteresis losses, which scale
     as ~1/τ_p³ (B_coil_peak ~ N×I/l_coil where l_coil = τ_p/3).
   - The LSM requires periodic alternating N/S SC poles on the sled (not uniform
@@ -18,11 +23,6 @@ Design choices:
 Launch modes:
   - "crew": v_target = 15,000 m/s (Mars transfer), 3g human physiological limit
   - "cargo": v_target = 30,000 m/s (deep solar system), 13g structural limit
-
-Sled architecture:
-  - "fixed" (Option A): Single pole pitch, sled SC coils at τ_p. Simple, default.
-  - "reconfig" (Option B): Reconfigurable coils at base pitch τ_base, grouped to
-    create effective pitch = n × τ_base. Multi-stage operation like the LIM.
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
@@ -52,7 +52,7 @@ W_COIL = 2.0                # m, coil height (tangential extent)
 G_GAP = 0.100               # m, air gap (stator face to sled coil face)
 
 # Stator coil configuration
-N_STATOR = 10               # turns per stator coil
+N_STATOR = 50               # turns per stator coil (fixed; see lsm_n_optimization_demo.py)
 
 # HTS tape specification (Gömöry model)
 # 12 mm × 4 layers: simpler winding than LIM's 3 mm × 16 layers.
@@ -83,19 +83,6 @@ V_COIL_LIMIT = 100_000      # V, coil insulation limit
 # Sled superconducting DC field
 B_SLED_NOMINAL = 0.10       # T, sled DC field at air gap (base value)
 B_SLED_ADJUSTABLE = True    # Controller reduces B_sled at high speed to meet voltage limit
-
-# Sled architecture: "fixed" (Option A) or "reconfig" (Option B)
-SLED_ARCHITECTURE = "fixed"
-
-# Option B reconfigurable coil parameters
-TAU_BASE = 43.0              # m, base SC coil spacing on sled
-# Effective pitches available: 43, 86, 129 m (1×, 2×, 3× base)
-
-RECONFIG_STAGES = [
-    {"name": "RC1", "effective_pitch": TAU_BASE,       "f_handoff_hz": 30.0},
-    {"name": "RC2", "effective_pitch": 2 * TAU_BASE,   "f_handoff_hz": 60.0},
-    {"name": "RC3", "effective_pitch": 3 * TAU_BASE,   "f_handoff_hz": None},  # final stage
-]
 
 # =============================================================================
 # SECTION 4: SLED MASS
@@ -129,7 +116,7 @@ elif LAUNCH_MODE == "cargo":
     V_LAUNCH = 30_000       # m/s — deep solar system resupply
     G_LOAD_MAX = 13.0       # g — structural limit only
 
-A_MAX_G = 0.5               # maximum tangential acceleration in g
+A_MAX_G = 1.0               # maximum tangential acceleration in g (system is thrust-limited at ~0.75g)
 DT = 0.1                    # s, timestep (default)
 DT_QUICK = 1.0              # s, timestep for --quick mode
 

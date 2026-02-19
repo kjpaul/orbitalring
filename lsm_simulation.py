@@ -9,10 +9,9 @@ an orbital ring at 250 km altitude.
 Key differences from LIM:
   - No slip (synchronous operation)
   - No eddy current losses (no sled heating)
-  - Load angle δ is the control variable (not slip velocity)
+  - Load angle delta is the control variable (not slip velocity)
   - Voltage limit is the primary constraint at high speed
-  - Single pole pitch works across entire velocity range (Option A)
-  - Option B: reconfigurable multi-pitch sled for staged operation
+  - Fixed N=50 stator turns (optimization proved switchable windings useless)
   - No thermal limit on the sled
 
 Usage:
@@ -24,14 +23,11 @@ Options:
   --mass=N          Spacecraft mass in tonnes (default: 5000)
   --B_sled=N        Sled DC field in T (default: 0.10)
   --tau_p=N         Pole pitch in m (default: 130)
-  --N_stator=N      Stator turns (default: 10)
+  --N_stator=N      Stator turns (default: 50)
   --adjustable-B    Allow controller to reduce B_sled [default]
   --sled-length=N   Sled length in m (default: 10000)
   --crew            Crew launch mode (15 km/s, 3g limit)
   --cargo           Cargo launch mode (30 km/s, 13g limit) [default]
-  --sled-fixed      Fixed single-pitch sled (Option A) [default]
-  --sled-reconfig   Reconfigurable multi-pitch sled (Option B)
-  --tau_base=N      Base pitch for Option B (default: 43 m)
   --g-limit=N       Override g-load limit (in g)
   --quick           Use 1-second timesteps
   --save-csv        Export time-series data
@@ -86,7 +82,6 @@ data_x_fraction = []
 data_P_hysteresis = []
 data_E_hyst_cumulative = []
 data_radiator_width = []
-data_stage_name = []
 
 
 def clear_data():
@@ -96,7 +91,6 @@ def clear_data():
     global data_f_supply, data_V_coil, data_a_centrifugal
     global data_a_radial_net, data_a_occupant_g, data_KE, data_x_fraction
     global data_P_hysteresis, data_E_hyst_cumulative, data_radiator_width
-    global data_stage_name
 
     data_t = []
     data_v = []
@@ -118,40 +112,11 @@ def clear_data():
     data_P_hysteresis = []
     data_E_hyst_cumulative = []
     data_radiator_width = []
-    data_stage_name = []
 
 
 # =============================================================================
 # OPTION B: RECONFIGURABLE SLED HELPERS
 # =============================================================================
-
-def get_reconfig_stage(v, stages):
-    """Select the active reconfigurable stage based on supply frequency.
-
-    Returns (stage_index, stage_dict) for the stage whose handoff frequency
-    has not been exceeded.
-    """
-    for i, stage in enumerate(stages):
-        tau_eff = stage["effective_pitch"]
-        f = v / (2.0 * tau_eff)
-        if stage["f_handoff_hz"] is None or f <= stage["f_handoff_hz"]:
-            return i, stage
-    # Default to last stage
-    return len(stages) - 1, stages[-1]
-
-
-def calc_reconfig_derived(tau_eff):
-    """Compute derived parameters for a given effective pitch.
-
-    Returns (n_units, A_active_total, active_length) for the effective pitch.
-    """
-    l_unit = cfg.N_POLES_PER_UNIT * tau_eff + cfg.L_GAP
-    w_active = cfg.N_POLES_PER_UNIT * tau_eff
-    n_units = int(cfg.L_SLED / l_unit)
-    A_active = 2 * n_units * w_active * cfg.W_COIL
-    active_length = n_units * w_active
-    return n_units, A_active, active_length
-
 
 # =============================================================================
 # MAIN SIMULATION LOOP
@@ -215,25 +180,8 @@ def run_lsm_simulation(quick_mode=False):
     g_load_limited = False
     g_load_engage_v = None  # velocity at which g-load limiting first engages
 
-    # Option B stage tracking
-    reconfig = (cfg.SLED_ARCHITECTURE == "reconfig")
-    rc_stage_idx = 0
-    rc_stage_name = ""
-    rc_stage_times = {}  # stage_name -> cumulative time in stage
-    rc_handoffs = []
-    if reconfig:
-        rc_stage_idx, rc_stg = get_reconfig_stage(0, cfg.RECONFIG_STAGES)
-        rc_stage_name = rc_stg["name"]
-        for s in cfg.RECONFIG_STAGES:
-            rc_stage_times[s["name"]] = 0.0
-
-    print(f"\nStarting simulation...")
+    print("\nStarting simulation...")
     print(f"Launch mode: {cfg.LAUNCH_MODE} (v_target={cfg.V_LAUNCH/1000:.0f} km/s, g_limit={cfg.G_LOAD_MAX:.1f}g)")
-    print(f"Sled architecture: {cfg.SLED_ARCHITECTURE}")
-    if reconfig:
-        for s in cfg.RECONFIG_STAGES:
-            hoff = f" -> {s['f_handoff_hz']:.0f} Hz" if s['f_handoff_hz'] else " -> END"
-            print(f"  {s['name']}: tau_eff={s['effective_pitch']:.0f} m{hoff}")
     print(f"Target velocity: {cfg.V_LAUNCH:,.0f} m/s")
     print(f"Target acceleration: {cfg.A_MAX_G:.2f} g = {a_target:.3f} m/s²")
     print(f"G-load limit: {cfg.G_LOAD_MAX:.1f} g")
@@ -254,25 +202,6 @@ def run_lsm_simulation(quick_mode=False):
 
     # Main simulation loop
     while v < cfg.V_LAUNCH:
-
-        # Option B: select stage and update effective pitch
-        if reconfig:
-            new_idx, rc_stg = get_reconfig_stage(v, cfg.RECONFIG_STAGES)
-            if new_idx != rc_stage_idx:
-                old_name = cfg.RECONFIG_STAGES[rc_stage_idx]["name"]
-                rc_stage_idx = new_idx
-                rc_stage_name = rc_stg["name"]
-                rc_handoffs.append((t, v, old_name, rc_stage_name))
-                print(f"  >>> STAGE {old_name} -> {rc_stage_name} at v={v/1000:.2f} km/s, t={t:.0f}s")
-            tau_p_eff = rc_stg["effective_pitch"]
-            n_units_eff, A_active_eff, active_length_eff = calc_reconfig_derived(tau_p_eff)
-            # B_sled_effective = B_SLED_NOMINAL for all effective pitches
-            # (approximation: SC coils designed to produce target field at each config)
-        else:
-            tau_p_eff = cfg.TAU_P
-            n_units_eff = cfg.N_UNITS
-            A_active_eff = cfg.A_ACTIVE_TOTAL
-            active_length_eff = cfg.N_UNITS * cfg.N_POLES_PER_UNIT * cfg.TAU_P
 
         # Controller: adjust current to achieve desired thrust
         for _ in range(5):
@@ -386,7 +315,6 @@ def run_lsm_simulation(quick_mode=False):
         max_values['radiator_width'] = max(max_values['radiator_width'], radiator_w)
 
         # Data collection
-        stage_name = rc_stage_name if reconfig else "fixed"
         data_t.append(t)
         data_v.append(v)
         data_x.append(x)
@@ -407,11 +335,6 @@ def run_lsm_simulation(quick_mode=False):
         data_P_hysteresis.append(P_hyst)
         data_E_hyst_cumulative.append(E_hyst_cum)
         data_radiator_width.append(radiator_w)
-        data_stage_name.append(stage_name)
-
-        # Option B: accumulate stage time
-        if reconfig:
-            rc_stage_times[rc_stage_name] = rc_stage_times.get(rc_stage_name, 0) + dt
 
         # Update state
         v = v_new
@@ -423,12 +346,11 @@ def run_lsm_simulation(quick_mode=False):
         if t >= next_report_time:
             minutes = t / 60.0
             km = x / 1000.0
-            stg_str = f" [{rc_stage_name}]" if reconfig else ""
             g_lim_str = " G-LIM" if (a_total_g >= cfg.G_LOAD_MAX * 0.99) else ""
             print(f"t = {minutes:7.1f} min | v = {v:8.1f} m/s | x = {km:10.1f} km | "
                   f"F = {F/1e6:6.2f} MN | P = {P_mech/1e9:6.2f} GW | "
                   f"I = {I_stator:6.1f} A | delta = {math.degrees(delta):5.1f} deg | "
-                  f"g = {a_occupant_g:.3f}{stg_str}{g_lim_str}")
+                  f"g = {a_occupant_g:.3f}{g_lim_str}")
             next_report_time += 600.0
 
         # Safety check
@@ -446,7 +368,6 @@ def run_lsm_simulation(quick_mode=False):
     print("SIMULATION COMPLETE")
     print("=" * 80)
     print(f"Launch mode:          {cfg.LAUNCH_MODE}")
-    print(f"Sled architecture:    {cfg.SLED_ARCHITECTURE}")
     print(f"Final velocity:       {v:,.1f} m/s")
     print(f"Target velocity:      {cfg.V_LAUNCH:,.1f} m/s")
     print(f"Achievement:          {100 * v / cfg.V_LAUNCH:.1f}%")
@@ -475,15 +396,6 @@ def run_lsm_simulation(quick_mode=False):
     else:
         print()
 
-    if reconfig and rc_handoffs:
-        print(f"\nOption B stage transitions:")
-        for t_h, v_h, frm, to in rc_handoffs:
-            print(f"  {frm} -> {to} at t={t_h:.0f}s, v={v_h/1000:.2f} km/s")
-        print(f"\nTime in each stage:")
-        for s_name, s_time in rc_stage_times.items():
-            if s_time > 0:
-                print(f"  {s_name}: {s_time:.0f}s ({s_time/60:.1f} min)")
-
     print("=" * 80)
 
     success = (v >= cfg.V_LAUNCH * 0.99)
@@ -500,7 +412,6 @@ def print_parameters():
 
     print(f"\nConfiguration:")
     print(f"  Launch mode:            {cfg.LAUNCH_MODE}")
-    print(f"  Sled architecture:      {cfg.SLED_ARCHITECTURE}")
     print(f"  Pole pitch:             {cfg.TAU_P:.1f} m")
     print(f"  Stator turns:           {cfg.N_STATOR}")
     print(f"  Air gap:                {cfg.G_GAP * 1000:.1f} mm")
@@ -528,13 +439,6 @@ def print_parameters():
     print(f"  Max supply frequency:   {derived['f_max_supply']:.1f} Hz")
     print()
 
-    if cfg.SLED_ARCHITECTURE == "reconfig":
-        print(f"  Option B stages:")
-        for s in cfg.RECONFIG_STAGES:
-            hoff = f" -> {s['f_handoff_hz']:.0f} Hz" if s['f_handoff_hz'] else " -> END"
-            print(f"    {s['name']}: tau_eff={s['effective_pitch']:.0f} m{hoff}")
-        print()
-
 
 # =============================================================================
 # PLOTTING FUNCTIONS
@@ -542,8 +446,7 @@ def print_parameters():
 
 def _param_subtitle():
     """Build parameter subtitle string from current config."""
-    arch_str = "fixed" if cfg.SLED_ARCHITECTURE == "fixed" else "reconfig"
-    return (f"({cfg.LAUNCH_MODE}, {arch_str}, "
+    return (f"({cfg.LAUNCH_MODE}, "
             f"\u03c4\u209a: {cfg.TAU_P:.0f} m, N: {cfg.N_STATOR}, "
             f"{cfg.N_HTS_LAYERS}\u00d7{cfg.TAPE_WIDTH_MM:.0f} mm HTS, "
             f"m: {cfg.M_SPACECRAFT/1000:,.0f} t, "
@@ -742,8 +645,7 @@ def save_csv():
             'I_stator (A)', 'B_stator (T)', 'B_sled (T)', 'delta (rad)',
             'f_supply (Hz)', 'V_coil (V)', 'a_centrifugal (m/s^2)',
             'a_radial_net (m/s^2)', 'a_occupant_g (g)', 'KE (J)', 'x_fraction',
-            'P_hysteresis (W)', 'E_hyst_cumulative (J)', 'radiator_width (m)',
-            'stage_name'
+            'P_hysteresis (W)', 'E_hyst_cumulative (J)', 'radiator_width (m)'
         ])
 
         for i in range(len(data_t)):
@@ -752,8 +654,7 @@ def save_csv():
                 data_I_stator[i], data_B_stator[i], data_B_sled[i], data_delta[i],
                 data_f_supply[i], data_V_coil[i], data_a_centrifugal[i],
                 data_a_radial_net[i], data_a_occupant_g[i], data_KE[i], data_x_fraction[i],
-                data_P_hysteresis[i], data_E_hyst_cumulative[i], data_radiator_width[i],
-                data_stage_name[i]
+                data_P_hysteresis[i], data_E_hyst_cumulative[i], data_radiator_width[i]
             ])
 
     print(f"Saved CSV data: {filepath}")
@@ -784,18 +685,6 @@ def main():
                 cfg.LAUNCH_MODE = "crew"
             elif arg == "--cargo":
                 cfg.LAUNCH_MODE = "cargo"
-            elif arg == "--sled-fixed":
-                cfg.SLED_ARCHITECTURE = "fixed"
-            elif arg == "--sled-reconfig":
-                cfg.SLED_ARCHITECTURE = "reconfig"
-            elif arg.startswith("--tau_base="):
-                cfg.TAU_BASE = float(arg.split("=")[1])
-                # Rebuild reconfig stages with new base
-                cfg.RECONFIG_STAGES = [
-                    {"name": "RC1", "effective_pitch": cfg.TAU_BASE,       "f_handoff_hz": 30.0},
-                    {"name": "RC2", "effective_pitch": 2 * cfg.TAU_BASE,   "f_handoff_hz": 60.0},
-                    {"name": "RC3", "effective_pitch": 3 * cfg.TAU_BASE,   "f_handoff_hz": None},
-                ]
             elif arg.startswith("--g-limit="):
                 cfg.G_LOAD_MAX = float(arg.split("=")[1])
             elif arg.startswith("--v_launch="):
