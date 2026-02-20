@@ -11,7 +11,7 @@ no thermal limit on the sled. The voltage limit is the primary constraint.
 
 Design choices:
   - N_stator = 50: Fixed stator turn count. Optimization analysis shows the
-    product F×v_cross = P/L = 37.5 MW/m is invariant with N and B_sled.
+    product F×v_cross = P/L is invariant with N and B_sled.
     N=50 gives only 2.3% time overhead vs the theoretical minimum (N→∞).
     Switchable windings provide zero benefit: cargo always wants max N,
     crewed missions are g-limited so N is irrelevant.
@@ -40,6 +40,14 @@ G_0 = 9.807                 # m/s², standard gravity at sea level
 V_ORBIT = 7755              # m/s, orbital velocity at 250 km
 L_RING = 41_646_000         # m, ring circumference
 
+# HVDC power grid capacity
+# The ring's total orbit-averaged generation is 666 GW (83,292 sites x 8 MW each).
+# The actual power available for the mass driver depends on how much of the HVDC grid
+# has been upgraded for mass driver service during post-deployment buildout.
+# This is the maximum instantaneous power that can be delivered to the active stator zone.
+# Set to None to disable the power limit (for parameter studies).
+P_HVDC_MAX = 666e9          # W, maximum power delivery to mass driver (default: 666 GW)
+
 # =============================================================================
 # SECTION 2: LSM STATOR PARAMETERS
 # =============================================================================
@@ -55,20 +63,20 @@ G_GAP = 0.100               # m, air gap (stator face to sled coil face)
 N_STATOR = 50               # turns per stator coil (fixed; see lsm_n_optimization_demo.py)
 
 # HTS tape specification (Gömöry model)
-# 12 mm × 4 layers: simpler winding than LIM's 3 mm × 16 layers.
-# Hysteresis is 4× higher but still negligible for LSM (kW not GW).
+# 12 mm x 5 layers: simpler winding than LIM's 3 mm x 16 layers.
+# 5 layers gives better operating margin than 4.
 ALPHA_TAPE_FIELD = 20.0                      # degrees — Gömöry perpendicular field angle
 SIN_ALPHA = math.sin(math.radians(ALPHA_TAPE_FIELD))  # 0.34202
 DE_RATING_FACTOR = 1 - SIN_ALPHA             # 0.658 — Ic reduction per layer
-TAPE_WIDTH_MM = 12.0                         # mm — 12 mm tape (simpler winding, 4 layers)
+TAPE_WIDTH_MM = 12.0                         # mm — 12 mm REBCO tape
 TAPE_WIDTH = TAPE_WIDTH_MM / 1000.0          # m
 I_C_PER_MM_LAYER = 66.7                      # A/mm-width/layer (critical current density)
-N_HTS_LAYERS = 4                             # layers of 12 mm tape
+N_HTS_LAYERS = 5                             # layers of 12 mm tape
 I_C_PER_LAYER_NOMINAL = I_C_PER_MM_LAYER * TAPE_WIDTH_MM   # 800 A nominal
 I_C_PER_LAYER = I_C_PER_LAYER_NOMINAL * DE_RATING_FACTOR   # 526.4 A effective
-I_CRITICAL = I_C_PER_LAYER * N_HTS_LAYERS    # 2106 A total
-I_TARGET = 0.80 * I_CRITICAL                 # 1685 A operating current
-I_PEAK = 0.90 * I_CRITICAL                   # 1895 A peak current
+I_CRITICAL = I_C_PER_LAYER * N_HTS_LAYERS    # 2633 A total
+I_TARGET = 0.70 * I_CRITICAL                 # 1843 A normal operating current
+I_PEAK = 0.80 * I_CRITICAL                   # 2107 A peak current (thrust-limited cases)
 I_MIN = 10.0                # A, minimum current
 N_LIM_SIDES = 2                # Stator on both sides of sled
 LIM_PHASES = 3                 # Three-phase system

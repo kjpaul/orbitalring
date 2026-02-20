@@ -19,7 +19,7 @@ Usage:
 
 Options:
   --v_launch=N      Target velocity in m/s
-  --accel=N         Maximum acceleration in g (default: 0.5)
+  --accel=N         Maximum acceleration in g (default: 1.0)
   --mass=N          Spacecraft mass in tonnes (default: 5000)
   --B_sled=N        Sled DC field in T (default: 0.10)
   --tau_p=N         Pole pitch in m (default: 130)
@@ -29,6 +29,8 @@ Options:
   --crew            Crew launch mode (15 km/s, 3g limit)
   --cargo           Cargo launch mode (30 km/s, 13g limit) [default]
   --g-limit=N       Override g-load limit (in g)
+  --p_hvdc_max=N    HVDC power limit in watts (default: 666e9)
+  --no_power_limit  Disable HVDC power limit entirely
   --quick           Use 1-second timesteps
   --save-csv        Export time-series data
 
@@ -115,10 +117,6 @@ def clear_data():
 
 
 # =============================================================================
-# OPTION B: RECONFIGURABLE SLED HELPERS
-# =============================================================================
-
-# =============================================================================
 # MAIN SIMULATION LOOP
 # =============================================================================
 
@@ -152,7 +150,7 @@ def run_lsm_simulation(quick_mode=False):
     E_hyst_cum = 0.0
 
     # Controller state
-    I_stator = cfg.I_MIN
+    I_stator = cfg.I_TARGET
     B_sled = cfg.B_SLED_NOMINAL
     delta = 0.0
     F = 0.0
@@ -179,6 +177,8 @@ def run_lsm_simulation(quick_mode=False):
     thrust_limited = False
     g_load_limited = False
     g_load_engage_v = None  # velocity at which g-load limiting first engages
+    power_limited = False
+    power_limit_engage_v = None  # velocity at which HVDC power limit first engages
 
     print("\nStarting simulation...")
     print(f"Launch mode: {cfg.LAUNCH_MODE} (v_target={cfg.V_LAUNCH/1000:.0f} km/s, g_limit={cfg.G_LOAD_MAX:.1f}g)")
@@ -188,6 +188,10 @@ def run_lsm_simulation(quick_mode=False):
     print(f"Total mass: {cfg.M_TOTAL:,.0f} kg")
     print("Stator: Air-core")
     print(f"B_sled adjustable: {cfg.B_SLED_ADJUSTABLE}")
+    if cfg.P_HVDC_MAX is not None:
+        print(f"HVDC power limit: {cfg.P_HVDC_MAX/1e9:.1f} GW")
+    else:
+        print("HVDC power limit: None (disabled)")
     print(f"Timestep: {dt} s")
     print()
 
@@ -251,8 +255,8 @@ def run_lsm_simulation(quick_mode=False):
                 F = F_desired
                 a = a_target
 
-                if delta < cfg.DELTA_TARGET and I_stator > cfg.I_MIN:
-                    I_stator = max(cfg.I_MIN, I_stator * 0.99)
+                if delta < cfg.DELTA_TARGET and I_stator > cfg.I_TARGET:
+                    I_stator = max(cfg.I_TARGET, I_stator * 0.95)
                 break
 
         # Exit if voltage limit hit without adjustable B
@@ -282,6 +286,17 @@ def run_lsm_simulation(quick_mode=False):
 
         # Calculate power
         P_mech = phys.calc_power_mechanical(F, v)
+
+        # HVDC power limit — throttle thrust if power would exceed grid capacity
+        if cfg.P_HVDC_MAX is not None and P_mech > cfg.P_HVDC_MAX and v > 0:
+            power_limited = True
+            if power_limit_engage_v is None:
+                power_limit_engage_v = v
+            F = cfg.P_HVDC_MAX / v
+            a = F / cfg.M_TOTAL
+            P_mech = cfg.P_HVDC_MAX
+            # Recompute g-load after power throttle
+            a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
 
         # HTS hysteresis losses and radiator width
         # Build params with current effective pitch for hysteresis calc
@@ -395,6 +410,13 @@ def run_lsm_simulation(quick_mode=False):
         print(f" (engaged at {g_load_engage_v/1000:.2f} km/s)")
     else:
         print()
+    if power_limited:
+        print(f"HVDC power limit:     {cfg.P_HVDC_MAX/1e9:.1f} GW (engaged at {power_limit_engage_v/1000:.2f} km/s)")
+    else:
+        if cfg.P_HVDC_MAX is None:
+            print("HVDC power limit:     None (disabled)")
+        else:
+            print(f"HVDC power limit:     {cfg.P_HVDC_MAX/1e9:.1f} GW (not reached)")
 
     print("=" * 80)
 
@@ -437,6 +459,10 @@ def print_parameters():
     print(f"  G-load limit:           {cfg.G_LOAD_MAX:.1f} g")
     print(f"  Target KE:              {derived['KE_target'] / 1e12:.3f} TJ")
     print(f"  Max supply frequency:   {derived['f_max_supply']:.1f} Hz")
+    if cfg.P_HVDC_MAX is not None:
+        print(f"  HVDC power limit:       {cfg.P_HVDC_MAX/1e9:.1f} GW")
+    else:
+        print("  HVDC power limit:       None (disabled)")
     print()
 
 
@@ -703,6 +729,10 @@ def main():
                 cfg.B_SLED_ADJUSTABLE = True
             elif arg.startswith("--sled-length="):
                 cfg.L_SLED = float(arg.split("=")[1])
+            elif arg.startswith("--p_hvdc_max="):
+                cfg.P_HVDC_MAX = float(arg.split("=")[1])
+            elif arg == "--no_power_limit":
+                cfg.P_HVDC_MAX = None
             else:
                 plot_keywords.append(arg)
 

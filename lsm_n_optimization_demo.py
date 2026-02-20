@@ -8,11 +8,12 @@ rejected. It is self-contained (no imports from other lsm_*.py modules) so
 readers can run it standalone.
 
 Key findings:
-  1. P/L = 37.5 MW/m is invariant with both N and B_sled
+  1. P/L = 41.6 MW/m is invariant with both N and B_sled (at I_PEAK)
   2. N=50 gives only ~2.3% time overhead vs theoretical minimum
   3. Cargo missions always want max N -> switching never activates
   4. Crewed missions are g-limited -> N is irrelevant
-  5. Conclusion: Fixed N=50, simple and serviceable
+  5. At 666 GW HVDC limit, heavy cargo (416 GW) is not power-limited
+  6. Conclusion: Fixed N=50, simple and serviceable
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong, Chapter 7
 """
@@ -37,10 +38,16 @@ W_COIL = 2.0               # m, coil width (tangential extent)
 V_START = 483.0             # m/s, casing velocity (sled starts here)
 MU0 = 4 * math.pi * 1e-7   # H/m, permeability of free space
 
-# Thrust calibration: F/L = 1500 N/m at N=10, B_sled=0.10
-F_PER_M_BASE = 1500.0      # N/m baseline thrust per metre of sled
+# Thrust calibration at I_PEAK = 2,107 A (5-layer HTS, 80% of Ic):
+# F/L = 1666 N/m at N=10, B_sled=0.10
+F_PER_M_BASE = 1666.0      # N/m baseline thrust per metre of sled
 N_BASE = 10                 # reference stator turns for calibration
 B_BASE = 0.10               # reference sled field for calibration
+
+# Note: at I_TARGET = 1,843 A (70% of Ic), the baseline would be 1,458 N/m,
+# giving P/L = 36.4 MW/m. The optimization conclusions are the same either way
+# since they depend on the ratio, not the absolute value. We use I_PEAK here
+# because the heavy cargo sled (the reference case) is always thrust-limited.
 
 # Cargo reference case
 V_TARGET_CARGO = 30_000.0   # m/s
@@ -71,10 +78,22 @@ def power_per_m(N, B_sled):
     return thrust_per_m(N, B_sled) * v_crossover(N, B_sled)
 
 
-def simulate_launch(N, B_sled_nom, m_total, v_target, g_limit, dt=DT):
+def simulate_launch(N, B_sled_nom, m_total, v_target, g_limit,
+                    p_hvdc_max=None, dt=DT):
     """Simulate a launch with given parameters.
 
-    Returns (t_total, v_final, reached_target).
+    Args:
+        N: Stator turns
+        B_sled_nom: Nominal sled field (T)
+        m_total: Total mass (kg)
+        v_target: Target velocity (m/s)
+        g_limit: G-load limit (g)
+        p_hvdc_max: HVDC power limit (W), or None for unlimited
+        dt: Timestep (s)
+
+    Returns:
+        (t_total, v_final, reached_target, power_limit_v)
+        where power_limit_v is the velocity where HVDC limit engaged, or None.
     """
     F_per_m = thrust_per_m(N, B_sled_nom)
     F_total = F_per_m * L_SLED
@@ -84,13 +103,14 @@ def simulate_launch(N, B_sled_nom, m_total, v_target, g_limit, dt=DT):
     v = V_START
     t = 0.0
     max_time = 72000.0  # 20 hours safety
+    power_limit_v = None
 
     while v < v_target and t < max_time:
         # Determine thrust
         if v <= v_cross:
             F = F_total  # constant thrust phase
         else:
-            F = P_total / v  # constant power phase
+            F = P_total / v  # constant power phase (voltage-limited)
 
         # Tangential acceleration
         a_tang = F / m_total
@@ -107,10 +127,20 @@ def simulate_launch(N, B_sled_nom, m_total, v_target, g_limit, dt=DT):
             else:
                 break  # radial alone exceeds g-limit
 
+        # HVDC power limit
+        P_mech = F * v if F == F_total else P_total
+        if a_tang < F / m_total:
+            P_mech = a_tang * m_total * v  # g-limited power
+        if p_hvdc_max is not None and P_mech > p_hvdc_max and v > 0:
+            if power_limit_v is None:
+                power_limit_v = v
+            F_capped = p_hvdc_max / v
+            a_tang = min(a_tang, F_capped / m_total)
+
         v += a_tang * dt
         t += dt
 
-    return t, v, (v >= v_target * 0.99)
+    return t, v, (v >= v_target * 0.99), power_limit_v
 
 
 # =============================================================================
@@ -128,7 +158,7 @@ print("-" * 76)
 print()
 print("  EMF_peak = 2 * N * v * B_sled * w_coil")
 print("  v_cross  = V_max / (2 * N * B_sled * w_coil)")
-print("  F/L      = 1500 * (N/10) * (B_sled/0.10)  N/m")
+print("  F/L      = 1666 * (N/10) * (B_sled/0.10)  N/m  [at I_PEAK]")
 print("  P/L      = F/L * v_cross  ==>  the N and B_sled terms CANCEL")
 print()
 
@@ -154,8 +184,9 @@ for N in N_values:
     print(row)
 
 print()
-print("  Result: P/L = 37.5 MW/m in EVERY case. N and B_sled only trade")
-print("  thrust for crossover velocity; the power envelope is fixed.")
+print("  Result: P/L = 41.6 MW/m in EVERY case (at I_PEAK).")
+print("  N and B_sled only trade thrust for crossover velocity;")
+print("  the power envelope is fixed.")
 
 # =============================================================================
 # PART 2: LAUNCH TIME VS N (CARGO, NO G-LIMIT IN PRACTICE)
@@ -167,21 +198,15 @@ print("-" * 76)
 print()
 
 # Theoretical minimum time: all energy delivered at constant power
-P_total_fixed = power_per_m(10, 0.10) * L_SLED  # = 37.5 MW/m * 10 km = 375 GW
-KE_target = 0.5 * M_TOTAL_CARGO * V_TARGET_CARGO**2
+P_total_fixed = power_per_m(10, 0.10) * L_SLED  # = 41.6 MW/m * 10 km = 416 GW
 # Time at constant power from v_start to v_target:
 # P = m*v*dv/dt => dt = m*v*dv/P => t = m/(2P) * (v_f^2 - v_s^2)
 t_min = M_TOTAL_CARGO / (2 * P_total_fixed) * (V_TARGET_CARGO**2 - V_START**2)
 
 print(f"  Constant power:     {P_total_fixed/1e9:.1f} GW (invariant)")
-print(f"  Target KE:          {KE_target/1e12:.1f} TJ")
 print(f"  Theoretical t_min:  {t_min/60:.1f} min ({t_min/3600:.2f} hr)")
 print(f"  (limit as v_cross -> 0, i.e. N -> infinity)")
 print()
-
-# Time penalty for constant-thrust phase below v_cross:
-# Delta_t = m / (2*P_total) * (v_cross - v_start)^2
-# This is the extra time vs power-only trajectory
 
 N_sweep = [10, 20, 30, 50, 75, 100, 150, 200, 250]
 
@@ -198,8 +223,8 @@ for N in N_sweep:
     vc = v_crossover(N, B)
     a_peak = F_total / M_TOTAL_CARGO / G_0
 
-    t_sim, v_sim, ok = simulate_launch(N, B, M_TOTAL_CARGO,
-                                        V_TARGET_CARGO, G_LIMIT_CARGO)
+    t_sim, v_sim, ok, _ = simulate_launch(N, B, M_TOTAL_CARGO,
+                                           V_TARGET_CARGO, G_LIMIT_CARGO)
 
     overhead = (t_sim - t_min) / t_min * 100
 
@@ -237,9 +262,9 @@ print("  The lower stages are never used. Switching adds complexity for")
 print("  zero benefit.")
 print()
 
-# Prove it: simulate with "switchable" N=10 start vs fixed N=50
-t_fixed, _, _ = simulate_launch(50, 0.10, M_TOTAL_CARGO,
-                                 V_TARGET_CARGO, G_LIMIT_CARGO)
+# Prove it: simulate fixed N=50 vs "switchable" starting at N=10
+t_fixed, _, _, _ = simulate_launch(50, 0.10, M_TOTAL_CARGO,
+                                    V_TARGET_CARGO, G_LIMIT_CARGO)
 
 # Simulate a switching scenario: N=10 until 25 km/s, then N=50
 # (this is strictly worse than N=50 throughout)
@@ -254,7 +279,6 @@ F_hi = thrust_per_m(N_hi, 0.10) * L_SLED
 P_hi = F_hi * vc_hi
 
 while v < V_TARGET_CARGO and t < 72000:
-    # Use N=10 below 25 km/s, N=50 above (hypothetical switching)
     if v < 25000:
         F = F_lo if v <= vc_lo else P_lo / v
     else:
@@ -298,8 +322,8 @@ for N in N_crew_sweep:
     F_total = fl * L_SLED
     a_peak_g = F_total / M_TOTAL_CREW / G_0
 
-    t_sim, v_sim, ok = simulate_launch(N, B, M_TOTAL_CREW,
-                                        V_TARGET_CREW, G_LIMIT_CREW)
+    t_sim, v_sim, ok, _ = simulate_launch(N, B, M_TOTAL_CREW,
+                                           V_TARGET_CREW, G_LIMIT_CREW)
 
     vc = v_crossover(N, B)
     print(f"{N:6d}  {vc/1000:10.1f}  {F_total/1e6:10.2f}  {a_peak_g:8.3f}  "
@@ -315,14 +339,63 @@ print()
 print("  Conclusion: Crewed missions don't care about N. Switching useless.")
 
 # =============================================================================
-# PART 5: CONCLUSION SUMMARY
+# PART 5: POWER LIMIT SENSITIVITY
 # =============================================================================
 
 print("\n" + "-" * 76)
-print("PART 5: CONCLUSION")
+print("PART 5: HVDC POWER LIMIT SENSITIVITY (Cargo: 30 km/s, 10 km sled)")
 print("-" * 76)
 print()
-print("  1. P/L = 37.5 MW/m is INVARIANT with N and B_sled")
+print("  The ring's HVDC grid has finite capacity. How does a power cap")
+print("  affect launch time for the heavy cargo reference case?")
+print()
+
+# Unlimited baseline
+t_unlimited, _, _, _ = simulate_launch(50, 0.10, M_TOTAL_CARGO,
+                                        V_TARGET_CARGO, G_LIMIT_CARGO,
+                                        p_hvdc_max=None)
+
+P_limits = [100e9, 200e9, 300e9, 416e9, 500e9, 666e9, None]
+
+print(f"{'P_HVDC_MAX':>12}  {'t_launch':>10}  {'vs unlimited':>14}  {'limit engages':>16}")
+print(f"{'(GW)':>12}  {'(hr)':>10}  {'(%)':>14}  {'(km/s)':>16}")
+print("-" * 60)
+
+for P_lim in P_limits:
+    t_sim, v_sim, ok, pv = simulate_launch(50, 0.10, M_TOTAL_CARGO,
+                                            V_TARGET_CARGO, G_LIMIT_CARGO,
+                                            p_hvdc_max=P_lim)
+
+    if P_lim is not None:
+        p_str = f"{P_lim/1e9:12.0f}"
+    else:
+        p_str = f"{'unlimited':>12}"
+
+    overhead = (t_sim - t_unlimited) / t_unlimited * 100
+
+    if pv is not None:
+        pv_str = f"{pv/1000:16.1f}"
+    else:
+        pv_str = f"{'N/A':>16}"
+
+    print(f"{p_str}  {t_sim/3600:10.2f}  {overhead:13.1f}%  {pv_str}")
+
+print()
+P_voltage_limited = thrust_per_m(50, 0.10) * L_SLED * v_crossover(50, 0.10)
+print(f"  Voltage-limited power (F_peak x v_cross): {P_voltage_limited/1e9:.1f} GW")
+print(f"  At 666 GW (full ring capacity): heavy cargo is NOT power-limited")
+print(f"  At 416 GW: matches the voltage-limited power exactly (no effect)")
+print(f"  Below ~416 GW: launch time increases as grid constrains power")
+
+# =============================================================================
+# PART 6: CONCLUSION SUMMARY
+# =============================================================================
+
+print("\n" + "-" * 76)
+print("PART 6: CONCLUSION")
+print("-" * 76)
+print()
+print("  1. P/L = 41.6 MW/m is INVARIANT with N and B_sled (at I_PEAK)")
 print("     (N and B_sled cancel in F * v_cross)")
 print()
 print("  2. N=50 gives only ~2.3% time overhead vs theoretical minimum")
@@ -334,7 +407,11 @@ print()
 print("  4. CREWED: G-limited at 3g. The sled adjusts B_sled, not N.")
 print("     Since P is invariant with B_sled, N doesn't matter. Useless.")
 print()
-print("  5. CONCLUSION: Fixed N=50 stator turns is optimal.")
+print(f"  5. HVDC POWER LIMIT: At 666 GW (full ring capacity), the heavy"
+      f"\n     cargo case ({P_voltage_limited/1e9:.0f} GW) is NOT power-limited."
+      f"\n     Grid investment below ~{P_voltage_limited/1e9:.0f} GW starts to impact launch time.")
+print()
+print("  6. CONCLUSION: Fixed N=50 stator turns is optimal.")
 print("     Simple construction. Easy to service. No switching needed.")
 print("     The only trade-off (2.3% longer launch) is negligible.")
 print()
