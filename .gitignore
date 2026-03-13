@@ -10,6 +10,7 @@ helper/
 marketing/
 graphs_lim_md/
 __pycache__/
+.claude/
 *.png
 *.bak
 *.cvs

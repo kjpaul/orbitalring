@@ -862,6 +862,9 @@ def print_parameters():
     # SECTION 6: DISPLAY DICTIONARY
     # =============================================================================
 
+    cable_area = phys.calc_cable_area(cfg.M_LOAD_M)
+    cable_side = phys.calc_cable_side(cfg.M_LOAD_M)
+
     PARAM_DISPLAY = {
         "N_TURNS             #": cfg.N_TURNS,
         "TAU_P               m": cfg.TAU_P,
@@ -892,6 +895,8 @@ def print_parameters():
         "M_HARDWARE       kg/m": cfg.M_HARDWARE,
         "M_CABLE_TOTAL    kg/m": cfg.M_CABLE_M,
         "M_LOAD           kg/m": cfg.M_LOAD_M,
+        "CABLE AREA        m^2": cable_area,
+        "CABLE SIDE L        m": cable_side,
     }
     """Display current parameter configuration."""
     streq = "="*70

@@ -44,6 +44,15 @@ def calc_cable_mass(load_mass=12000, sigma_target=12.633E9):
     F_load_m = A_250_KM * load_mass 
     return F_load_m * R_ORBIT * RHO_CNT / sigma_target    
 
+def calc_cable_area(load_mass=12000, sigma_target=12.633E9):
+    cable_m = calc_cable_mass(load_mass, sigma_target)
+    return cable_m / RHO_CNT
+
+def calc_cable_side(load_mass=12000, sigma_target=12.633E9):
+    cable_area = calc_cable_area(load_mass, sigma_target)
+    return math.sqrt(cable_area)
+
+
 # =============================================================================
 # ORBITAL DYNAMICS
 # =============================================================================
