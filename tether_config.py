@@ -78,6 +78,27 @@ K_SUTTON_GRAVES = 1.7415e-4    # W/(m^1.5 * (m/s)^3 * (kg/m^3)^0.5)
 V_DESCENT_DEFAULT = 55.56      # Default descent speed (m/s) = 200 km/h
 V_DESCENT_WEEK = 59.15         # ~35786 km / 168 hr ≈ 59.15 m/s for 1 week
 
+# Regenerative braking — conductive core
+SIGMA_ELEC_CNT = 30e6          # CNT electrical conductivity (S/m = 30 MS/m)
+RHO_ELEC_CNT = 1.0 / 30e6     # CNT electrical resistivity (Ω·m)
+V_BUS = 100e3                  # DC bus voltage (V)
+EPSILON_CNT_IR = 0.85          # CNT IR emissivity in vacuum
+SIGMA_SB = 5.67e-8             # Stefan-Boltzmann constant (W/(m²·K⁴))
+D_CONDUCTOR_DEFAULT = 0.010    # Default conductor diameter (m)
+A_CONDUCTOR_DEFAULT = math.pi * (0.010 / 2)**2  # Default conductor area (m²)
+A_CONDUCTOR_SWEEP_CM2 = [1, 2, 5, 10, 20, 30, 50]  # Conductor areas to sweep (cm²)
+FAST_DESCENT_SPEEDS = [60, 100, 200, 500, 1000]     # Fast descent speeds (m/s)
+
+# Eddy current braking — reaction plate
+MU_0 = 4.0 * math.pi * 1e-7   # Vacuum permeability (H/m)
+SIGMA_PLATE_AL = 3.77e7        # Aluminum electrical conductivity (S/m)
+B_GAP = 1.0                    # Magnetic field at plate surface (T)
+L_POLE = 0.050                 # Magnetic pole pitch (m)
+PLATE_WIDTH = 0.050            # Reaction plate width (m)
+PLATE_THICKNESSES = [0.001, 0.002, 0.005, 0.010, 0.020]  # Plate thicknesses (m)
+L_MAGNET_POD = 5.0             # Pod magnet array length (m)
+T_PLATE_MAX = 800.0            # Maximum allowable plate temperature (K)
+
 # =============================================================================
 # 6. US STANDARD ATMOSPHERE 1976 — LAYER DEFINITIONS
 # =============================================================================
