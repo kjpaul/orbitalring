@@ -120,7 +120,7 @@ def make_month_ticks(data_list, total_time):
 # MAIN SIMULATION LOOP
 # =============================================================================
 
-def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0, sigma=cfg.SIGMA_TARGET):
+def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0):
     """Run the deployment simulation.
     
     Args:
@@ -152,7 +152,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
     # Calculate cable mass if m_load > 999 kg/m
     if m_load > 999:
-        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, sigma)
+        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, m_hw=cfg.M_HARDWARE)
         cfg.M_LOAD_M = m_load
     else:
         """Session proofing"""
@@ -649,7 +649,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     print(f"Cable: M_CABLE_M={cfg.M_CABLE_STRUCTURAL/1000:.2f} tonne/m and M_CABLE_M={cfg.M_CABLE_M/1000:.2f} tonne/m with M_LOAD_M={cfg.M_LOAD_M/1000:.2f} tonne/m")
     print("-" * 70)
     """
-        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, sigma)
+        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, m_hw=cfg.M_HARDWARE)
         cfg.M_LOAD_M = m_load
         cfg.M_CABLE_M = cfg.M_CABLE_STRUCTURAL + cfg.M_HARDWARE
         cfg.M_CABLE_TOTAL = cfg.M_CABLE_M * cfg.L_RING

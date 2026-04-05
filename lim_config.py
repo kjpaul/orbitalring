@@ -74,13 +74,11 @@ THRUST_EFFICIENCY = 1.0 # Multiplier on calculated thrust
 # -----------------------------------------------------------------------------
 # 1.7 Mass Configuration
 # -----------------------------------------------------------------------------
-M_CABLE_STRUCTURAL_DEFAULT = 96_700     # Structural cable mass per meter (kg/m)
+M_CABLE_STRUCTURAL_DEFAULT = 96_581     # From quadratic sizing equation at m_load=12000
 M_LOAD_M_DEFAULT = 12_000               # Casing + payload mass per meter (kg/m)
 M_CABLE_STRUCTURAL = M_CABLE_STRUCTURAL_DEFAULT # Session proofing
 M_LOAD_M = M_LOAD_M_DEFAULT
-SIGMA_TARGET = 12.633E9                 # sets the post deployment cable tension (Pa)
-# The post deployment sigma is also dependant on the cable hardware mass, so the 12.633 GPa
-# target tension gives a post deployment tension of ~12 GPa  
+SIGMA_CABLE = 12.5e9                    # Operating stress (Pa), safety factor 2.0 on 25 GPa
 
 # -----------------------------------------------------------------------------
 # 1.8 Simulation Control

@@ -53,7 +53,9 @@ SIGMA_OPERATING = 12.5e9    # Operating limit = sigma_break / 2 (Pa)
 # =============================================================================
 
 M_LOAD_PER_M = 12_000       # Casing mass per meter (kg/m)
-SIGMA_TARGET = 12.633e9      # Design cable stress (Pa)
+SIGMA_CABLE = 12.5e9         # Operating stress (Pa), safety factor 2.0 on 25 GPa
+RHO_CNT = 1700               # CNT density (kg/m³)
+M_HARDWARE = 4076            # Hardware mass per meter (kg/m)
 
 # MathCAD calibration table for lateral force validation
 # { inclination_deg: peak_lateral_force_per_m (N/m) }
@@ -107,14 +109,32 @@ def ground_sync_velocity(r, i_rad=0.0):
     return OMEGA_SIDEREAL * r * math.cos(i_rad)
 
 
-def cable_mass_structural(m_load, r, sigma=SIGMA_TARGET):
-    """Structural cable mass per meter from force balance.
+def cable_mass_structural(m_load, r, m_hw=M_HARDWARE, sigma_cable=SIGMA_CABLE):
+    """Structural cable mass from the quadratic sizing equation.
 
-    The cable must support the casing weight at the design stress:
-    m_cable = m_load * g_net * r * rho / sigma
+    Solves: S * m^2 + (S * m_hw - K) * m - (K * m_hw + P) = 0
+    where S = sigma/rho, K = m_load*dv*2*v_orb - m_load*g_net*r, P = (m_load*dv)^2.
+    See Volume II, Chapter 6 for derivation.
     """
+    if m_load <= 0:
+        return 0.0
+    v_orbit = orbital_velocity(r)
+    v_ground = OMEGA_SIDEREAL * r
+    delta_v = v_orbit - v_ground
     g_net = net_gravity_at_radius(r)
-    return m_load * g_net * r * RHO_CNT / sigma
+
+    S = sigma_cable / RHO_CNT
+    K = m_load * delta_v * 2 * v_orbit - m_load * g_net * r
+    P = (m_load * delta_v) ** 2
+
+    a = S
+    b = S * m_hw - K
+    c = -(K * m_hw + P)
+
+    discriminant = b * b - 4 * a * c
+    if discriminant < 0:
+        return 0.0
+    return (-b + math.sqrt(discriminant)) / (2 * a)
 
 
 def cable_velocity_from_momentum(m_cable, m_load, v_orbit, v_casing):

@@ -39,17 +39,53 @@ RHO_CNT = 1700                  # CNT density (kg/m³)
 # CABLE MASS
 # =============================================================================
 
-def calc_cable_mass(load_mass=12000, sigma_target=12.633E9):
-    """Calculate cable mass based on --m_load=NUMBER from argv. m_load must be > 999."""
-    F_load_m = A_250_KM * load_mass 
-    return F_load_m * R_ORBIT * RHO_CNT / sigma_target    
+def calc_cable_mass(load_mass=12000, m_hw=4076, delta_v=None,
+                    v_orbit=V_ORBIT, g_net=A_250_KM, r_orbit=R_ORBIT,
+                    rho_cnt=RHO_CNT, sigma_cable=12.5e9):
+    """Structural cable mass from the quadratic sizing equation.
 
-def calc_cable_area(load_mass=12000, sigma_target=12.633E9):
-    cable_m = calc_cable_mass(load_mass, sigma_target)
+    The cable mass, cable velocity, and cable tension are coupled through
+    momentum conservation, radial force balance, and the stress constraint.
+    Eliminating cable velocity yields a single quadratic in m_cable:
+
+        S * m_cable^2 + (S * m_hw - K) * m_cable - (K * m_hw + P) = 0
+
+    where S = sigma_cable / rho_cnt (specific strength),
+          K = m_load * dv * 2 * v_orbit - m_load * g_net * r_orbit,
+          P = (m_load * dv)^2.
+
+    The positive root is the structural cable mass.
+    See Volume II, Chapter 6 for the full derivation.
+    """
+    if load_mass <= 0:
+        return 0.0
+
+    if delta_v is None:
+        delta_v = v_orbit - V_GROUND_STATIONARY
+
+    S = sigma_cable / rho_cnt
+    K = load_mass * delta_v * 2 * v_orbit - load_mass * g_net * r_orbit
+    P = (load_mass * delta_v) ** 2
+
+    a = S
+    b = S * m_hw - K
+    c = -(K * m_hw + P)
+
+    discriminant = b * b - 4 * a * c
+    if discriminant < 0:
+        raise ValueError(f"Negative discriminant ({discriminant:.3e}): no physical solution")
+
+    m_cable = (-b + math.sqrt(discriminant)) / (2 * a)
+    return m_cable
+
+def calc_cable_area(load_mass=12000, m_hw=4076):
+    """Cable cross-section area (m^2) from quadratic sizing."""
+    cable_m = calc_cable_mass(load_mass, m_hw)
     return cable_m / RHO_CNT
 
-def calc_cable_side(load_mass=12000, sigma_target=12.633E9):
-    cable_area = calc_cable_area(load_mass, sigma_target)
+def calc_cable_side(load_mass=12000, m_hw=4076):
+    """Side length of square cable cross-section (m)."""
+    cable_area = calc_cable_area(load_mass, m_hw)
     return math.sqrt(cable_area)
 
 

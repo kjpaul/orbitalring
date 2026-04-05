@@ -255,11 +255,11 @@ The code includes full material properties for each option, including temperatur
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `M_CABLE_STRUCTURAL` | 96,700 kg/m | Structural cable mass per meter |
+| `M_CABLE_STRUCTURAL` | 96,581 kg/m | Structural cable mass per meter |
 | `M_LOAD_M` | 12,000 kg/m | Casing + payload per meter |
-| `SIGMA_TARGET` | 12.633 GPa | Target post-deployment cable tension |
+| `SIGMA_CABLE` | 12.5 GPa | Operating stress (safety factor 2.0 on 25 GPa) |
 
-The `--m_load=` command-line option recalculates cable mass using the physics function `calc_cable_mass()` which determines the CNT cable cross-section needed to support the specified load at 250 km orbital altitude.
+The `--m_load=` command-line option recalculates cable mass using the quadratic sizing equation in `calc_cable_mass()`, which couples momentum conservation, radial force balance, and the CNT stress constraint to determine the structural cable mass needed to support the specified load at 250 km orbital altitude.
 
 ---
 
