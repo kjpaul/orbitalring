@@ -9,6 +9,7 @@ claude/
 helper/
 marketing/
 graphs_lim_md/
+graphs_tether/
 __pycache__/
 .claude/
 *.png
