@@ -19,6 +19,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong, Chapter 7
 """
 
 import math
+import ring_altitude as ring
 import numpy as np
 
 # Ensure UTF-8 output on Windows
@@ -30,12 +31,12 @@ if hasattr(sys.stdout, 'reconfigure'):
 # CONSTANTS
 # =============================================================================
 
-G_LOCAL = 9.073             # m/s^2, gravitational acceleration at 250 km
+G_LOCAL = ring.G_LOCAL      # m/s^2, gravitational acceleration at the ring
 G_0 = 9.807                # m/s^2, standard gravity at sea level
-R_ORBIT = 6_628_000        # m, orbital radius at 250 km
+R_ORBIT = ring.R_ORBIT     # m, orbital radius
 V_MAX = 100_000            # V, coil insulation limit
 W_COIL = 2.0               # m, coil width (tangential extent)
-V_START = 483.0             # m/s, casing velocity (sled starts here)
+V_START = ring.V_GROUND_SYNC  # m/s, casing velocity (sled starts here)
 MU0 = 4 * math.pi * 1e-7   # H/m, permeability of free space
 
 # Thrust calibration at I_PEAK = 2,107 A (5-layer HTS, 80% of Ic):

@@ -10,17 +10,18 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
 import math
+import ring_altitude as ring
 
 # =============================================================================
 # SECTION 1: ORBITAL RING GEOMETRY
 # =============================================================================
 
-R_ORBIT = 6_628_137              # Orbital radius at 250 km (m)
-L_RING = 41_645_813.012          # Ring circumference (m)
-G_NET = 9.038                    # Net downward acceleration at 250 km (m/s^2)
+R_ORBIT = ring.R_ORBIT           # Orbital radius at the design altitude (m)
+L_RING = ring.L_RING             # Ring circumference (m)
+G_NET = ring.G_NET               # Net downward acceleration on the casing (m/s^2)
                                  # = gravitational - centrifugal at ground-sync speed
 M_LOAD_M = 12_000               # Casing mass per meter (kg/m)
-M_CABLE_STRUCTURAL = 96_700      # Structural CNT cable mass per meter (kg/m)
+M_CABLE_STRUCTURAL = ring.M_CABLE_STRUCTURAL  # Structural CNT cable mass per meter (kg/m)
 
 # =============================================================================
 # SECTION 2: EML LEVITATION BEARING (Attractive)

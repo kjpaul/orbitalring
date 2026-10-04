@@ -18,7 +18,7 @@ Usage:
 
 Options:
     --inclination=N   Ring inclination in degrees (default 5.0)
-    --cable=DIR       Cable direction: prograde or retrograde (default prograde)
+    --cable=DIR       Cable direction: prograde or retrograde (default: the design direction in ring_altitude.py, retrograde)
     --anchors=N       Number of anchor stations (default 800)
     --plots           Generate all plots
     --all             Show all output and generate all plots
@@ -27,6 +27,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
 import math
+import ring_altitude as ring
 import sys
 import os
 
@@ -51,7 +52,7 @@ SIDEREAL_DAY = 86164.1         # seconds
 G_SURFACE = 9.807              # m/s^2
 
 # --- Orbital parameters at 250 km altitude ---
-H_ORBIT = 250_000              # altitude (m)
+H_ORBIT = ring.ALTITUDE        # altitude (m), design altitude from ring_altitude.py
 R_ORBIT = R_E + H_ORBIT        # orbital radius (m)
 V_ORBIT = math.sqrt(GM / R_ORBIT)              # circular velocity (m/s)
 N_ORBIT = math.sqrt(GM / R_ORBIT**3)           # mean motion (rad/s)
@@ -60,7 +61,7 @@ C_RING = 2 * PI * R_ORBIT                      # ring circumference (m)
 G_ALT = GM / R_ORBIT**2                        # gravity at altitude (m/s^2)
 
 # --- Ring mass properties ---
-M_CABLE_PER_M = 100_811        # cable + attached hardware (kg/m)
+M_CABLE_PER_M = ring.M_CABLE_M  # cable + attached hardware (kg/m), design direction; see set_cable_direction()
 M_CASING_PER_M = 12_000        # casing + payload track (kg/m)
 M_TOTAL_PER_M = M_CABLE_PER_M + M_CASING_PER_M
 
@@ -69,19 +70,28 @@ M_CASING_TOTAL = M_CASING_PER_M * C_RING
 M_RING_TOTAL = M_TOTAL_PER_M * C_RING
 
 # --- Post-deployment velocities ---
-V_CABLE_PROGRADE = 8620.0      # m/s
-V_CABLE_RETROGRADE = 8735.5    # m/s (magnitude; direction is retrograde)
-V_CASING = 483.3               # m/s (ground-synchronous)
+V_CABLE_PROGRADE = ring.design(retrograde=False)['v_cable']    # m/s
+V_CABLE_RETROGRADE = ring.design(retrograde=True)['v_cable']   # m/s (magnitude; direction is retrograde)
+V_CASING = OMEGA_EARTH * R_ORBIT  # m/s (ground-synchronous)
+
+def set_cable_direction(cable_dir):
+    """Size the cable for the chosen direction (the retrograde cable is heavier)."""
+    global M_CABLE_PER_M, M_TOTAL_PER_M, M_CABLE_TOTAL, M_RING_TOTAL
+    M_CABLE_PER_M = ring.design(retrograde=(cable_dir == "retrograde"))['m_cable']
+    M_TOTAL_PER_M = M_CABLE_PER_M + M_CASING_PER_M
+    M_CABLE_TOTAL = M_CABLE_PER_M * C_RING
+    M_RING_TOTAL = M_TOTAL_PER_M * C_RING
+
 
 # --- LIM parameters ---
 LIM_SPACING = 500.0            # m
 MAX_SITE_POWER = 8e6           # W (8 MW per LIM site)
 N_LIM_SITES = round(C_RING / LIM_SPACING)
-P_RING_TOTAL = 666e9           # total generation capacity (W)
+P_RING_TOTAL = N_LIM_SITES * MAX_SITE_POWER  # total generation capacity (W): 8 MW per LIM site
 
 # --- Anchor line parameters ---
 N_ANCHORS_DEFAULT = 800
-ANCHOR_LENGTH = 250_000        # m (approximate)
+ANCHOR_LENGTH = H_ORBIT        # m (approximate, vertical line)
 SIGMA_CNT = 14e9               # Pa (CNT tensile strength)
 SAFETY_FACTOR = 2.0
 SIGMA_OPERATING = SIGMA_CNT / SAFETY_FACTOR  # 7 GPa
@@ -703,7 +713,7 @@ def generate_all_plots(i_deg, cable_dir, n_anchors):
     ax.plot(inc, [abs(o) for o in omega_ring], 'r--', linewidth=2, label='Ring (integrated)')
     ax.set_xlabel('Inclination (°)', fontsize=12)
     ax.set_ylabel('|Precession rate| (°/day)', fontsize=12)
-    ax.set_title('J2 Nodal Precession Rate vs Inclination\n(250 km altitude, circular orbit)',
+    ax.set_title(f'J2 Nodal Precession Rate vs Inclination\n({H_ORBIT/1000:.0f} km altitude, circular orbit)',
                  fontsize=13)
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
@@ -909,7 +919,7 @@ def generate_all_plots(i_deg, cable_dir, n_anchors):
 
 def main():
     i_deg = I_DEFAULT
-    cable_dir = "prograde"
+    cable_dir = "retrograde" if ring.RETROGRADE else "prograde"
     n_anchors = N_ANCHORS_DEFAULT
     make_plots = False
 
@@ -936,6 +946,7 @@ def main():
     print("J2 PERTURBATION SIMULATION FOR AN INCLINED ORBITAL RING")
     print("=" * 78)
     print(f"\n  Inclination:    {i_deg}°")
+    set_cable_direction(cable_dir)
     print(f"  Cable:          {cable_dir}")
     print(f"  Anchor stations: {n_anchors}")
 

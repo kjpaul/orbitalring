@@ -13,6 +13,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
 import math
+import ring_altitude as ring
 
 # =============================================================================
 # PHYSICAL CONSTANTS
@@ -21,12 +22,13 @@ import math
 MU0 = 4 * math.pi * 1e-7        # Permeability of free space (H/m)
 STEFAN_BOLTZMANN = 5.670374e-8  # Stefan-Boltzmann constant (W/m²K⁴)
 
-# Orbital parameters at 250 km altitude
-V_ORBIT = 7754.866              # Orbital velocity (m/s)
-R_ORBIT = 6_628_137               # radius of 250 km orbit (m)
-V_GROUND_STATIONARY = 483.331   # Ground-stationary velocity at 250 km (m/s)
-L_RING = 41_645_813.012         # Ring circumference (m)
-A_250_KM = 9.038                # net acceleration at 250 km geostationary orbit (m/s²)
+# Orbital parameters at the design altitude (ring_altitude.py)
+V_ORBIT = ring.V_ORBIT           # Orbital velocity (m/s)
+R_ORBIT = ring.R_ORBIT           # Orbital radius (m)
+# Casing end velocity in the ring's launch direction (negative = retrograde ring)
+V_GROUND_STATIONARY = ring.V_CASING_FINAL_LAUNCH_FRAME
+L_RING = ring.L_RING             # Ring circumference (m)
+A_250_KM = ring.G_NET            # net downward acceleration on the casing (m/s²); name kept for compatibility
 
 # Deep space
 T_SPACE = 2.7                   # Deep space temperature (K)

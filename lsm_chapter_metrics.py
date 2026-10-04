@@ -13,7 +13,8 @@ import math
 V_FINAL = 30_000.0          # m/s
 T_LAUNCH = 189.7 * 60       # s (189.7 minutes = 3.16 hr)
 DIST = 222_015.5e3           # m
-L_RING = 41_646_000          # m
+import ring_altitude as ring
+L_RING = ring.L_RING         # m
 N_LAPS = DIST / L_RING
 
 M_SLED_PER_M = 525          # kg/m
@@ -39,7 +40,7 @@ P_HTS_PEAK = 114.70e3       # W (114.70 kW)
 E_HTS_TOTAL = 8.488e8       # J (235.8 kWh)
 
 # HVDC power limit
-P_HVDC_MAX = 666e9           # W — not reached (416 GW < 666 GW)
+P_HVDC_MAX = round(L_RING / 500.0) * 8e6           # W — not reached (416 GW < 666 GW)
 
 print("=" * 76)
 print("LSM CHAPTER METRICS (N=50, 5-layer HTS, 525 kg/m, 10 km, 5000t)")
@@ -88,7 +89,7 @@ print(f"   Exposure per pass (final v): {L_SLED/V_FINAL:.2f} s")
 # 3. HVDC POWER GRID
 # =============================================================================
 
-HVDC_CAPACITY = 666e9        # W (full ring generation capacity)
+HVDC_CAPACITY = round(L_RING / 500.0) * 8e6        # W (full ring generation capacity)
 
 # In constant-thrust phase (v < v_cross): P = F_peak * v
 V_GRID_LIMIT = HVDC_CAPACITY / F_PEAK

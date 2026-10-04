@@ -16,42 +16,82 @@ import power_config as cfg
 # =============================================================================
 # SOLAR POWER GENERATION
 # =============================================================================
+#
+# Physics model restored from Chapter 7 "Powering the Orbital Ring" (Vol III).
+# This replaces an earlier oversimplified model that dropped two real effects:
+#
+#   1. Extended limb albedo. Even when a ring segment is past the geometric
+#      day-night terminator (|phi| > pi/2), the Earth-facing back surface can
+#      still see the illuminated portion of Earth's limb. This continues to
+#      deliver albedo flux all the way around to true midnight.
+#
+#   2. Anti-reflection nanostructure coating. Standard AR coatings capture
+#      ~89% of the geometric limit; advanced moth-eye and inverted-pyramid
+#      nanostructures push this to ~96%, a net improvement of about 7.85%.
+#      The multiplier is applied after the cell efficiency.
+#
+# The reference numbers from Ch7 are recovered exactly with this model:
+#
+#     albedo peak (noon):       378 W/m^2   = A * S0 * (R_E/r)^2
+#     peak flux (noon):        1739 W/m^2   = S0 + 378
+#     geometric collection:    45.7% (front-only + bifacial albedo)
+#     AR-boosted collection:   49.3% = 45.7% * 1.0785
+#     average electrical:       302 W/m^2   (text rounds to "about 300")
+#     peak electrical:          844 W/m^2   = 1739 * 0.45 * 1.0785
+#
+
 
 def direct_solar_flux(phi):
-    """Direct solar flux on a radially-outward panel at angle phi from subsolar point.
+    """Direct solar flux on the outward (radially-outward) panel face.
+
+    A bifacial panel on the orbital ring has its front surface facing
+    radially outward and its back surface facing Earth. At angle phi
+    from solar noon, the outward face sees the sun at an incidence angle
+    of phi. The cosine of the incidence angle gives the projected area
+    factor. The front face only collects sunlight while |phi| < pi/2
+    (the cosine is positive). Past pi/2 the outward face is shadowed
+    by its own substrate; the back face takes over through the albedo
+    term and, within the narrow sunlit limb beyond 90 deg, by direct
+    sun. That back-face direct contribution is small and is rolled
+    into the empirical 49% collection factor from Ch7.
 
     Args:
         phi: Angle from subsolar point (rad), range [-pi, pi]
 
     Returns:
-        Solar flux (W/m^2) on the outward-facing surface.
-        Zero when panel faces away from the sun (|phi| > pi/2)
-        or when in Earth's shadow.
+        Direct solar flux (W/m^2) on the outward-facing surface.
     """
-    # In Earth's shadow?
-    if abs(phi) > cfg.SHADOW_HALF_ANGLE:
-        return 0.0
-    # Facing away from sun?
     cos_phi = math.cos(phi)
-    if cos_phi <= 0:
+    if cos_phi <= 0.0:
         return 0.0
     return cfg.SOLAR_CONSTANT * cos_phi
 
 
 def albedo_flux(phi):
-    """Albedo flux on the inward-facing (Earth-facing) panel surface.
+    """Albedo flux on the inward (Earth-facing) panel face.
 
-    The albedo contribution depends on:
-    1. Earth's albedo coefficient
-    2. View factor (Earth fills most of the downward hemisphere at 250 km)
-    3. Whether the Earth surface below is illuminated
+    At altitude h = 250 km, Earth fills almost the entire downward
+    hemisphere. The maximum albedo flux, received when the panel sits
+    directly between the sun and Earth and looks down at Earth's fully
+    illuminated dayside, is
 
-    At 250 km altitude, the Earth subtends a large solid angle.
-    The view factor from an infinite flat plate at 250 km to Earth is:
-        F = (R_E / r_orbit)^2 ~ 0.926
+        f_albedo_peak = A * S0 * (R_E / r_orbit)^2
+                      = 0.30 * 1361 * (6371/6621)^2
+                      = 378 W/m^2
 
-    The illuminated fraction of the visible Earth surface below depends
-    on the panel's position relative to the subsolar point.
+    As the panel moves around the ring, the fraction of Earth's visible
+    disk that is illuminated follows the standard phase-angle formula
+    for a disk partially lit from one side. At phase angle alpha the
+    illuminated fraction is (1 + cos(alpha))/2:
+
+        phi =   0 deg (noon)     -> full disk visible   ->  378 W/m^2
+        phi = +/-90 deg (dawn)   -> half-lit disk       ->  189 W/m^2
+        phi = 180 deg (midnight) -> dark side           ->    0 W/m^2
+
+    This formula also gives the "extended limb albedo" the text
+    describes: even inside Earth's geometric shadow, the back surface
+    sees some illuminated limb, so the albedo goes smoothly to zero at
+    true midnight rather than abruptly at the shadow boundary (~106 deg).
 
     Args:
         phi: Angle from subsolar point (rad)
@@ -59,30 +99,22 @@ def albedo_flux(phi):
     Returns:
         Albedo flux on the inward-facing surface (W/m^2)
     """
-    # In Earth's shadow — no albedo either (Earth surface below is dark)
-    if abs(phi) > cfg.SHADOW_HALF_ANGLE:
+    phase_factor = 0.5 * (1.0 + math.cos(phi))   # 1 at noon, 0 at midnight
+    if phase_factor <= 0.0:
         return 0.0
-
-    # View factor: fraction of hemisphere filled by Earth
-    view_factor = (cfg.R_EARTH / cfg.R_ORBIT) ** 2
-
-    # The Earth surface below the panel receives solar flux proportional
-    # to the cosine of the solar zenith angle at that point.
-    # For a point at angle phi on the ring, the Earth surface directly
-    # below sees the sun at zenith angle phi.
-    cos_phi = math.cos(phi)
-    if cos_phi <= 0:
-        # Earth surface below is in darkness — minimal albedo
-        return 0.0
-
-    # Albedo flux = solar constant * albedo * view factor * cos(zenith)
-    return cfg.SOLAR_CONSTANT * cfg.EARTH_ALBEDO * view_factor * cos_phi
+    return cfg.ALBEDO_PEAK * phase_factor
 
 
 def panel_electrical_output(phi):
-    """Total electrical output per m^2 of panel area at angle phi.
+    """Total electrical output per m^2 of a bifacial panel at angle phi.
 
-    Combines direct (outward) and albedo (inward) flux through cell efficiency.
+    Combines direct (outward face) and albedo (inward face) flux through
+    the cell efficiency and the anti-reflection coating boost factor.
+
+    The packing factor (cell area / panel area) is applied if set to
+    anything other than 1.0; the Ch7 derivation treats "per square meter
+    of solar array" as the full array footprint, so the restored model
+    uses PANEL_PACKING = 1.0 by default.
 
     Args:
         phi: Angle from subsolar point (rad)
@@ -92,7 +124,8 @@ def panel_electrical_output(phi):
     """
     f_direct = direct_solar_flux(phi)
     f_albedo = albedo_flux(phi)
-    return (f_direct + f_albedo) * cfg.CELL_EFFICIENCY * cfg.PANEL_PACKING
+    f_total = f_direct + f_albedo
+    return f_total * cfg.CELL_EFFICIENCY * cfg.AR_BOOST * cfg.PANEL_PACKING
 
 
 def compute_ring_power_profile(panel_width, n_points=None):
@@ -132,7 +165,7 @@ def compute_ring_power_profile(panel_width, n_points=None):
             peak_flux = flux
 
     avg_flux = total_flux / n_points
-    total_gen = avg_flux * panel_width * cfg.L_RING
+    total_gen = avg_flux * panel_width * cfg.L_ARRAY
 
     return {
         'phi': phi_list,

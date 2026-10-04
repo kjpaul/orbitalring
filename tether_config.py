@@ -10,6 +10,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
 import math
+import ring_altitude as ring
 
 # =============================================================================
 # 1. PHYSICAL CONSTANTS
@@ -19,7 +20,7 @@ GM = 3.986004418e14             # Earth gravitational parameter (m^3/s^2)
 R_E_EQUATOR = 6_378_137.0      # Earth equatorial radius (m)
 R_E_POLES = 6_356_752.0         # Earth polar radius (m)
 R_E = R_E_EQUATOR               # Default Earth radius (m)
-R_ORBIT_RING = 6_628_137.0     # Orbital ring radius (m), 250 km altitude
+R_ORBIT_RING = R_E + ring.ALTITUDE  # Orbital ring radius (m), design altitude
 R_GEO = 42_164_000.0           # Geosynchronous orbit radius (m)
 OMEGA_SIDEREAL = 7.2921159e-5  # Earth sidereal rotation rate (rad/s)
 G_SURFACE = 9.80665            # Standard gravity (m/s^2)
@@ -49,8 +50,8 @@ V_CHAR_CNT = math.sqrt(SIGMA_OPERATING / RHO_CNT)  # ~2711 m/s
 R_BOTTOM_GROUND = R_E_EQUATOR   # Bottom of ground-anchored tether (m)
 ALT_BOTTOM_GROUND = 0.0         # Altitude (m)
 
-# Configuration 2: GEO to 275 km
-ALT_BOTTOM_SHORT = 275_000.0    # Short tether termination altitude (m)
+# Configuration 2: GEO to 25 km above the ring
+ALT_BOTTOM_SHORT = ring.ALTITUDE + 25_000.0  # Short tether ends 25 km above the ring (m)
 R_BOTTOM_SHORT = R_E + ALT_BOTTOM_SHORT  # 6,653,137 m
 
 # GEO altitude

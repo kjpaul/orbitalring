@@ -97,7 +97,7 @@ def run_analysis(panel_width, demand_mode, v_hvdc, loss_budget, lim_power=None):
 
     # Panel width needed to match demand
     if profile['p_avg_per_m2'] > 0:
-        width_needed = p_demand_total / (profile['p_avg_per_m2'] * cfg.L_RING)
+        width_needed = p_demand_total / (profile['p_avg_per_m2'] * cfg.L_ARRAY)
     else:
         width_needed = float('inf')
 

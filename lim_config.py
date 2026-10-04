@@ -9,6 +9,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
 import math
+import ring_altitude as ring
 
 # =============================================================================
 # SECTION 1: USER-CONFIGURABLE PARAMETERS
@@ -74,7 +75,7 @@ THRUST_EFFICIENCY = 1.0 # Multiplier on calculated thrust
 # -----------------------------------------------------------------------------
 # 1.7 Mass Configuration
 # -----------------------------------------------------------------------------
-M_CABLE_STRUCTURAL_DEFAULT = 96_581     # From quadratic sizing equation at m_load=12000
+M_CABLE_STRUCTURAL_DEFAULT = ring.M_CABLE_STRUCTURAL  # quadratic sizing at m_load=12000, design altitude (ring_altitude.py)
 M_LOAD_M_DEFAULT = 12_000               # Casing + payload mass per meter (kg/m)
 M_CABLE_STRUCTURAL = M_CABLE_STRUCTURAL_DEFAULT # Session proofing
 M_LOAD_M = M_LOAD_M_DEFAULT
@@ -157,10 +158,12 @@ LEV_COIL_MLI_HEAT_FLUX_REF = 5.0  # MLI heat flux at 300K reference (W/m²)
 MU0 = 4 * math.pi * 1e-7
 STEFAN_BOLTZMANN = 5.670374e-8
 
-# Orbital parameters at 250 km altitude
-V_ORBIT = 7754.866
-V_GROUND_STATIONARY = 483.331
-L_RING = 41_645_813.012
+# Orbital parameters at the design altitude (ring_altitude.py)
+V_ORBIT = ring.V_ORBIT
+# Casing end velocity in the ring's launch direction (negative for the
+# retrograde ring: the casing passes through zero and ends eastward).
+V_GROUND_STATIONARY = ring.V_CASING_FINAL_LAUNCH_FRAME
+L_RING = ring.L_RING
 
 # =============================================================================
 # SECTION 3: MATERIAL PROPERTIES

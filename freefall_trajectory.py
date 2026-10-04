@@ -44,7 +44,7 @@ R_E = cfg.R_E
 OMEGA = cfg.OMEGA_SIDEREAL
 G0 = cfg.G_SURFACE
 
-ALT_RELEASE = 275_000.0                   # Release altitude (m)
+ALT_RELEASE = cfg.ALT_BOTTOM_SHORT        # Release altitude (m): tether foot, 25 km above the ring
 R_RELEASE = R_E + ALT_RELEASE              # Release radius (m)
 V_TANGENTIAL_0 = OMEGA * R_RELEASE         # Inertial tangential velocity (m/s)
 
@@ -59,7 +59,7 @@ BETA_SWEEP = cfg.BETA_SWEEP                # [100, 200, 500, 1000, 2000]
 GRAPH_PREFIX = ""
 
 # Key altitudes for the summary table (m)
-TABLE_ALTITUDES = [275e3, 200e3, 150e3, 100e3, 80e3, 60e3, 50e3, 40e3, 30e3, 20e3, 10e3, 0.0]
+TABLE_ALTITUDES = [ALT_RELEASE] + [a for a in (700e3, 600e3, 500e3, 400e3, 300e3) if a < ALT_RELEASE] + [200e3, 150e3, 100e3, 80e3, 60e3, 50e3, 40e3, 30e3, 20e3, 10e3, 0.0]
 
 
 # === PHYSICS HELPERS ===

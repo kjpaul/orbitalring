@@ -18,6 +18,7 @@ Architecture matches the orbital ring LIM simulator (lim_config.py).
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 import math
+import ring_altitude as ring
 
 # ── Physical constants ───────────────────────────────────────────────
 MU0 = 4 * math.pi * 1e-7
@@ -55,12 +56,12 @@ I_C_PER_MM_LAYER = 66.7                      # A/mm-width/layer (critical curren
 
 # ── Orbital ring parameters ─────────────────────────────────────────
 R_EARTH_EQ = 6_378_137.0
-ALT = 250_000.0
+ALT = ring.ALTITUDE
 R_ORBIT = R_EARTH_EQ + ALT
 L_RING = 2 * math.pi * R_ORBIT  # ≈ 41,645,813 m
-V_ORBIT = 7_754.866
-G_LOCAL = 9.073
-V_GROUND_SYNC = 483.331
+V_ORBIT = ring.V_ORBIT
+G_LOCAL = ring.G_LOCAL
+V_GROUND_SYNC = ring.V_GROUND_SYNC
 
 RING_LIMIT_10G = 1_674_000
 RING_LIMIT_3G  = 5_581_000

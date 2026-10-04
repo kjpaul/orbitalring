@@ -9,7 +9,7 @@ Usage:
     python anchor_line_analysis.py [options]
 
     --inclination=N   Orbital inclination in degrees (default 30)
-    --altitude=N      Orbital altitude in km (default 250)
+    --altitude=N      Orbital altitude in km (default: the design altitude in ring_altitude.py, 800)
     --cable=DIR       Cable direction: prograde or retrograde (default retrograde)
     --stations=N      Number of anchor stations (default 800)
     --plots           Generate all PNG plots
@@ -22,6 +22,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 import sys
 import os
 import math
+import ring_altitude as ring
 
 import numpy as np
 import matplotlib
@@ -171,15 +172,20 @@ def compute_ring_params(altitude_km, cable_dir, inclination_deg):
     v_casing_eq = OMEGA_SIDEREAL * r  # equatorial, for reference
 
     # Structural cable mass from force balance (same formula as lim_physics.py)
-    m_cable_struct = cable_mass_structural(M_LOAD_PER_M, r)
+    # Quadratic sizing for the chosen cable direction (ring_altitude.py); the
+    # older cable_mass_structural() below sized the prograde cable only.
+    m_cable_struct = ring.design(altitude_km, cable_dir == "retrograde", m_load=M_LOAD_PER_M)['m_struct']
 
     # Hardware mass: LIM plates, levitation hardware, etc.
     # From lim_config.py: M_HARDWARE ~ 4,077 kg/m (gamma titanium plates + iron)
-    m_hardware = 4_077  # kg/m
+    m_hardware = ring.M_HARDWARE_M  # kg/m
     m_cable = m_cable_struct + m_hardware
 
     # Cable velocity from momentum conservation
-    v_cable_mag = cable_velocity_from_momentum(m_cable, M_LOAD_PER_M, v_orb, v_casing)
+    # In the ring's launch direction the retrograde ring's casing ends at -v_casing
+    # (it passes through zero and finishes eastward), so its momentum change is larger.
+    v_cable_mag = cable_velocity_from_momentum(
+        m_cable, M_LOAD_PER_M, v_orb, -v_casing if cable_dir == "retrograde" else v_casing)
 
     if cable_dir == "retrograde":
         v_cable_signed = -v_cable_mag  # negative = westward
@@ -929,7 +935,7 @@ def main():
     """Main entry point."""
     # Defaults
     inclination_deg = 30.0
-    altitude_km = 250.0
+    altitude_km = ring.ALTITUDE_KM
     cable_dir = "retrograde"
     n_stations = 800
     do_plots = False

@@ -28,25 +28,26 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
 import math
+import ring_altitude as ring
 
 # =============================================================================
 # SECTION 1: ORBITAL RING PARAMETERS
 # =============================================================================
 
-# Orbital parameters at 250 km altitude
-R_ORBIT = 6_628_137         # m, orbital radius (Earth radius + 250 km)
-G_250 = 9.073               # m/s², gravitational acceleration at 250 km
+# Orbital parameters at the design altitude (ring_altitude.py)
+R_ORBIT = ring.R_ORBIT      # m, orbital radius
+G_250 = ring.G_LOCAL        # m/s², gravitational acceleration at the ring (name kept for compatibility)
 G_0 = 9.807                 # m/s², standard gravity at sea level
-V_ORBIT = 7755              # m/s, orbital velocity at 250 km
-L_RING = 41_646_000         # m, ring circumference
+V_ORBIT = ring.V_ORBIT      # m/s, orbital velocity at the ring
+L_RING = ring.L_RING        # m, ring circumference
 
 # HVDC power grid capacity
-# The ring's total orbit-averaged generation is 666 GW (83,292 sites x 8 MW each).
+# The ring's total orbit-averaged generation is 8 MW at each LIM site (666 GW at 250 km, 722 GW at 800 km).
 # The actual power available for the mass driver depends on how much of the HVDC grid
 # has been upgraded for mass driver service during post-deployment buildout.
 # This is the maximum instantaneous power that can be delivered to the active stator zone.
 # Set to None to disable the power limit (for parameter studies).
-P_HVDC_MAX = 666e9          # W, maximum power delivery to mass driver (default: 666 GW)
+P_HVDC_MAX = round(L_RING / 500.0) * 8e6  # W, maximum power delivery to mass driver (8 MW at each LIM site, 500 m spacing)
 
 # =============================================================================
 # SECTION 2: LSM STATOR PARAMETERS

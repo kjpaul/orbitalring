@@ -17,6 +17,7 @@ Usage: python md_trade_study.py
 """
 
 import math
+import ring_altitude as ring
 import os
 import sys
 
@@ -26,9 +27,9 @@ G0 = 9.81
 
 # ── Orbital ring geometry ───────────────────────────────────────────────────
 R_EARTH_EQ = 6_378_137.0
-R_ORBIT = R_EARTH_EQ + 250_000
-V_ORBIT = 7754.866
-L_RING = 41_645_813.012
+R_ORBIT = ring.R_ORBIT
+V_ORBIT = ring.V_ORBIT
+L_RING = ring.L_RING
 
 # ── γ-TiAl properties ──────────────────────────────────────────────────────
 RHO_293K = 75e-8          # resistivity at 293 K (Ω·m)
