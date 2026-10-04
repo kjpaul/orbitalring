@@ -87,7 +87,7 @@ OMEGA_SIDEREAL = 7.2921159e-5  # Earth sidereal rotation rate (rad/s)
 M_CASING_PER_M = 12_000.0    # Casing/load mass per meter (kg/m)
 M_HARDWARE_PER_M = 4_076.0   # Cable hardware mass per meter (kg/m, fixed)
 RETROGRADE = True            # True = retrograde cable, False = prograde
-H_BASELINE = 250_000.0       # Baseline ring altitude (m), for reference
+H_BASELINE = 800_000.0       # Baseline ring altitude (m): the 800 km design
 
 H_DRAG = 500_000.0           # Atmospheric drag threshold altitude (m)
 M_THRESHOLD = 5.0e10         # Nuclear winter threshold (kg) = 50 Mt
@@ -405,29 +405,38 @@ def particulate_from_pop2(h_ring, large_frag_eff=LARGE_FRAG_PARTICULATE_EFF):
     """Population 2: Stratospheric particulate from large cable fragments.
 
     ~95% of cable mass stays in large fragments with delta_v ~ V_RECOIL
-    (~408 m/s) from hoop-stress breakup. For isotropic recoil, the fraction
-    with retrograde component > dv_crit determines reentry mass.
+    (429 m/s) from hoop-stress breakup, directed along the cable.
+
+    CORRECTED 2026-10-01 (see debris_orbits.py and Vol IV Ch 4 Section 4.4).
+    The cable is NOT at circular velocity.  It moves ~800-870 m/s faster
+    than circular (that excess carries the casing weight and the hoop
+    tension), so a released fragment is at the PERIGEE of its orbit and
+    rises.  The slowdown needed to bring the perigee to H_DRAG is measured
+    from the actual cable speed, not from v_orbit, and it exceeds V_RECOIL
+    at every altitude above H_DRAG.  Above H_DRAG this function therefore
+    returns ~0; below H_DRAG every fragment's perigee is in the atmosphere
+    and the mass comes down over years to centuries (not promptly), which
+    this prompt-particulate function does not time-resolve.
     """
     state = ring_state(h_ring)
     cd = contact_dynamics(state)
     m_large = (state['m_cable_total'] - cd['m_shocked_cable_per_m']) * state['L_ring']
 
-    dv_crit = delta_v_critical(h_ring)
+    if h_ring <= H_DRAG:
+        return m_large * large_frag_eff
 
-    if dv_crit <= 0:
-        m_reentry = m_large
-    elif dv_crit >= V_RECOIL * 3:
-        m_reentry = 0.0
-    elif dv_crit <= V_RECOIL:
-        # Isotropic 3D recoil: fraction with 1D component > v
-        frac = 0.5 * (1.0 - dv_crit / V_RECOIL)
-        m_reentry = m_large * frac
-    else:
-        # Tail beyond V_RECOIL
-        frac = 0.5 * (V_RECOIL / dv_crit) ** 2 * 0.1
-        m_reentry = m_large * frac
+    # Tangential slowdown from the actual cable speed to a perigee at H_DRAG
+    r_ring = R_EARTH + h_ring
+    r_drag = R_EARTH + H_DRAG
+    a = 0.5 * (r_ring + r_drag)
+    v_apogee = math.sqrt(GM * (2.0 / r_ring - 1.0 / a))
+    dv_needed = abs(state['v_cable']) - v_apogee
 
-    return m_reentry * large_frag_eff
+    if dv_needed >= V_RECOIL:
+        return 0.0
+    # (not reached for any altitude above H_DRAG with the book's parameters)
+    frac = 0.5 * (1.0 - dv_needed / V_RECOIL)
+    return m_large * frac * large_frag_eff
 
 
 def particulate_total(h_ring, beta=BETA, casing_frac=CASING_PARTICIPATION,
