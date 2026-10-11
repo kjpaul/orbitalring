@@ -862,8 +862,8 @@ def print_parameters():
     # SECTION 6: DISPLAY DICTIONARY
     # =============================================================================
 
-    cable_area = phys.calc_cable_area(cfg.M_LOAD_M)
-    cable_side = phys.calc_cable_side(cfg.M_LOAD_M)
+    cable_area = phys.calc_cable_area(cfg.M_LOAD_M, cfg.M_HARDWARE)
+    cable_side = phys.calc_cable_side(cfg.M_LOAD_M, cfg.M_HARDWARE)
 
     PARAM_DISPLAY = {
         "N_TURNS             #": cfg.N_TURNS,

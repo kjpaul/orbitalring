@@ -64,6 +64,7 @@ from scipy.optimize import brentq
 import matplotlib.pyplot as plt
 
 import lim_physics as phys
+import ring_altitude as ring
 
 
 # =============================================================================
@@ -85,7 +86,7 @@ OMEGA_SIDEREAL = 7.2921159e-5  # Earth sidereal rotation rate (rad/s)
 # =============================================================================
 
 M_CASING_PER_M = 12_000.0    # Casing/load mass per meter (kg/m)
-M_HARDWARE_PER_M = 4_076.0   # Cable hardware mass per meter (kg/m, fixed)
+M_HARDWARE_PER_M = ring.M_HARDWARE_M   # Cable hardware mass per meter (kg/m), from ring_altitude.py (was a copy of 4,076)
 RETROGRADE = True            # True = retrograde cable, False = prograde
 H_BASELINE = 800_000.0       # Baseline ring altitude (m): the 800 km design
 

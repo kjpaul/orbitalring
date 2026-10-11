@@ -26,7 +26,11 @@ ALTITUDE_KM = float(os.environ.get("ORBITAL_RING_ALT_KM", "700"))
 RETROGRADE = os.environ.get("ORBITAL_RING_CABLE", "retrograde").lower() != "prograde"
 
 M_LOAD_M = 12_000.0            # casing mass per meter (kg/m)
-M_HARDWARE_M = 4_076.0         # cable hardware per meter (kg/m)
+# Cable hardware per meter (kg/m): the LIM reaction plates, 2 x 0.20 m x 1.2 m of gamma-TiAl at 3,900 kg/m^3 = 1,872 kg/m, plus the
+# bearing's four ferromagnetic plates, 4 x 0.20 m x 1.4 m of sintered iron at 7,870 kg/m^3 = 8,814 kg/m (two casing support plates
+# under the cable, two lift compensation plates on top; final_bearing_2026-10-12.md).  Was 4,076 (two 0.10 m plates) until 2026-10-12.
+# ORBITAL_RING_HW_KGM overrides it for comparison runs.
+M_HARDWARE_M = float(os.environ.get("ORBITAL_RING_HW_KGM", "10686"))
 RHO_CNT = 1700.0               # kg/m^3
 SIGMA_CABLE = 12.5e9           # Pa, operating stress (safety factor 2 on 25 GPa)
 

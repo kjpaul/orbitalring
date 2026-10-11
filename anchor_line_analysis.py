@@ -56,7 +56,7 @@ SIGMA_OPERATING = 12.5e9    # Operating limit = sigma_break / 2 (Pa)
 M_LOAD_PER_M = 12_000       # Casing mass per meter (kg/m)
 SIGMA_CABLE = 12.5e9         # Operating stress (Pa), safety factor 2.0 on 25 GPa
 RHO_CNT = 1700               # CNT density (kg/m³)
-M_HARDWARE = 4076            # Hardware mass per meter (kg/m)
+M_HARDWARE = ring.M_HARDWARE_M   # Hardware mass per meter (kg/m), from ring_altitude.py (was a copy of 4,076)
 
 # MathCAD calibration table for lateral force validation
 # { inclination_deg: peak_lateral_force_per_m (N/m) }

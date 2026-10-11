@@ -41,7 +41,7 @@ RHO_CNT = 1700                  # CNT density (kg/m³)
 # CABLE MASS
 # =============================================================================
 
-def calc_cable_mass(load_mass=12000, m_hw=4076, delta_v=None,
+def calc_cable_mass(load_mass=12000, m_hw=ring.M_HARDWARE_M, delta_v=None,
                     v_orbit=V_ORBIT, g_net=A_250_KM, r_orbit=R_ORBIT,
                     rho_cnt=RHO_CNT, sigma_cable=12.5e9):
     """Structural cable mass from the quadratic sizing equation.
@@ -80,12 +80,12 @@ def calc_cable_mass(load_mass=12000, m_hw=4076, delta_v=None,
     m_cable = (-b + math.sqrt(discriminant)) / (2 * a)
     return m_cable
 
-def calc_cable_area(load_mass=12000, m_hw=4076):
+def calc_cable_area(load_mass=12000, m_hw=ring.M_HARDWARE_M):
     """Cable cross-section area (m^2) from quadratic sizing."""
     cable_m = calc_cable_mass(load_mass, m_hw)
     return cable_m / RHO_CNT
 
-def calc_cable_side(load_mass=12000, m_hw=4076):
+def calc_cable_side(load_mass=12000, m_hw=ring.M_HARDWARE_M):
     """Side length of square cable cross-section (m)."""
     cable_area = calc_cable_area(load_mass, m_hw)
     return math.sqrt(cable_area)

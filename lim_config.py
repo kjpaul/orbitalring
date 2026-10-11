@@ -39,8 +39,8 @@ PITCH_COUNT = 3         # Number of pole pitches per LIM
 # -----------------------------------------------------------------------------
 W_PLATE = 1.2               # Reaction plate width (m)
 N_PLATES_PER_SIDE = 1       # LIM reaction plates per side of cable
-N_LEV_PLATES = 2            # Levitation plates per side
-D_LEV = 0.10                # Levitation plate thickness (m)
+N_LEV_PLATES = 4            # Ferromagnetic bearing plates on the cable: two support plates below, two lift plates on top (2026-10-12)
+D_LEV = 0.20                # Bearing plate thickness (m), 200 mm (was 0.10 with two plates until 2026-10-12)
 D_LEV_COIL = 1.0            # Levitation coild witdth (m)
 W_LEV = D_LEV_COIL + 0.4    # Levitation plate width (m)
 
