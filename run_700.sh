@@ -28,4 +28,14 @@ python3 debris_simulation.py > $O/debris_simulation.txt 2>&1
 python3 debris_orbits.py > $O/debris_orbits.txt 2>&1
 python3 ch4_numbers.py > $O/ch4_numbers.txt 2>&1
 python3 altitude_trade.py > $O/altitude_trade.txt 2>&1
+python3 sled_passage_simulation.py > $O/sled_passage.txt 2>&1
+python3 sled_passage_limits.py > $O/sled_passage_limits.txt 2>&1
+python3 sled_passage_pulsed.py > $O/sled_passage_pulsed.txt 2>&1
+python3 sled_passage_spread.py > $O/sled_passage_spread.txt 2>&1
+python3 compensation_fields.py > $O/compensation_fields.txt 2>&1
+python3 compensation_tracks.py > $O/compensation_tracks.txt 2>&1
+python3 bearing_fem_check.py > $O/bearing_fem_check.txt 2>&1
+python3 bearing_design.py > $O/bearing_design.txt 2>&1
+python3 bearing_mass.py > $O/bearing_mass.txt 2>&1
+python3 final_bearing.py > $O/final_bearing.txt 2>&1
 echo ALLDONE > $O/_done

@@ -35,6 +35,7 @@ except ImportError:
     HAS_MATPLOTLIB = False
     print("WARNING: matplotlib not found. Graphs will not be generated.")
 
+import ring_altitude as ring
 from levitation_config import *
 from levitation_physics import *
 
@@ -270,7 +271,7 @@ def run_safety_crossover(material_name, wavelength):
     print(f"  Field at 100 mm (nominal gap): {halbach_field_at_gap(B_safety_surface, 0.100, wavelength):.2e} T")
 
     # Cable velocity (for eddy current calculation)
-    v_cable = 8620  # m/s (cable velocity relative to casing)
+    v_cable = ring.V_REL  # m/s, cable velocity relative to the casing, from ring_altitude.py (was hard coded 8620)
 
     sigma = 1.0 / mat["resistivity"]
 
@@ -507,7 +508,7 @@ def run_thermal_analysis(material_name, wavelength):
         coils_per_meter=safety_coils_per_m
     )
 
-    v_cable = 8620  # m/s
+    v_cable = ring.V_REL  # m/s, from ring_altitude.py (was hard coded 8620)
 
     # Sweep gap
     gaps = [0.001 + i * 0.199 / GAP_SWEEP_POINTS for i in range(GAP_SWEEP_POINTS + 1)]
@@ -646,7 +647,7 @@ def run_material_study(wavelength):
     print("ANALYSIS 4: SAFETY REACTION PLATE MATERIAL TRADE STUDY")
     print("="*72)
 
-    v_cable = 8620  # m/s
+    v_cable = ring.V_REL  # m/s, from ring_altitude.py (was hard coded 8620)
 
     safety_coils_per_m = 4.0 / wavelength
     safety_turns = SAFETY_TURNS_PER_COIL
@@ -782,7 +783,7 @@ def run_drag_analysis(material_name, wavelength):
     print("="*72)
 
     mat = get_material(material_name)
-    v_cable = 8620  # m/s
+    v_cable = ring.V_REL  # m/s, from ring_altitude.py (was hard coded 8620)
     sigma = 1.0 / mat["resistivity"]
 
     safety_coils_per_m = 4.0 / wavelength
