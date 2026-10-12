@@ -1,0 +1,248 @@
+========================================================================
+ORBITAL RING LEVITATION SYSTEM SIMULATION
+========================================================================
+Safety reaction plate material: copper_OFHC
+Safety Halbach wavelength: 100 mm
+Output directory: /home/claude/r700\output\levitation\
+
+========================================================================
+ANALYSIS 1: HALBACH vs SOLENOID EML BEARING COMPARISON
+========================================================================
+
+Nominal casing load: 95.0 kN/m
+  (12,000 kg/m × 7.918454967011312 m/s²)
+
+At nominal gap (100 mm), operating current (400 A):
+  Halbach EML:   409.1 kN/m
+  Solenoid EML:  277.4 kN/m
+  Chapter 5 model: 308.4 kN/m
+  Halbach advantage: 1.47x
+
+At nominal gap, maximum current (800 A):
+  Halbach EML:   1604.3 kN/m
+  Solenoid EML:  1109.6 kN/m
+  Chapter 5 model: 1233.7 kN/m
+
+Margin above nominal load (at Ic):
+  Halbach: 1509.3 kN/m  (1588% of load)
+  Solenoid: 1014.6 kN/m  (1068% of load)
+
+Field comparison at 400 A:
+  Halbach surface field: 0.739 T
+  Solenoid surface field: 0.523 T
+  Halbach field at 100 mm gap: 0.605 T
+  Solenoid field at 100 mm gap: 0.499 T
+
+Saved: /home/claude/r700\output\levitation\/fig_levitation_halbach_vs_solenoid.png
+
+========================================================================
+ANALYSIS 2: SAFETY BACKSTOP vs EML FORCE CROSSOVER
+========================================================================
+
+Safety reaction plate material: OFHC Copper
+  Resistivity: 1.68e-08 ohm-m
+  Density: 8960 kg/m^3
+  Melting point: 1358 K (1085 C)
+  Max service temp: 773 K (500 C)
+
+Safety Halbach wavelength: 100 mm
+Safety Halbach surface field: 0.640 T
+  at persistent current 750 A
+  24 turns/coil, 40 coils/m
+  Decay length (lambda/2pi): 15.9 mm
+  Field at 20 mm: 0.1821 T
+  Field at 50 mm: 0.027647 T
+  Field at 100 mm (nominal gap): 1.19e-03 T
+
+--- FAILURE MODE 1: Total EML Power Loss ---
+  Casing weight to arrest: 95.0 kN/m
+  Safety exceeds gravity at ALL gaps (strong backstop)
+
+--- FAILURE MODE 2: EML Overcurrent (stuck at Ic) ---
+  WARNING: Safety never overcomes excess EML force!
+
+  At safety gap = 2 mm:
+    Safety repulsive:         253.7 kN/m
+    Gravity load:              95.0 kN/m
+    Excess EML (at Ic):      1509.3 kN/m
+    Net Mode 1 (+ safe):      158.6 kN/m
+    Net Mode 2 (+ safe):    -1255.6 kN/m
+
+  At safety gap = 5 mm:
+    Safety repulsive:         174.6 kN/m
+    Gravity load:              95.0 kN/m
+    Excess EML (at Ic):      1509.3 kN/m
+    Net Mode 1 (+ safe):       79.6 kN/m
+    Net Mode 2 (+ safe):    -1334.6 kN/m
+
+  At safety gap = 10 mm:
+    Safety repulsive:          93.8 kN/m
+    Gravity load:              95.0 kN/m
+    Excess EML (at Ic):      1509.3 kN/m
+    Net Mode 1 (+ safe):       -1.3 kN/m
+    Net Mode 2 (+ safe):    -1415.5 kN/m
+
+  At safety gap = 20 mm:
+    Safety repulsive:          27.0 kN/m
+    Gravity load:              95.0 kN/m
+    Excess EML (at Ic):      1509.3 kN/m
+    Net Mode 1 (+ safe):      -68.0 kN/m
+    Net Mode 2 (+ safe):    -1482.2 kN/m
+
+  At safety gap = 50 mm:
+    Safety repulsive:           0.6 kN/m
+    Gravity load:              95.0 kN/m
+    Excess EML (at Ic):      1509.3 kN/m
+    Net Mode 1 (+ safe):      -94.4 kN/m
+    Net Mode 2 (+ safe):    -1508.7 kN/m
+
+  At safety gap = 80 mm:
+    Safety repulsive:           0.0 kN/m
+    Gravity load:              95.0 kN/m
+    Excess EML (at Ic):      1509.3 kN/m
+    Net Mode 1 (+ safe):      -95.0 kN/m
+    Net Mode 2 (+ safe):    -1509.2 kN/m
+
+  At safety gap = 100 mm:
+    Safety repulsive:           0.0 kN/m
+    Gravity load:              95.0 kN/m
+    Excess EML (at Ic):      1123.9 kN/m
+    Net Mode 1 (+ safe):      -95.0 kN/m
+    Net Mode 2 (+ safe):    -1123.9 kN/m
+
+--- Transient: Can safety arrest casing fall (Mode 1)? ---
+  t = 40.74 ms: gap = 50.5 mm, v = 885.0 mm/s, F_safety = 0.6 kN/m
+  t = 79.60 ms: gap = 10.5 mm, v = 1141.1 mm/s, F_safety = 87.0 kN/m
+  t = 83.99 ms: gap = 5.5 mm, v = 1131.5 mm/s, F_safety = 163.1 kN/m
+  t = 87.57 ms: gap = 1.5 mm, v = 1096.5 mm/s, F_safety = 269.5 kN/m
+
+  WARNING: Casing NOT arrested in 2.0 s
+  Gap reached: 0.50 mm
+  Velocity at end: 1082.1 mm/s
+Saved: /home/claude/r700\output\levitation\/fig_levitation_safety_crossover.png
+
+========================================================================
+ANALYSIS 3: SAFETY REACTION PLATE THERMAL ANALYSIS
+========================================================================
+
+Material: OFHC Copper
+  Melting point: 1358 K (1085 C)
+  Max service temp: 773 K (500 C)
+  Emissivity: 0.78
+
+--- Steady-State Thermal Limits ---
+Service temp (773 K) reached at gap = 51.3 mm
+Melting point (1358 K) reached at gap = 33.2 mm
+
+  At gap = 5 mm:
+    Heating rate: 10481884.5 W/m
+    Equilibrium temp: 3299 K (3026 C)
+
+  At gap = 10 mm:
+    Heating rate: 5609555.8 W/m
+    Equilibrium temp: 2822 K (2549 C)
+
+  At gap = 20 mm:
+    Heating rate: 1606596.0 W/m
+    Equilibrium temp: 2064 K (1791 C)
+
+  At gap = 50 mm:
+    Heating rate: 37743.4 W/m
+    Equilibrium temp: 810 K (537 C)
+
+  At gap = 100 mm:
+    Heating rate: 72.7 W/m
+    Equilibrium temp: 260 K (-13 C)
+
+--- Transient Survival Time ---
+  (Time to reach service temperature from cable steady-state 254 K)
+
+  At gap = 5 mm:
+    Heating rate: 10481884.5 W/m
+    Thermal mass: 358.4 kg/m
+    Time to service temp: 6.8 s
+    Time to melting point: 14.5 s
+
+  At gap = 10 mm:
+    Heating rate: 5609555.8 W/m
+    Thermal mass: 358.4 kg/m
+    Time to service temp: 12.8 s
+    Time to melting point: 27.2 s
+
+  At gap = 20 mm:
+    Heating rate: 1606596.0 W/m
+    Thermal mass: 358.4 kg/m
+    Time to service temp: 44.6 s
+    Time to melting point: 94.8 s
+Saved: /home/claude/r700\output\levitation\/fig_levitation_thermal.png
+
+========================================================================
+ANALYSIS 4: SAFETY REACTION PLATE MATERIAL TRADE STUDY
+========================================================================
+
+Halbach wavelength: 100 mm
+Safety Halbach surface field: 0.640 T
+Cable velocity: 8620 m/s
+Plate thickness: 20 mm
+Plate width: 1000 mm
+
+Material                         F@20mm    F@5mm   Drag@100    DragPwr  T_eq@20  t_melt@10     Mass
+                                   kN/m     kN/m        N/m        W/m        K        sec     kg/m
+--------------------------------------------------------------------------------------------------------------------------
+Aluminum 6061-T6                   26.4    173.8   3.33e-06   2.87e-02     3463        6.8    216.0
+OFHC Copper                        26.4    173.8   1.40e-06   1.21e-02     2058       27.3    716.8
+gamma-TiAl (Ti-48Al-2Cr-2Nb)       26.4    173.8   6.26e-05   5.39e-01     3797        3.7    312.0
+Molybdenum                         26.4    173.8   4.46e-06   3.84e-02     3020       27.3    817.6
+Graphene/CNT Composite             26.4    173.8   2.78e-06   2.40e-02     2194       21.5    136.0
+
+--- Recommendations ---
+
+Key trade-offs:
+  - Copper OFHC: Strongest repulsive force (highest conductivity), but heaviest.
+    Best if mass is not the primary constraint.
+  - Aluminum 6061: Good force, light, but lowest melting point.
+    Risk of melting during prolonged safety engagement.
+  - gamma-TiAl: Already on the cable for LIM plates. High service temp.
+    Moderate force. A practical choice that avoids adding a new material.
+  - Molybdenum: Highest melting point, good conductivity, extremely heavy.
+    Best for absolute worst-case thermal survival.
+  - Graphene/CNT composite: Lightest, highest temp tolerance in vacuum.
+    Speculative conductivity. Best if projections hold.
+Saved: /home/claude/r700\output\levitation\/fig_levitation_material_trade.png
+
+========================================================================
+ANALYSIS 5: PARASITIC DRAG FROM SAFETY ARRAYS AT NOMINAL GAP
+========================================================================
+
+Material: OFHC Copper
+Cable velocity: 8620 m/s
+Nominal gap: 100 mm
+
+  Wavelength  B_surface      B@100mm         Drag   Drag Power       B@20mm  F_safety@20
+        (mm)        (T)          (T)        (N/m)        (W/m)          (T)       (kN/m)
+--------------------------------------------------------------------------------------------
+          20      6.931     1.57e-13     9.73e-27     8.39e-23       0.0129          0.1
+          30      4.621     3.71e-09     8.09e-18     6.97e-14       0.0701          3.9
+          50      2.772     9.67e-06     9.18e-11     7.91e-07       0.2246         40.1
+          80      1.733     6.73e-04     7.11e-07     6.13e-03       0.3602        103.2
+         100      1.386     2.59e-03     1.32e-05     1.13e-01       0.3945        123.9
+         150      0.924     1.40e-02     5.79e-04     4.99e+00       0.3998        127.2
+         200      0.693     3.00e-02     3.52e-03     3.04e+01       0.3698        108.8
+         300      0.462     5.69e-02     1.91e-02     1.64e+02       0.3039         73.5
+         500      0.277     7.89e-02     6.11e-02     5.27e+02       0.2156         37.0
+
+At selected wavelength = 100 mm:
+  B at nominal gap: 1.19e-03 T
+  Drag per meter: 2.80e-06 N/m
+  Drag power per meter: 2.42e-02 W/m
+  Total ring drag power: 1.07e+06 W (1.075 MW)
+
+  For context:
+    LIM deployment power: 666,000 MW
+    Post-deployment operations: 42,000 MW
+    Safety drag: 1.075 MW
+    Fraction of operations budget: 0.002559%
+
+========================================================================
+SIMULATION COMPLETE
+========================================================================

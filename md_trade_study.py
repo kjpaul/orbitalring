@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Parametric trade study of the induction mass driver (payload against length, plate and thermal margin), with figures.
+Book: The Orbital Ring, Volume IV: Chapter 14 figures.
+Run: python md_trade_study.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Mass Driver Parametric Trade Study
 
 Sweeps sled length (1–5 km) and plate width (0.5–2.0 m) at fixed 200mm
@@ -459,7 +464,7 @@ def make_plots(results):
         print("matplotlib/numpy not available for plotting")
         return
     
-    os.makedirs('./graphs', exist_ok=True)
+    graph_dir = ring.out_dir("graphs_md_trade")   # under ORBITAL_RING_OUT (default runs)
     
     valid = [r for r in results if r['closes']]
     if not valid:
@@ -503,7 +508,7 @@ def make_plots(results):
                  fontsize=13)
     fig.colorbar(im, ax=ax, label='Payload Fraction (%)')
     fig.tight_layout()
-    fig.savefig('./graphs/trade_payload_heatmap.png', dpi=300)
+    fig.savefig(os.path.join(graph_dir, "trade_payload_heatmap.png"), dpi=300)
     plt.close(fig)
     
     # ── Plot 2: Payload mass vs sled length, lines for each width ────────────
@@ -532,7 +537,7 @@ def make_plots(results):
     ax2.grid(True, alpha=0.3)
     
     fig.tight_layout()
-    fig.savefig('./graphs/trade_payload_vs_length.png', dpi=300)
+    fig.savefig(os.path.join(graph_dir, "trade_payload_vs_length.png"), dpi=300)
     plt.close(fig)
     
     # ── Plot 3: Plate mass vs payload mass (dead weight ratio) ───────────────
@@ -559,7 +564,7 @@ def make_plots(results):
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig('./graphs/trade_payload_vs_plate.png', dpi=300)
+    fig.savefig(os.path.join(graph_dir, "trade_payload_vs_plate.png"), dpi=300)
     plt.close(fig)
     
     # ── Plot 4: Thermal margin ───────────────────────────────────────────────
@@ -580,10 +585,10 @@ def make_plots(results):
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig('./graphs/trade_thermal_margin.png', dpi=300)
+    fig.savefig(os.path.join(graph_dir, "trade_thermal_margin.png"), dpi=300)
     plt.close(fig)
     
-    print("Plots saved to ./graphs/")
+    print(f"Plots saved to {graph_dir}/")
 
 
 if __name__ == "__main__":

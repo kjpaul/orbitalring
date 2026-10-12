@@ -1,4 +1,10 @@
-"""Ring altitude trade, debris side: released-cable orbits and drag lifetimes for ring altitudes 500 to 800 km,
+"""
+Ring altitude trade, debris side: released-cable orbits and drag lifetimes at several ring altitudes (NRLMSIS atmosphere through pymsis).
+Book: The Orbital Ring, Volume IV: Chapter 4 (lifetime table), Chapter 19.
+Run: python altitude_trade.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
+Ring altitude trade, debris side: released-cable orbits and drag lifetimes for ring altitudes 500 to 800 km,
 with three atmospheres: the Vallado mean table used in Chapter 4, NRLMSIS 2.1 averaged over a solar cycle,
 and NRLMSIS held at solar maximum (a bound). Prompt soot from the collision ejecta from debris_simulation.py."""
 import math, numpy as np, pymsis, warnings

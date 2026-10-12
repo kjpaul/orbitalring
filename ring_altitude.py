@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+The design point of the ring (altitude, cable direction, masses per meter, speeds, tension, deployment energy) and the output and data folders every other script uses.
+Book: The Orbital Ring, Volume IV: Chapter 1 tables, Chapter 3 (the cable), Table 8.1 and every chapter's ring numbers; named in Chapter 3.
+Run: python ring_altitude.py (prints the reference table)
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
+
 Single source for the ring's design altitude and everything that follows
 from it.  Every simulation in this folder imports its altitude-dependent
 constants from here, so the design point is changed in one place.
@@ -13,6 +18,10 @@ Override for comparison runs without editing any file:
 
 Run this file to print the reference table for the current altitude.
 
+Every script writes its files (logs, figures, CSV, JSON) under the folder named by
+ORBITAL_RING_OUT (default: runs, in the current folder), through out_dir() below.
+Tracked input files (tape data, solver caches, design-history logs) are in data/, DATA_DIR.
+
 Reference: "The Orbital Ring" by Paul G de Jong
 """
 import math
@@ -24,6 +33,19 @@ OMEGA_SIDEREAL = 7.2921159e-5  # Earth sidereal rotation rate (rad/s)
 
 ALTITUDE_KM = float(os.environ.get("ORBITAL_RING_ALT_KM", "700"))
 RETROGRADE = os.environ.get("ORBITAL_RING_CABLE", "retrograde").lower() != "prograde"
+
+# Where every script writes its files (logs, figures, CSV, JSON): ORBITAL_RING_OUT, default "runs" in the current folder.
+OUT_DIR = os.environ.get("ORBITAL_RING_OUT", "runs")
+# Input files that git tracks (tape data, solver caches, design-history logs), in the data folder next to this file.
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+
+
+def out_dir(*sub):
+    """The output folder, or a subfolder of it, created if it does not exist."""
+    path = os.path.join(OUT_DIR, *sub)
+    os.makedirs(path, exist_ok=True)
+    return path
+
 
 M_LOAD_M = 12_000.0            # casing mass per meter (kg/m)
 # Cable hardware per meter (kg/m): the LIM reaction plates, 2 x 0.20 m x 1.2 m of gamma-TiAl at 3,900 kg/m^3 = 1,872 kg/m, plus the

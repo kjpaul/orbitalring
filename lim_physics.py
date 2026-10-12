@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Physics functions of the LIM deployment simulation (thrust, slip, plate heating, cryogenic loads, cable sizing).
+Book: The Orbital Ring, Volume IV: Chapter 12, Chapter 3 (library imported by lim_simulation.py).
+Run: imported; not run by itself
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
 LIM Physics Module - Calculation functions for orbital ring deployment simulation
 
 This module contains all the physics calculations for:

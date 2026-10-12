@@ -1,4 +1,9 @@
-"""Trapped-proton dose at a point under the cable, by direction, for longitudes in the anomaly sector.
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python sweetspot_trapped.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Trapped-proton dose at a point under the cable, by direction, for longitudes in the anomaly sector.
 Angular distribution: from AP-8 itself (pitch.py), symmetric about the plane perpendicular to the field.
 Field direction: IGRF 2026. No east-west asymmetry is applied (it changes east against west, not above against below)."""
 import numpy as np, datetime, ppigrf, warnings, sys

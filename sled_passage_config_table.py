@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Prints the configuration table of the sled passage problem for review.
+Book: The Orbital Ring, Volume IV: Not quoted by a chapter (a review tool).
+Run: python sled_passage_config_table.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
 Configuration table for the sled passage problem (2026-10-09, for Paul's review).
 
 Uses the single-point casing model of sled_passage_limits.py (one meter of casing, no

@@ -1,4 +1,9 @@
-"""AP-8 on the equator with the present-day field (IGRF 2026): L and B/B0 by field-line tracing, then the AP-8 maps.
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python igrf_altscan.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+AP-8 on the equator with the present-day field (IGRF 2026): L and B/B0 by field-line tracing, then the AP-8 maps.
 Checked against MetOp-C MEPED at 823 km (poes_equator.py, igrf_823.py)."""
 import numpy as np, datetime, astropy.units as u, aep8, warnings
 warnings.filterwarnings("ignore")

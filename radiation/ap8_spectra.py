@@ -1,4 +1,9 @@
-"""AP-8 integral proton spectra on the geographic equator, 1 deg longitude steps -> ap8_spectra.npz"""
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python ap8_spectra.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+AP-8 integral proton spectra on the geographic equator, 1 deg longitude steps -> ap8_spectra.npz"""
 import numpy as np, astropy.units as u, warnings, aep8
 warnings.filterwarnings("ignore")
 from astropy.coordinates import EarthLocation

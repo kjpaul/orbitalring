@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Minimum safe altitude: where the released cable and the falling casing go after a catastrophic break, and the drag lifetimes.
+Book: The Orbital Ring, Volume IV: Chapter 4 (Tables 4.2 to 4.5, Figures 4.2 to 4.6), Chapter 19.
+Run: python debris_simulation.py [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Minimum Safe Altitude -- Orbital Ring Catastrophic Failure Analysis
 
 Models the debris hazard from a catastrophic cable-casing collision on the
@@ -176,7 +181,7 @@ CASING_PARTICULATE_EFF = 0.0
 # =============================================================================
 
 GRAPH_DPI = 200
-GRAPH_DIR = "graphs_debris"
+GRAPH_DIR = os.path.join(ring.OUT_DIR, "graphs_debris")   # under ORBITAL_RING_OUT (default runs)
 SAVE_GRAPHS = True
 
 

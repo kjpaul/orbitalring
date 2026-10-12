@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Draws the 24-hour output of a bifacial solar panel riding on the ring.
+Book: The Orbital Ring, Volume IV: Chapter 10 or 16 figure (bifacial panel output).
+Run: python make_bifacial_24hr_graph.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
+
 Regenerate the bifacial solar panel 24-hour output graph for Chapter 7
 "Powering the Orbital Ring" (now in Volume III).
 
@@ -33,6 +38,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import power_config as cfg
+import ring_altitude as ring
 import power_physics as pp
 
 
@@ -136,13 +142,8 @@ def main():
 
     plt.tight_layout()
 
-    # Save to the local graphs_power folder AND to the canonical
-    # localbrain image locations used by the book build.
-    out_dirs = [
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Python/orbitalring/graphs_power",
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Vol_II/images",
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Vol_III/images",
-    ]
+    # Save under the output folder (ORBITAL_RING_OUT, default runs); copy into the book by hand.
+    out_dirs = [ring.out_dir("graphs_power")]
     filename = "bifacial_solar_24hr_output.png"
     for d in out_dirs:
         if not os.path.isdir(d):

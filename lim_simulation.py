@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Linear induction motor deployment of the ring: months of decelerating the cable against the casing with LIM sites around the ring, with the power, thermal and current limits.
+Book: The Orbital Ring, Volume IV: Chapter 3 (deployment time), Chapter 12 (named, with its command lines), Chapter 10 (demand), Chapter 13 (prograde comparison).
+Run: python lim_simulation.py [options, see --help]; the 16 MW case is in run_all.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 LIM Deployment Simulation - Main simulation loop and plotting
 
 This is the main entry point for the orbital ring deployment simulation.
@@ -31,6 +36,7 @@ except ImportError:
 
 # Import configuration and physics modules
 import lim_config as cfg
+import ring_altitude as ring
 import lim_physics as phys
 
 
@@ -660,8 +666,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     if cfg.WRITE_FILE:
         try:
             import os
-            os.makedirs("./output", exist_ok=True)
-            with open(f"./output/_orbital_ring_model{thrust_model}.txt", "a") as file:
+            with open(os.path.join(ring.out_dir(), f"_orbital_ring_model{thrust_model}.txt"), "a") as file:
                 timestamp = datetime.datetime.now()
                 file.write(f"\n{'+'*70}\nTimestamp: {timestamp}\n")
                 file.write(f"Deployment time: {time/cfg.DAY:.1f} days ({time/cfg.YR:.2f} years)\n")

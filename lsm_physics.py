@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Physics functions of the LSM mass driver.
+Book: The Orbital Ring, Volume IV: Chapter 14 (library).
+Run: imported; not run by itself
+Environment: none
+
 LSM Physics Module - Calculation functions for LSM mass driver simulation
 
 This module contains all the physics calculations for the LSM (Linear Synchronous Motor):

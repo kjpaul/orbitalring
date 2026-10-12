@@ -1,4 +1,9 @@
-"""Chapter 5 checks, 2026-10-06: (1) low-energy trapped protons at 600 km, (2) atomic oxygen fluence,
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python ch5_checks.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Chapter 5 checks, 2026-10-06: (1) low-energy trapped protons at 600 km, (2) atomic oxygen fluence,
 (3) dose for one trolley trip on an anchor line. Run from the radiation folder. Needs aep8, pymsis, astropy."""
 import numpy as np, math, re, astropy.units as u, aep8, pymsis, warnings
 warnings.filterwarnings("ignore")

@@ -1,18 +1,38 @@
 #!/usr/bin/env python3
 """
+Builds the number sheet of the cable hardware change (4,076 to 10,686 kg/m): every quantity the book quotes, old value beside new, from two folders of logs.
+Book: The Orbital Ring, Volume IV: The renumbering pass of 2026-10-12 (a tool, not a simulation).
+Run: python number_sheet_hw10686.py [--old=FOLDER] [--new=FOLDER] [--out=FILE]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Build the number sheet for the cable hardware change (4,076 -> 10,686 kg/m, 2026-10-12): every quantity the book quotes, old value
-(runs_700km_2026-10-04) beside new value (runs_700km_hw10686_2026-10-12), with the log and line each comes from, and whether it
-changed.  Writes Vol_III/Vol_III_700km_numbers_hw10686_2026-10-12.md and prints the largest changes.
-Usage: python number_sheet_hw10686.py > log
+(the logs of the run before the change) beside new value (the logs of the run after it), with the log and line each comes from,
+and whether it changed.  Writes a Markdown sheet and prints the largest changes.
+Usage: python number_sheet_hw10686.py [--old=FOLDER] [--new=FOLDER] [--out=FILE] > log
+  --old   folder with the old logs (default: <ORBITAL_RING_OUT>/old)
+  --new   folder with the new logs (default: ORBITAL_RING_OUT, default runs)
+  --out   the sheet to write (default: <ORBITAL_RING_OUT>/numbers_hw10686.md)
 """
 import os
 import re
+import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-V3 = os.path.join(HERE, "..", "..", "Vol_III")
-OLD = os.path.join(V3, "runs_700km_2026-10-04")
-NEW = os.path.join(V3, "runs_700km_hw10686_2026-10-12")
-OUT = os.path.join(V3, "Vol_III_700km_numbers_hw10686_2026-10-12.md")
+import ring_altitude as ring
+
+OLD = os.path.join(ring.OUT_DIR, "old")
+NEW = ring.OUT_DIR
+OUT = os.path.join(ring.OUT_DIR, "numbers_hw10686.md")
+for _arg in sys.argv[1:]:
+    if _arg in ("--help", "-h"):
+        print(__doc__); sys.exit(0)
+    elif _arg.startswith("--old="):
+        OLD = _arg[6:]
+    elif _arg.startswith("--new="):
+        NEW = _arg[6:]
+    elif _arg.startswith("--out="):
+        OUT = _arg[6:]
+    else:
+        print(f"Unknown option {_arg}"); sys.exit(2)
 _cache = {}
 
 
@@ -243,9 +263,9 @@ for r in ROWS:
 with open(OUT, "w", encoding="utf-8", newline="\n") as f:
     f.write("# The 700 km numbers with the cable hardware at 10,686 kg/m (2026-10-12)\n\n")
     f.write("Design point: ring at 700 km, retrograde cable, suspended array at 600 km; casing 12,000 kg/m; cable hardware 10,686 kg/m (LIM plates 1,872 kg/m plus four ")
-    f.write("ferromagnetic plates 200 mm thick and 1.4 m wide, 8,814 kg/m; was 4,076 kg/m with two 100 mm plates). This sheet replaces `Vol_III_700km_numbers_2026-10-04.md` ")
+    f.write("ferromagnetic plates 200 mm thick and 1.4 m wide, 8,814 kg/m; was 4,076 kg/m with two 100 mm plates). This sheet replaces the sheet of 2026-10-04 ")
     f.write("for the renumbering pass.\n\n")
-    f.write("Old values come from the logs in `Vol_III/runs_700km_2026-10-04/`, new values from the same-named logs in `Vol_III/runs_700km_hw10686_2026-10-12/` ")
+    f.write("Old values come from the logs of the run before the change, new values from the same-named logs of the run after it ")
     f.write("(commands in that folder's `run_700.sh` and `run_700_lim.sh`, the extra scripts in the report). 'Log, line' gives the file and the line number in the new ")
     f.write("folder (old line in parentheses when it differs). Built by `Python/orbitalring/number_sheet_hw10686.py`.\n\n")
     for sec in sections:

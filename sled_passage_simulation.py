@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+The load a passing sled puts on the bearing: point and beam models of the casing, limiter forces, gap histories at each speed.
+Book: The Orbital Ring, Volume IV: Chapter 8 Section 8.3 (12.6 g, the neutral speed, the casing's momentum).
+Run: python sled_passage_simulation.py [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Sled passage load on the levitation bearing.
 
 What the casing and its levitation bearing do while a mass driver sled passes,
@@ -781,8 +786,7 @@ def main():
     material = opts["material"]
     web = opts["web_fraction"]
     workers = opts["workers"]
-    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "sled_passage")
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir = ring.out_dir("graphs_sled_passage")   # under ORBITAL_RING_OUT (default runs)
     t_all = time.time()
 
     hr("SLED PASSAGE LOAD ON THE LEVITATION BEARING")

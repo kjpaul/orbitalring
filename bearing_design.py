@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Iron-core bearing field design: pole geometries solved with the 2-D solver, ratings, tape, coil lengths, protection and losses.
+Book: The Orbital Ring, Volume IV: Chapter 8 (the iron-core route that mass ruled out; the plate B-H discussion).
+Run: python bearing_design.py [--parts=ABCDEF] [--resweep] (reads data/bearing_sweep.json)
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
 Bearing field design, verification and sizing (Paul, 2026-10-12).
 
 Parts (Claude_Code_instructions_bearing_design_2026-10-12.md):
@@ -50,11 +55,11 @@ CABLE_FACE = ring.CABLE_SIDE                    # 8.24 m
 L_SC = 100.0
 TAU_HW = 2e-3                                   # s, the hardware rise the protection needs
 MATCH = pz.MATCH_RING
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "output")
-SWEEP_JSON = os.path.join(OUT, "bearing_sweep.json")
-RUNS_DIR = os.path.join(HERE, "..", "..", "Vol_III", "runs_700km_2026-10-04")
-THEVA_CSV = os.path.join(HERE, "..", "..", "Vol_III", "bin", "THEVA Pro-Line Advanced Pinning 2G HTS 70 K Field Dependence.csv")
+SWEEP_JSON = os.path.join(ring.DATA_DIR, "bearing_sweep.json")   # Part B sweep cache (42 min to redo): --resweep recomputes it
+# Part F reads the pull at each speed from the compensation_tracks.py Part A log of 2026-10-11 (cable hardware 4,076 kg/m),
+# kept in data/ as design history; it is not the log of the current run.
+CT_LOG = os.path.join(ring.DATA_DIR, "compensation_tracks_2026-10-11.txt")
+THEVA_CSV = os.path.join(ring.DATA_DIR, "THEVA_Pro-Line_Advanced_Pinning_2G_HTS_70K_Field_Dependence.csv")   # see data/README.md
 RHO_LAM = 7650.0                                # kg/m^3, non-oriented silicon steel laminations [UNVERIFIED: typical 7,650]
 RHO_PLATE = lc.FERRO_DENSITY                    # 7,870 kg/m^3 (iron; the resin composite would be lighter) [UNVERIFIED]
 TAPE_T = 0.08e-3; TAPE_RHO = 8890.0             # [UNVERIFIED]
@@ -132,7 +137,7 @@ def run_sweep(verbose=True):
     if os.path.exists(SWEEP_JSON):
         with open(SWEEP_JSON, encoding="utf-8") as f:
             return json.load(f)
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(ring.DATA_DIR, exist_ok=True)
     recs = []
     done = set()
 
@@ -588,7 +593,7 @@ def part_E(D, theva):
 
 def ct_rows_A():
     """The pull at each speed from the 2026-10-11 Part A run, read from its log (compensation_tracks.txt), kN/m -> N/m."""
-    path = os.path.join(RUNS_DIR, "compensation_tracks.txt")
+    path = CT_LOG
     rows = {}
     with open(path, encoding="utf-8", errors="replace") as f:
         lines = f.read().splitlines()

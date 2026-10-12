@@ -6,6 +6,26 @@ The simulator models the months-long process of decelerating a magnetically levi
 
 ---
 
+## Requirements
+
+Python 3.10 or later and the packages in `requirements.txt`:
+
+```bash
+pip install -r requirements.txt
+```
+
+That installs numpy, scipy, matplotlib, pymsis (the NRLMSIS atmosphere for `altitude_trade.py`) and scikit-fem (the independent check of the field solver in `bearing_fem_check.py`). The logs behind the book were made with Python 3.14, numpy 2.4, scipy 1.18, matplotlib 3.11, pymsis 0.13 and scikit-fem 12.0.
+
+Optional, only for the scripts named:
+
+- `tabulate`: nicer tables in `lim_simulation.py` (the book's logs were made without it, so the log says "tabulate not installed").
+- `aep8`, `astropy`, `ppigrf`, `netCDF4`, `geant4_pybind`: the radiation chain in `radiation/` (Chapter 5). The Geant4 and AP-8 results are tracked, so the chapter's tables can be rebuilt without them.
+- A LaTeX installation with `dvisvgm`: the equation images.
+
+Every script writes its files (logs, figures, CSV, JSON) under the folder named by `ORBITAL_RING_OUT` (default `runs`). The ring's design point is set in `ring_altitude.py` and can be overridden for comparison runs with `ORBITAL_RING_ALT_KM`, `ORBITAL_RING_CABLE`, `ORBITAL_RING_HW_KGM` and `ORBITAL_RING_ARRAY_OFFSET_KM`. `python run_all.py` reruns the whole set and keeps one log per run; `data/` holds the tracked input files (tape data, solver caches, design-history logs, see `data/README.md`).
+
+---
+
 ## Quick Start
 
 ### Installation

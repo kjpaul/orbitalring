@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+Design history: the limits study of the sled passage work that led to the adopted bearing in `final_bearing.py`.
+What the three levers (coil length, truss depth, control) buy against the sled passage, and the rejected limiters.
+Book: The Orbital Ring, Volume IV: Chapter 8 (the limits that led to the compensation tracks).
+Run: python sled_passage_limits.py [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Sled passage limits: what the three levers buy.
 
 Companion to sled_passage_simulation.py.  That run showed that above about
@@ -217,8 +223,7 @@ def main():
         else:
             print(f"Unknown option {arg}")
             return
-    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "sled_passage")
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir = ring.out_dir("graphs_sled_passage")   # under ORBITAL_RING_OUT (default runs)
     t_all = time.time()
 
     hr("SLED PASSAGE LIMITS")

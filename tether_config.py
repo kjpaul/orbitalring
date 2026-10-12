@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Parameters of the tether scripts.
+Book: The Orbital Ring, Volume IV: Chapter 17 (imported by the tether scripts).
+Run: imported; not run by itself
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Space Elevator Tether Configuration
 ====================================
 
@@ -11,6 +16,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 
 import math
 import ring_altitude as ring
+import os
 
 # =============================================================================
 # 1. PHYSICAL CONSTANTS
@@ -263,7 +269,7 @@ DT_TRAJECTORY = 0.1            # Time step for trajectory integration (s)
 # =============================================================================
 
 SAVE_GRAPHS = True
-GRAPH_OUTPUT_DIR = "./graphs_tether"
+GRAPH_OUTPUT_DIR = os.path.join(ring.OUT_DIR, "graphs_tether")   # under ORBITAL_RING_OUT (default runs)
 GRAPH_DPI = 300
 GRAPH_WIDTH_INCHES = 10
 GRAPH_HEIGHT_INCHES = 6

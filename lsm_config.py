@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Parameters of the LSM mass driver.
+Book: The Orbital Ring, Volume IV: Chapter 14 (imported by lsm_simulation.py).
+Run: imported; not run by itself
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 LSM Configuration Module - Parameters for LSM mass driver simulation
 
 This module contains all configurable parameters for the orbital ring
@@ -29,6 +34,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 
 import math
 import ring_altitude as ring
+import os
 
 # =============================================================================
 # SECTION 1: ORBITAL RING PARAMETERS
@@ -238,7 +244,7 @@ def apply_launch_mode():
 
 # Output control
 SAVE_GRAPHS = True
-GRAPH_OUTPUT_DIR = "./graphs_lsm"
+GRAPH_OUTPUT_DIR = os.path.join(ring.OUT_DIR, "graphs_lsm")   # under ORBITAL_RING_OUT (default runs)
 GRAPH_DPI = 300
 GRAPH_WIDTH_INCHES = 10
 GRAPH_HEIGHT_INCHES = 6

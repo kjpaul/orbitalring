@@ -1,4 +1,9 @@
-"""Galactic cosmic ray dose behind shielding at a given geomagnetic cutoff, from Geant4 depth-dose runs (FTFP_BERT)
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python gcr.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Galactic cosmic ray dose behind shielding at a given geomagnetic cutoff, from Geant4 depth-dose runs (FTFP_BERT)
 folded with the Particle Data Group primary spectrum:
   I_N(E) = 1.8e4 E^-2.7 nucleons/(m2 s sr GeV), E = total energy per nucleon in GeV; 74% of nucleons are free protons,
   70% of the rest are in helium; heavier nuclei split by the PDG abundance table at 10.6 GeV/nucleon (F x A weights).

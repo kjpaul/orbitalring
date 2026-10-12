@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Notes and estimates connecting Gomory's HTS coil research to the LIM coil design.
+Book: The Orbital Ring, Volume IV: Not yet mapped to a revised chapter (Chapter 12 is not yet revised).
+Run: python gomory_lim_analysis.py
+Environment: none
+
 Analysis: Connecting Gömöry's HTS Research to Orbital Ring LIM Coil Design
 ===========================================================================
 

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Parameters and material properties of the LIM deployment simulation.
+Book: The Orbital Ring, Volume IV: Chapter 12 (imported by lim_simulation.py).
+Run: imported; not run by itself
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 LIM Configuration Module - Parameters and material properties
 
 This module contains all configurable parameters for the orbital ring
@@ -10,6 +15,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 
 import math
 import ring_altitude as ring
+import os
 
 # =============================================================================
 # SECTION 1: USER-CONFIGURABLE PARAMETERS
@@ -100,7 +106,7 @@ MAKE_GRAPHS = True
 # 1.9b Graph Output Configuration
 # -----------------------------------------------------------------------------
 SAVE_GRAPHS = True                      # Save graphs to files instead of displaying
-GRAPH_OUTPUT_DIR = "./graphs"           # Directory to save graph images
+GRAPH_OUTPUT_DIR = os.path.join(ring.OUT_DIR, "graphs_lim")   # figures go under ORBITAL_RING_OUT (default runs)
 GRAPH_DPI = 300                         # Resolution for print (300 DPI is standard for print)
 GRAPH_WIDTH_INCHES = 10                 # Width in inches (10" at 300 DPI = 3000 pixels)
 GRAPH_HEIGHT_INCHES = 5                 # Height in inches (6" at 300 DPI = 1800 pixels)

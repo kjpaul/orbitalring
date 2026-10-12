@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+The adopted levitation bearing: air-core support and lift tracks, their ratings, the dynamics cases, the losses, the bundle and the stray field; and the ring renumbered with the bearing's hardware mass.
+Book: The Orbital Ring, Volume IV: Chapter 8 (named; Sections 8.1 to 8.3, the 114 cases and the 50 mm smallest gap).
+Run: python final_bearing.py [--parts=ABCD] (reads the caches in data/)
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
 The chosen bearing design run through, and the ring renumbered (Paul, 2026-10-12, third task of the day).
 
 Design (requirement set 4 of bearing_mass_2026-10-12.md, air core): two casing support tracks, each two 0.5 m loops side by
@@ -39,8 +44,6 @@ import bearing_design as bd
 import bearing_mass as bm
 
 MU0 = lc.MU0
-HERE = os.path.dirname(os.path.abspath(__file__))
-RUNS_DIR = os.path.join(HERE, "..", "..", "Vol_III", "runs_700km_2026-10-04")
 G_NET = ring.G_NET
 M_LIM_PLATES = 1872.0
 PLATE_T, PLATE_W = 0.20, 1.4
@@ -475,7 +478,9 @@ def part_D(A, theva, sup, lift):
 def main():
     parts = "ABCD"
     for arg in sys.argv[1:]:
-        if arg.startswith("--parts="):
+        if arg in ("--help", "-h"):
+            print(__doc__); return
+        elif arg.startswith("--parts="):
             parts = arg.split("=")[1].upper()
     t_all = time.time()
     hr("THE CHOSEN BEARING DESIGN, AND THE RING RENUMBERED (2026-10-12)")

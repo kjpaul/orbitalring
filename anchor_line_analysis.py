@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Anchor lines of an inclined ring: lateral force per meter, line angle, length, stress, taper and number of lines at each station; sled passage bending.
+Book: The Orbital Ring, Volume IV: Chapter 15 (10.46 GPa, taper 2.31, 331 lines); Chapter 2 Table 2.1 cross-check.
+Run: python anchor_line_analysis.py --inclination=DEG [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Anchor Line and Lateral Force Simulation
 
 Computes anchor line forces, lengths, and self-weight as a function of
@@ -1043,13 +1048,7 @@ def main():
     print("=" * 72)
 
     # --- Output ---
-    output_dir = os.path.dirname(os.path.abspath(__file__))
-    fig_dir = os.path.join(os.path.dirname(output_dir), "localbrain", "figures")
-    if os.path.isdir(fig_dir):
-        output_dir = fig_dir
-    else:
-        output_dir = os.path.join(output_dir, "output", "anchor")
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = ring.out_dir("graphs_anchor")   # figures and CSV, under ORBITAL_RING_OUT (default runs)
 
     if do_plots:
         print(f"\nGenerating plots to: {output_dir}")

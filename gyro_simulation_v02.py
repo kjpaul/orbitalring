@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Aerodynamic braking and winch payout of a body lowered from the ring.
+Book: The Orbital Ring, Volume IV: Not yet mapped to a revised chapter.
+Run: python gyro_simulation_v02.py
+Environment: none
+
 Orbital Ring Aerodynamic Braking & Winch Payout Simulation
 
 Models the lateral atmospheric drag on tethers and parachutes dropped from 

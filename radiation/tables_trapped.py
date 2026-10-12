@@ -1,5 +1,13 @@
+"""
+Trapped-proton dose tables behind a water sphere for the AP-8 epoch field or the IGRF 2026 field.
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python tables_trapped.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+"""
 import numpy as np, sys
 from fold_trapped import dose, T
+if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
+    print(__doc__); sys.exit(0)
 src = sys.argv[1] if len(sys.argv) > 1 else "epoch"
 d = np.load("ap8_spectra.npz" if src == "epoch" else "ap8_igrf2026_spectra.npz"); Eg = d["Eg"][:15]; lons = d["lons"]
 show = [1, 5, 10, 20, 30, 50, 75, 100, 150, 200, 300]

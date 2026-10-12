@@ -1,4 +1,9 @@
-"""Measured proton flux on the geographic equator at about 820 km, MetOp-C MEPED omnidirectional detectors
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python poes_equator.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Measured proton flux on the geographic equator at about 820 km, MetOp-C MEPED omnidirectional detectors
 (NOAA NCEI processed files, August-September 2026), compared with AP-8 at the same altitude.
 The MEPED 'omni' flux is differential (per cm2 s sr MeV) at 25, 50 and 100 MeV, from a dome detector that looks at the zenith."""
 import numpy as np, netCDF4 as nc, glob, astropy.units as u, aep8, warnings

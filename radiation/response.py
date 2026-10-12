@@ -1,4 +1,9 @@
-"""Turns the Geant4 depth-dose runs into response functions and folds them with spectra."""
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python response.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Turns the Geant4 depth-dose runs into response functions and folds them with spectra."""
 import numpy as np, glob, re
 PS = np.loadtxt("pstar_water.txt")           # NIST PSTAR liquid water: E, S_el, S_nuc, S_tot (MeV cm2/g), CSDA, projected, detour
 def S_p(E):   return np.exp(np.interp(np.log(E), np.log(PS[:,0]), np.log(PS[:,3])))

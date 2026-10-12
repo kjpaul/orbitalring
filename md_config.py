@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Parameters of the induction mass driver.
+Book: The Orbital Ring, Volume IV: Chapter 14 (imported by md_simulation.py).
+Run: imported; not run by itself
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Mass Driver Configuration Module
 
 Orbital ring mass driver launch simulation. Four sequential LIM stages
@@ -19,6 +24,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 import math
 import ring_altitude as ring
+import os
 
 # ── Physical constants ───────────────────────────────────────────────
 MU0 = 4 * math.pi * 1e-7
@@ -221,7 +227,7 @@ DT = 0.1
 DT_QUICK = 1.0
 V_INITIAL = 0.0
 THRUST_MODEL = 1                     # Model 1 only — eddy current, narrow plate
-GRAPH_DIR = "graphs_lim_md_3"         # Output directory for plots and CSV
+GRAPH_DIR = os.path.join(ring.OUT_DIR, "graphs_md")   # plots and CSV, under ORBITAL_RING_OUT (default runs)
 
 # ── Derived ──────────────────────────────────────────────────────────
 def get_material():

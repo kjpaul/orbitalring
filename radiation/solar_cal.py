@@ -1,4 +1,9 @@
-"""Solar cell degradation calibration.
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python solar_cal.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Solar cell degradation calibration.
 Datasheet (SolAero/Rocket Lab ZTJ triple junction): remaining power after 3 MeV protons 0.97 @4.5e9, 0.96 @2.3e10, 0.91 @8.8e10, 0.81 @3.4e11 p/cm2;
 and 0.975 after 3 years in a 650 km, 30 deg orbit behind 4 mil coverglass.
 Here: AP-8 MIN fluence above 10 MeV for that orbit, to express the on-orbit point as a >10 MeV trapped-proton fluence."""

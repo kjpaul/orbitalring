@@ -1,4 +1,10 @@
-import math, json
+"""
+Draws the Chapter 4 figures (released-cable orbits, perigee and lifetime against altitude, ring mass against altitude, the share of the ring free of trapped protons).
+Book: The Orbital Ring, Volume IV: Chapter 4 Figures 4.1 to 4.6.
+Run: python ch4_figures.py (figures go to <output folder>/figures_ch04; IGRF_ALTSCAN names the AP-8 scan file, default radiation/igrf_altscan_clean.txt)
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs); IGRF_ALTSCAN (the AP-8 scan file)
+"""
+import math, json, os
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -10,7 +16,9 @@ V=V_RECOIL
 import ring_altitude as ring
 H_DESIGN=ring.ALTITUDE; HD=H_DESIGN/1e3
 plt.rcParams.update({"font.size":10, "axes.titlesize":13, "axes.labelsize":12, "legend.fontsize":10, "svg.fonttype":"path"})
+OUT=ring.out_dir("figures_ch04")   # under ORBITAL_RING_OUT (default runs)
 def save(fig,name):
+    name=os.path.join(OUT,name)
     fig.savefig(name+".svg", bbox_inches="tight"); fig.savefig(name+".png", dpi=110, bbox_inches="tight"); plt.close(fig)
 
 # Fig 4.1 released cable orbits vs ring altitude

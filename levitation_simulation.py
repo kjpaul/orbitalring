@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+Design history: the Halbach limiter bearing that Chapter 8 considered and did not adopt. The adopted bearing is in `final_bearing.py`.
+Halbach array against solenoid levitation, the safety Halbach limiters and the plate thermal limits, with figures.
+Book: The Orbital Ring, Volume IV: Chapters 7 and 8 figures fig_levitation_*; the chapter's bearing numbers now come from final_bearing.py.
+Run: python levitation_simulation.py all [--material=..] [--wavelength=..]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Levitation System Simulation
 
 Compares Halbach array vs solenoid bearing designs, models the EML
@@ -54,7 +60,9 @@ def parse_args():
     }
 
     for arg in sys.argv[1:]:
-        if arg.startswith("--material="):
+        if arg in ("--help", "-h"):
+            print(__doc__); sys.exit(0)
+        elif arg.startswith("--material="):
             args["material"] = arg.split("=", 1)[1]
         elif arg.startswith("--wavelength="):
             args["wavelength"] = float(arg.split("=", 1)[1])
@@ -1068,14 +1076,7 @@ def main():
     wavelength = args["wavelength"]
 
     # Output directory
-    output_dir = os.path.dirname(os.path.abspath(__file__))
-    fig_dir = os.path.join(os.path.dirname(output_dir), "localbrain", "figures")
-    if os.path.isdir(fig_dir):
-        output_dir = fig_dir
-    else:
-        output_dir = output_dir + "\\output\\levitation\\"
-
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = ring.out_dir("graphs_levitation")   # under ORBITAL_RING_OUT (default runs)
 
     print("=" * 72)
     print("ORBITAL RING LEVITATION SYSTEM SIMULATION")

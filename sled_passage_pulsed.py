@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+Design history: the pulsed-track step of the sled passage work that led to the adopted bearing in `final_bearing.py`.
+Pulsed electromagnetic tracks for the sled passage: staggered coils, the protection law, block sections, failure cases.
+Book: The Orbital Ring, Volume IV: Chapter 8 (library and the pulsed-track step).
+Run: python sled_passage_pulsed.py [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Pulsed EML tracks for the sled passage.
 
 Tests the design of 2026-10-10: the two steady EML tracks under the cable
@@ -871,8 +877,7 @@ def main():
             print(f"Unknown option {arg}"); return
     if b_sat not in P_SAT:
         P_SAT[b_sat] = b_sat**2 / (2 * MU0)
-    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "sled_passage")
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir = ring.out_dir("graphs_sled_passage")   # under ORBITAL_RING_OUT (default runs)
     t_all = time.time()
     tabs = sp.limiter_tables()
     ps = P_SAT[b_sat]

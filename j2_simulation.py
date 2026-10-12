@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+J2 precession of an inclined ring and the torque the anchor lines must hold.
+Book: The Orbital Ring, Volume IV: Chapter 2 (6.89 degrees per day).
+Run: python j2_simulation.py --inclination=DEG [--cable=prograde] [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 J2 Perturbation Simulation for an Inclined Orbital Ring
 
 Models the effect of Earth's J2 oblateness on an orbital ring built at a
@@ -690,7 +695,7 @@ def generate_all_plots(i_deg, cable_dir, n_anchors):
         print("\nmatplotlib not available — skipping plots")
         return
 
-    graph_dir = os.path.dirname(os.path.abspath(__file__))
+    graph_dir = ring.out_dir("graphs_j2")   # under ORBITAL_RING_OUT (default runs)
     i_rad = math.radians(i_deg)
 
     v_cable = V_CABLE_PROGRADE if cable_dir == "prograde" else -V_CABLE_RETROGRADE

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+HTS coil inductance with eddy currents in the copper stabilizer, with two figures.
+Book: The Orbital Ring, Volume IV: Not yet mapped to a revised chapter (Chapter 12 is not yet revised).
+Run: python hts_coil_inductance_analysis.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 HTS Coil Inductance Analysis: Effect of Eddy Currents in Copper Stabilizer
 
 This script investigates how the copper stabilizer thickness in HTS tape affects
@@ -17,7 +22,9 @@ Repository: https://github.com/kjpaul/orbitalring
 Updated: January 2026 to match current lim_config.py defaults
 """
 
+import os
 import numpy as np
+import ring_altitude as ring
 import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import Tuple, List
@@ -686,8 +693,9 @@ def main():
     print("GENERATING PLOTS")
     print("=" * 80)
     
-    plot_comparison_results(results, save_path='inductance_comparison.png')
-    plot_frequency_response(coil, tape, insulation, save_path='frequency_response.png')
+    graph_dir = ring.out_dir("graphs_hts")   # under ORBITAL_RING_OUT (default runs)
+    plot_comparison_results(results, save_path=os.path.join(graph_dir, 'inductance_comparison.png'))
+    plot_frequency_response(coil, tape, insulation, save_path=os.path.join(graph_dir, 'frequency_response.png'))
     
     # Summary
     print("\n" + "=" * 80)

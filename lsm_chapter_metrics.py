@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Compute chapter metrics from baseline LSM simulation results.
+"""
+Chapter metrics from the baseline LSM run: energies, cryogenic loads, mass fractions.
+Book: The Orbital Ring, Volume IV: Chapter 14.
+Run: python lsm_chapter_metrics.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
+Compute chapter metrics from baseline LSM simulation results.
 
 Baseline: N=50 stator turns, tau_p=130 m, 5-layer HTS (I_PEAK=2107 A),
 525 kg/m sled, 10 km, 5000t payload, P_HVDC_MAX=666 GW.

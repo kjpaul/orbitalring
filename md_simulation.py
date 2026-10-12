@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Four-stage linear induction mass driver launch (eddy current model).
+Book: The Orbital Ring, Volume IV: Chapter 14 (362 min, 8.3 laps).
+Run: python md_simulation.py [--no-graphs] [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 Mass Driver Launch Simulation — 4-stage LIM, Model 1 (eddy current)
 
 Usage:

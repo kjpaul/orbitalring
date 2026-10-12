@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Physics functions of the induction mass driver.
+Book: The Orbital Ring, Volume IV: Chapter 14 (library).
+Run: imported; not run by itself
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
 Mass Driver Physics Module — Model 1 (eddy current) only
 
 Design:

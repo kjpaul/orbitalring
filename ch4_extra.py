@@ -1,4 +1,10 @@
-"""Chapter 4 numbers that the chapter text needs and ch4_numbers.py does not print:
+"""
+Chapter 4 numbers the chapter text needs and ch4_numbers.py does not print.
+Book: The Orbital Ring, Volume IV: Chapter 4 Table 4.1 and text.
+Run: python ch4_extra.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
+Chapter 4 numbers that the chapter text needs and ch4_numbers.py does not print:
 collision energy and Table 4.1, gap crossing, contact numbers, force balance, the worked
 radial-kick orbit of Section 4.4, roof-sweep cases, a 550/700 km row for Tables 4.2 and 4.5,
 and the casing fall. Altitude from ring_altitude.py (ORBITAL_RING_ALT_KM)."""

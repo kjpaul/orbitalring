@@ -1,4 +1,12 @@
+"""
+Draws thrust against reaction plate thickness for several plate metals (eddy current model).
+Book: The Orbital Ring, Volume IV: Chapter 12 figure (chapter not yet revised).
+Run: python graph-plate-thickness-vs-thrust.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+"""
 import math
+import os
+import ring_altitude as ring
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -89,7 +97,7 @@ def makeGraph(metal):
     plt.title(f'Thrust vs Thickness (Model 1) for {metal[2]}')
     plt.legend()
     plt.grid(True)
-    plt.savefig('thrust_vs_thickness.png')
+    plt.savefig(os.path.join(ring.out_dir("graphs_lim"), "thrust_vs_thickness.png"))   # under ORBITAL_RING_OUT (default runs)
     plt.show()
 
 #ax.annotate('Critical Point', (3, 4.5), textcoords="offset points", xytext=(0,10), ha='center', fontsize=14, color='red')

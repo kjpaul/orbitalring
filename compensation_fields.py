@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Solves the field cases of the compensation and support tracks (linear and saturating iron) and writes the cache data/compensation_fields.json that the bearing scripts read.
+Book: The Orbital Ring, Volume IV: Chapter 8 (library, and the air-core case that a flat array gives 0.2 kN/m).
+Run: python compensation_fields.py (recomputes the cache, about 4 minutes)
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
 Part B of the 2026-10-11 task: can the compensation coils make the field?
 
 Cross-section of one 1 m track facing its 1.4 m plate across a 100 mm gap,
@@ -478,7 +483,8 @@ def run_all(verbose=True):
     return cases
 
 
-JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "compensation_fields.json")
+# The solved cases, tracked in data/ so the scripts that read them need no 4 minute solve; running this file recomputes it.
+JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "compensation_fields.json")
 
 
 def load_or_run(verbose=True):
@@ -501,6 +507,8 @@ def print_cases(cases):
 
 
 if __name__ == "__main__":
+    if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
+        print(__doc__); sys.exit(0)
     if "--add-nonlinear" in sys.argv and os.path.exists(JSON_PATH):
         # keep the saved linear cases, add (or redo) the saturating solves
         with open(JSON_PATH, encoding="utf-8") as f:

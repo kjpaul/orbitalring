@@ -1,8 +1,11 @@
 #!/bin/bash
-# Reruns every subsystem script at the 2026-10-04 design point: ring 700 km retrograde, suspended array at 600 km.
-# Run from Python/orbitalring. Logs go to runs/. The same commands reproduce runs_800km_2026-10-03 with ORBITAL_RING_ALT_KM=800 ORBITAL_RING_ARRAY_OFFSET_KM=50.
+# Reruns every subsystem script at the design point of ring_altitude.py (700 km, retrograde cable, suspended array at 600 km)
+# and keeps one log per run.  Run from the repository root.  Logs, figures and CSV files go under ORBITAL_RING_OUT (default runs).
+# run_all.py does the same without bash.  Other design points come from the environment, for example
+#   ORBITAL_RING_ALT_KM=800 ORBITAL_RING_ARRAY_OFFSET_KM=50 bash run_700.sh
 export MPLBACKEND=Agg
-O=runs; mkdir -p $O
+export ORBITAL_RING_OUT=${ORBITAL_RING_OUT:-runs}
+O=$ORBITAL_RING_OUT; mkdir -p $O
 python3 ring_altitude.py > $O/ring_altitude_700.txt
 ORBITAL_RING_CABLE=prograde python3 ring_altitude.py > $O/ring_altitude_700_prograde.txt
 ORBITAL_RING_ALT_KM=250 python3 ring_altitude.py > $O/ring_altitude_250.txt

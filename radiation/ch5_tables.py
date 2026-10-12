@@ -1,4 +1,9 @@
-"""Chapter 5 tables from the present-field AP-8 spectra: electronics dose behind aluminium, solar panel life."""
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python ch5_tables.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Chapter 5 tables from the present-field AP-8 spectra: electronics dose behind aluminium, solar panel life."""
 import numpy as np
 from fold_trapped import dose, T
 d = np.load("ap8_igrf2026_spectra.npz"); Eg = d["Eg"]; lons = d["lons"]; YR = 3.156e7

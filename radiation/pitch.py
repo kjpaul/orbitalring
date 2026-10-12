@@ -1,4 +1,9 @@
-"""Local pitch-angle distribution of trapped protons from AP-8 itself.
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python pitch.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Local pitch-angle distribution of trapped protons from AP-8 itself.
 Along a field line (fixed L) AP-8 gives the omnidirectional flux J(b), b = B/B0. With Liouville's theorem the
 unidirectional flux at pitch angle a where the field is b equals the 90-degree flux at the mirror point
 b_m = b / sin^2(a). So J(b) = 4 pi * integral_0^1 j90(b/(1-mu^2)) dmu, which is inverted here for j90."""

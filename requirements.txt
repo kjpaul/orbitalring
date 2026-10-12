@@ -1,0 +1,7 @@
+# Packages the simulations need (Python 3.10 or later).  Optional packages are listed in README.md.
+# The logs behind the book were made with numpy 2.4.6, scipy 1.18.1, matplotlib 3.11.0, pymsis 0.13.0, scikit-fem 12.0.2.
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+pymsis>=0.9
+scikit-fem>=9.0

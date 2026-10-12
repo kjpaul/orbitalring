@@ -1,4 +1,10 @@
-import math, json
+"""
+The numbers behind the Chapter 4 tables: released-cable orbits, recoil, drag lifetimes and the casing fall at each altitude; writes ch4_numbers.json.
+Book: The Orbital Ring, Volume IV: Chapter 4 Tables 4.1 to 4.5.
+Run: python ch4_numbers.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+"""
+import math, json, os
 import numpy as np
 import debris_orbits as do
 import debris_simulation as ds
@@ -72,4 +78,4 @@ print("elastic energy per kg", (12.5e9)**2/(2*1700*500e9), "v", math.sqrt((12.5e
 om=OMEGA_SIDEREAL; r=R_EARTH+2000e3; vg=om*r; L_=vg*r; v_tan_ground=L_/R_EARTH; print("casing tangential at ground",v_tan_ground,"ground speed",om*R_EARTH, "east excess", v_tan_ground-om*R_EARTH)
 # casing KE at impact 5500 m/s
 print("casing KE per m MJ", 0.5*12000*5500**2/1e6, "t TNT per m", 0.5*12000*5500**2/4.184e9, "total Gt TNT", 0.5*12000*5500**2*s2['L_ring']/4.184e18)
-json.dump(out, open("ch4_numbers.json","w"), indent=1)
+json.dump(out, open(os.path.join(ring.out_dir(),"ch4_numbers.json"),"w"), indent=1)   # under ORBITAL_RING_OUT (default runs)

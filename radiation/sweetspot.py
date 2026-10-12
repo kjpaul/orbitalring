@@ -1,4 +1,9 @@
-"""Dose at a point below the cable: direction-by-direction sum over the sky.
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python sweetspot.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Dose at a point below the cable: direction-by-direction sum over the sky.
 Local frame: x east, y north, z up. The cable is a square bar 8.20 m on a side running east-west, bottom face a height h
 above the point. The room is a tube along the ring: half-width a north-south, floor zf below the point, with a floor slab
 and side walls of given areal density. Earth blocks cosmic rays within the limb; trapped protons arrive from all directions

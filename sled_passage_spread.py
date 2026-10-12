@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+Design history: the spread-pull step of the sled passage work that led to the adopted bearing in `final_bearing.py`.
+The spread pull (the sled's load spread over 50 ms) as the design case for the bearing dynamics.
+Book: The Orbital Ring, Volume IV: Chapter 8 (the 50 ms spread pull).
+Run: python sled_passage_spread.py [see --help]
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
+
 The spread pull as the design case (Paul, 2026-10-10).
 
 The lift compensation track does not match the spacecraft's force instant by instant.
@@ -105,8 +111,7 @@ def main():
             graphs = False
         else:
             print(f"Unknown option {arg}"); return
-    out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output", "sled_passage")
-    os.makedirs(out_dir, exist_ok=True)
+    out_dir = ring.out_dir("graphs_sled_passage")   # under ORBITAL_RING_OUT (default runs)
     t_all = time.time()
     tabs = sp.limiter_tables()
 

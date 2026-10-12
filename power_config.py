@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Parameters of the power simulation.
+Book: The Orbital Ring, Volume IV: Chapters 10 and 16 (imported by power_simulation.py).
+Run: imported; not run by itself
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
+
 Power Configuration Module - Solar generation and HVDC distribution parameters
 
 This module contains all configurable parameters for the orbital ring
@@ -10,6 +15,7 @@ Reference: "Orbital Ring Engineering" by Paul G de Jong
 
 import math
 import ring_altitude as ring
+import os
 
 # =============================================================================
 # SECTION 1: USER-CONFIGURABLE PARAMETERS
@@ -76,7 +82,7 @@ V_HVDC_STEPS = 50               # Number of steps in voltage sweep
 # 1.8 Output Control
 # -----------------------------------------------------------------------------
 SAVE_GRAPHS = True
-GRAPH_OUTPUT_DIR = "./graphs_power"
+GRAPH_OUTPUT_DIR = os.path.join(ring.OUT_DIR, "graphs_power")   # under ORBITAL_RING_OUT (default runs)
 GRAPH_DPI = 300
 GRAPH_WIDTH_INCHES = 10
 GRAPH_HEIGHT_INCHES = 5

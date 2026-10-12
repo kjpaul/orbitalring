@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Searches the LIM design parameters for an aluminium reaction plate.
+Book: The Orbital Ring, Volume IV: Chapter 12 plate material choice (text).
+Run: python lim_optimizer_alu.py
+Environment: none
+
 LIM Design Parameter Optimizer
 ==============================
 For: "Ion Propulsion Engineering" by Paul de Jong

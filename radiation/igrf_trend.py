@@ -1,4 +1,9 @@
-"""How the anomaly on the equator has changed with the field: AP-8 MIN read with IGRF at four epochs."""
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python igrf_trend.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+How the anomaly on the equator has changed with the field: AP-8 MIN read with IGRF at four epochs."""
 import numpy as np, datetime, astropy.units as u, aep8, warnings
 warnings.filterwarnings("ignore")
 from igrf_sector import L_B

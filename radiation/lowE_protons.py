@@ -1,4 +1,9 @@
-"""Low-energy trapped protons (0.1 to 1 MeV) at the worst longitude, with the IGRF 2026 field. 2026-10-06.
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python lowE_protons.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Low-energy trapped protons (0.1 to 1 MeV) at the worst longitude, with the IGRF 2026 field. 2026-10-06.
 The installed aep8 (0.1.0) only takes a location and uses AP-8's own 1960s field. Method: take the (L, B/B0) of the
 2026 worst point from ap8_igrf2026_spectra.npz, find the equatorial point (longitude, altitude) with the same
 (L, B/B0) in the IGRF field of 1960 (grids made with igrf_sector.L_B, 1 degree by 25 km, interpolated), and read

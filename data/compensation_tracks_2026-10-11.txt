@@ -1,0 +1,513 @@
+
+==============================================================================
+COMPENSATION TRACKS, FINAL LAYOUT (2026-10-11)
+==============================================================================
+  Ring at 700 km: V_rel 8,825 m/s, casing 12,000 kg/m (95.0 kN/m), cable 119,592 kg/m, cable face 8.24 m.
+  Two casing support tracks (1 m, persistent HTS), four compensation tracks of 1 m with 1.4 m plates: two lift (ceiling), two load (floor,
+  outboard of the support tracks), the two of a pair on opposite sides of the centerline, either able to do the pair's job alone.  No limiters.
+  Underside width: two support plates 2.8 m plus two load compensation plates 2.8 m = 5.6 m of 8.24 m, 2.64 m left; top: two lift plates 2.8 m.
+
+==============================================================================
+PART A: THE SLED PASSAGE WITH TWO 1 m TRACKS PER FACE AND STAGGERED 200 m COILS
+==============================================================================
+  5,000 t on 100 m at the front of a 10,000 m sled (525 kg/m), casing 12,000 kg/m, cable 119,592 kg/m, gap 100 mm.
+  Spread pull: the cable's share (90.9 %) of the zone impulse over T = max(50 ms, zone/u), the bare sled cancelled in step;
+  current regulated against the measured gap, 1 Hz loop on the casing support tracks, 2 ms rise time, no limiters.
+  Coils: 20 per track, 200 m long, a new one every 10 m; a coil is on while the pull window overlaps it, at 1/20
+  of the level, so the pull a point sees is the sum of the 20 coils over it: it ramps up over L_coil / u as they switch on one by one,
+  holds, and ramps down, lasting T + 2 L_coil / u in all (the impulse is matched).  Track rating 573 kN/m per track (1.2 T mean),
+  1,146 kN/m for a pair.  'both' = the pair shares the pull, 'one' = one track does it alone.
+  Excursion = largest casing offset from the 100 mm gap during the pass and settling; plate field B = sqrt(2 mu0 F / width).
+
+   u km/s   T ms  face pull kN/m B both T B one T  L_on m coils on   E J/m E_on MJ   P GW exc both exc one  gap_b  gap_t
+        1    100  load     121.8    0.391   0.553     604       60  12,177    7.35   0.01    43.66   43.66   57.1   56.3
+        5     50  load      39.6    0.223   0.315     770       77   3,958    3.05   0.02     2.40    2.40   97.6   99.5
+       10     50  lift      54.3    0.261   0.370    1040      104   5,433    5.65   0.05     2.21    2.21   99.7   97.8
+       20     50  lift     222.1    0.528   0.747    1580      158  22,211   35.09   0.44     6.86    6.86   99.3   93.1
+       30     50  lift     392.7    0.702   0.993    2120      212  39,270   83.25   1.18    10.65   10.65   98.7   89.3
+  (26 s)  E = F x gap is the gap field energy per meter; E_on = E x L_on is the energy in the field at any moment; P = E x u is
+  the peak power into the field as the energized stretch advances (recovered at the back end, less the losses of Part C).
+  The pull is the same for both and one; the plate field under one track alone is sqrt(2) times the pair's.  The excursions differ only
+  through the force cap (573 kN/m for one track), which is not reached at any speed here.
+
+  Tolerances (pair, excursion in mm; the baseline excursion is the 'both' column above).  Timing = pull early/late; mass = spacecraft
+  mass error in the feed-forward; speed = sled speed error; sensor = gap sensor offset in the current regulation; rise = rise time
+  error of the coil (feed-forward shaped for the nominal 2 ms); jitter = where the point sits in the 10 m stagger (0 and 1).
+            case       1       5      10      20      30   km/s
+    timing -1 ms   43.42    2.51    2.34    7.32   11.40
+    timing +1 ms   44.11    2.29    2.08    6.42    9.93
+    timing -5 ms   45.50    2.99    2.89    9.30   14.65
+    timing +5 ms   45.96    1.87    1.61    4.78    8.08
+      mass -10 %   59.58    2.13    1.97    6.14    9.55
+      mass +10 %   47.67    2.69    2.46    7.59   11.76
+      speed -5 %   43.23    2.70    3.31    7.31   15.05
+      speed +5 %   44.11    2.10    4.46   10.00   15.82
+    sensor -5 mm   62.82    2.13    1.97    6.33   13.82
+    sensor +5 mm   49.23    2.70    2.57    9.36   16.40
+      rise -50 %   45.00    2.78    2.62    8.26   12.92
+      rise +50 %   44.76    2.28    2.08    6.42    9.93
+        jitter 0   45.51    2.51    2.27    6.97   10.77
+        jitter 1   45.85    2.29    2.15    6.75   10.53
+  (28 s)  Largest excursion over all tolerance cases: 62.82 mm, band 20 mm, no contact.
+
+  Coil length at low speed.  A coil pulls along its whole length while the pull window overlaps any part of it, so a point sees the
+  pull for T + 2 L_coil / u, which at 1 km/s is 500 ms against a zone passage of 100 ms.  Excursion (mm, pair) for coil lengths
+  of 200, 100 and 50 m (20 coils, a new coil every 10, 5 and 2.5 m), and for 50 m sections switched as a block (the earlier layout):
+   u km/s   200 m   100 m    50 m 50 m sections
+        1   43.66   26.31   14.53          0.08
+        2   14.90    8.34    4.48          0.07
+        3    7.76    4.91    3.35          1.56
+        5    2.40    1.75    1.41          1.01
+  (34 s)  The load compensation tracks (floor) handle the speeds below 7 km/s; the smear is their problem alone.
+
+==============================================================================
+PART B: CAN 20 COILS OF 5 cm MAKE THE FIELD (2-D magnetostatics, compensation_fields.py)
+==============================================================================
+  One track facing its 1.4 m plate (sintered iron, mu_r 200, 100 mm thick, saturation 1.2 T) across 100 mm, 5 mm grid.
+  Iron yoke mu_r 1,000, linear; saturation is checked against 1.2 T, not modeled.  Forces by Maxwell stress on a closed surface around the plate.
+  Targets: the pair's share at 30 km/s 196 kN/m per track and one track alone 393 kN/m (Part A).
+  The field is linear in the ampere-turns and the force goes as their square, so each geometry is solved once and scaled.
+  (0 s to load or solve; the solve log is compensation_fields.txt)
+
+  Raw solve, per 100 kA-turns on each pole (the air cases: per 100 kA-turns on the track):
+                                                        case B_pole T B_track T  F kN/m B_plate T  W kJ/m  Bx max/mean  By max/mean
+                         A1 air, 20 flat coils, one polarity   0.0054    0.0054     0.0     0.001     0.1  0.07/ 0.01   0.12/ 0.05
+              A2 air, 20 coils on edge, return 100 mm behind   0.0094    0.0094     0.1     0.096     0.6  0.12/ 0.05   0.07/ 0.01
+                          A3 air, 20 flat coils, alternating   0.0008    0.0008     0.0     0.002     0.2  0.13/ 0.03   0.16/ 0.10
+                      A4 air, 1 m sheet, return 1.2 m behind   0.0438    0.0438     2.4     0.505     3.5  0.04/ 0.04   0.14/ 0.04
+                I1 iron, 4 full poles of 200 mm, slots 50 mm   0.9005    0.7930   308.0     2.905   236.5  6.69/ 1.63   6.78/ 0.34
+               I2 iron, 2 full poles of 400 mm, slots 100 mm   1.0558    0.9589   407.5     5.336    91.8  4.17/ 0.64   4.07/ 0.14
+                I3 iron, 8 full poles of 100 mm, slots 25 mm   0.4873    0.4274   119.1     1.688   804.1 16.75/ 3.86  16.84/ 1.92
+       H1 iron, 3 full + 2 half poles of 200 mm, slots 50 mm   0.8403    0.7198   273.7     1.458   294.9  6.44/ 1.78   6.59/ 0.43
+      H2 iron, 3 full + 2 half poles of 125 mm, slots 125 mm   0.8823    0.6393   229.1     1.374   147.6  3.63/ 0.76   4.13/ 0.17
+      H3 iron, 2 full + 2 half poles of 200 mm, slots 133 mm   0.9804    0.7482   306.9     2.231   124.5  3.29/ 0.68   3.52/ 0.13
+      H4 iron, 2 full + 2 half poles of 150 mm, slots 183 mm   0.9683    0.6794   269.2     2.166    99.9  2.97/ 0.51   3.30/ 0.11
+       H5 iron, 2 full + 2 half poles of 250 mm, slots 83 mm   0.9597    0.7995   334.6     2.294   170.3  4.39/ 1.04   4.46/ 0.20
+      H6 iron, 1 full + 2 half poles of 250 mm, slots 250 mm   1.0430    0.7567   319.9     2.274    73.2  2.64/ 0.34   2.21/ 0.08
+      H7 iron, 1 full + 2 half poles of 300 mm, slots 200 mm   1.0546    0.8166   353.7     2.418    84.0  2.83/ 0.42   2.38/ 0.09
+      H8 iron, 1 full + 2 half poles of 200 mm, slots 300 mm   1.0291    0.6899   282.0     2.110    64.4  2.54/ 0.29   2.16/ 0.08
+                         H3t iron, as H3 with a 200 mm plate   0.9829    0.7500   309.6     1.180   124.7  3.31/ 0.68   3.54/ 0.13
+                         H6t iron, as H6 with a 200 mm plate   1.0496    0.7614   324.6     1.187    73.5  2.65/ 0.34   2.22/ 0.08
+                         H7t iron, as H7 with a 200 mm plate   1.0613    0.8216   358.8     1.262    84.2  2.84/ 0.42   2.38/ 0.09
+                   I4 iron C-core, 200 mm poles at the edges   0.5107    0.3190    71.8     2.436    14.0  0.55/ 0.10   0.30/ 0.04
+  B_pole = mean field normal to the plate over the pole faces, B_track = over the whole 1 m; B_plate = flux density along the plate through
+  its thickness midway between poles (the flux that must flow sideways in the plate, the pole flux plus the slot leakage the plate shorts);
+  W = stored energy per meter of track, gap and slots and leakage together; Bx = field across the track at the winding (along a flat-wound
+  tape), By = field normal to the plate at the winding (through the tape face).  The slot field at the slot mouth is mu0 x slot ampere-turns
+  / slot width; the maxima sit at the iron corners on the 5 mm grid.
+
+  Air core.  The 20 coils flat and side by side with one polarity are one 1 m loop whose field at 100 mm is a few millitesla per 100 kA;
+  alternating polarity at 50 mm pitch decays as exp(-pi x gap / pitch) and is gone at 100 mm; even an ideal 1 m sheet with its return far
+  away gives 44 mT per 100 kA, so 0.74 T on the plate would need 1,691 kA-turns of one-way current per track,
+  with the same field on the winding.  Without iron the coils cannot make the field.
+
+  Iron core, scaled.  F_sat = the largest pull before the pole face or the plate flux reaches 1.2 T; NI = ampere-turns per pole (per coil
+  group) at F_sat; coils per group = 20 / groups; slot mouth = mu0 x 2 NI / slot width at F_sat; winding fields at F_sat (mean over the slot).
+                                                        case  limit  F_sat  NI kA  /coil groups mouth T Bx mean By mean  W kJ/m  pair alone
+                I1 iron, 4 full poles of 200 mm, slots 50 mm  plate     53   41.3   8.26      4    2.08    0.67    0.14    40.4    no    no
+               I2 iron, 2 full poles of 400 mm, slots 100 mm  plate     21   22.5   2.25      2    0.57    0.14    0.03     4.6    no    no
+                I3 iron, 8 full poles of 100 mm, slots 25 mm  plate     60   71.1  28.44      8    7.15    2.74    1.37   406.5    no    no
+       H1 iron, 3 full + 2 half poles of 200 mm, slots 50 mm  plate    185   82.3  20.57      5    4.14    1.46    0.35   199.7    no    no
+      H2 iron, 3 full + 2 half poles of 125 mm, slots 125 mm  plate    175   87.3  21.83      5    1.76    0.66    0.14   112.5    no    no
+      H3 iron, 2 full + 2 half poles of 200 mm, slots 133 mm  plate     89   53.8  10.76      4    1.01    0.36    0.07    36.0    no    no
+      H4 iron, 2 full + 2 half poles of 150 mm, slots 183 mm  plate     83   55.4  11.08      4    0.76    0.28    0.06    30.7    no    no
+       H5 iron, 2 full + 2 half poles of 250 mm, slots 83 mm  plate     92   52.3  10.46      4    1.58    0.54    0.10    46.6    no    no
+      H6 iron, 1 full + 2 half poles of 250 mm, slots 250 mm  plate     89   52.8   7.92      3    0.53    0.18    0.04    20.4    no    no
+      H7 iron, 1 full + 2 half poles of 300 mm, slots 200 mm  plate     87   49.6   7.44      3    0.62    0.21    0.04    20.7    no    no
+      H8 iron, 1 full + 2 half poles of 200 mm, slots 300 mm  plate     91   56.9   8.53      3    0.48    0.16    0.05    20.8    no    no
+                         H3t iron, as H3 with a 200 mm plate  plate    320  101.7  20.33      4    1.92    0.69    0.13   128.8   yes    no
+                         H6t iron, as H6 with a 200 mm plate  plate    332  101.1  15.16      3    1.02    0.35    0.08    75.1   yes    no
+                         H7t iron, as H7 with a 200 mm plate  plate    324   95.1  14.27      3    1.20    0.40    0.09    76.2   yes    no
+                   I4 iron C-core, 200 mm poles at the edges  plate     17   49.3   2.46      1    2.48    0.05    0.02     3.4    no    no
+  'pair' = F_sat covers the pair's share (196 kN/m), 'alone' = F_sat covers the whole pull (393 kN/m) with one track out.
+  The pole face limit: the mean field over the track is the pole field times the pole fraction, so with half the track in slots the
+  pole face reaches 1.2 T at about half of the 573 kN/m that 1.2 T over the whole meter would give; narrow slots raise the
+  pole fraction but put the slot ampere-turns across a narrow slot (the mouth field) and short their leakage through the plate.
+
+  Linear first estimate: with the 100 mm plate the largest F_sat is 185 kN/m (H1 iron, 3 full + 2 half poles of 200 mm, slots 50 mm), below the pair's share; with a 200 mm plate 332 kN/m (H6t iron, as H6 with a 200 mm plate).
+
+  Saturating iron (plate B(H) saturating at 1.2 T from mu_r 200, yoke and poles at 1.8 T from mu_r 1000 [UNVERIFIED],
+  10 mm grid, Picard iteration on the cell permeability).  'linear' = the linear solve on the same grid scaled to the same ampere-turns;
+  the 5 mm linear solve above gives the grid error.  Mouth = mu0 x 2 NI / slot width.  Rating = 90 % of the largest pull on the
+  computed curve (up to 300 kA per pole), the point where the curve has flattened and more ampere-turns buy little; the
+  ampere-turns for it are interpolated on the curve.  'conv' = force change in the last Picard iteration (under 0.003 = converged).
+  geometry NI/pole kA  F kN/m  linear ratio B_track T plate max T plate sat % mouth T Bx mean By mean  W kJ/m   conv
+        H1         25      11      15  0.72     0.149        0.33           0    1.26    0.34    0.14    14.8  0.007
+        H1         50      29      60  0.49     0.245        0.54           0    2.51    0.53    0.38    45.8  0.014
+        H1         75      33     135  0.25     0.267        0.48           0    3.77    0.41    0.27    65.5  0.005
+        H1        100      43     240  0.18     0.300        0.60           0    5.03    0.38    0.40    85.8  0.000
+        H1        150      58     541  0.11     0.349        0.69           0    7.54    0.38    0.43   137.5  0.002
+        H1        200      77     961  0.08     0.402        0.79           0   10.05    0.40    0.51   198.1  0.002
+        H1        300     121    2163  0.06     0.500        0.95           0   15.08    0.47    0.68   343.3  0.001
+        H3         25      17      17  1.00     0.181        0.59           0    0.47    0.17    0.05     7.7  0.001
+        H3         50      53      69  0.77     0.319        0.96           0    0.94    0.28    0.09    26.3  0.005
+        H3         75      98     155  0.63     0.435        1.20           0    1.41    0.38    0.17    53.3  0.017
+        H3        100     131     275  0.47     0.504        1.07           0    1.89    0.36    0.18    75.5  0.005
+        H3        150     131     619  0.21     0.505        1.48           0    2.83    0.28    0.27   106.0  0.000
+        H3        200     159    1100  0.14     0.556        1.72           3    3.77    0.30    0.36   153.5  0.002
+        H3        300     223    2475  0.09     0.657        2.00          12    5.66    0.35    0.52   268.8  0.004
+        H4         25      15      15  1.00     0.164        0.56           0    0.34    0.13    0.04     6.1  0.001
+        H4         50      45      60  0.75     0.286        0.90           0    0.69    0.21    0.09    20.7  0.014
+        H4         75      81     136  0.60     0.386        1.10           0    1.03    0.26    0.13    40.5  0.001
+        H4        100      98     241  0.41     0.425        1.12           0    1.37    0.24    0.19    56.0  0.020
+        H4        150     117     543  0.21     0.460        1.22           0    2.06    0.21    0.25    86.0  0.001
+        H4        200     139     966  0.14     0.503        1.63           4    2.74    0.23    0.35   125.7  0.000
+        H4        300     196    2173  0.09     0.594        1.99          12    4.11    0.27    0.51   224.7  0.003
+        H6         25      18      18  1.00     0.182        0.59           0    0.25    0.09    0.03     4.5  0.000
+        H6         50      71      73  0.97     0.360        1.13           0    0.50    0.17    0.05    17.7  0.003
+        H6         75     118     164  0.72     0.466        1.63           7    0.75    0.22    0.08    35.1  0.012
+        H6        100     174     291  0.60     0.566        2.21          18    1.01    0.28    0.11    58.1  0.009
+        H6        150     199     655  0.30     0.607        2.33          21    1.51    0.23    0.20    88.5  0.006
+        H6        200     234    1164  0.20     0.658        2.27          28    2.01    0.25    0.26   127.9  0.008
+        H6        300     269    2620  0.10     0.716        1.76          39    3.02    0.30    0.40   223.9  0.002
+        H7         25      20      20  1.00     0.196        0.62           0    0.31    0.11    0.03     5.1  0.000
+        H7         50      79      80  0.98     0.389        1.16           0    0.63    0.21    0.06    20.4  0.002
+        H7         75     129     180  0.71     0.500        1.77          10    0.94    0.27    0.08    40.2  0.005
+        H7        100     185     321  0.58     0.602        2.26          18    1.26    0.34    0.12    65.9  0.018
+        H7        150     217     722  0.30     0.653        2.37          23    1.88    0.28    0.20   101.2  0.010
+        H7        200     232    1283  0.18     0.678        1.99          30    2.51    0.30    0.26   144.5  0.003
+        H7        300     283    2888  0.10     0.763        1.72          40    3.77    0.35    0.41   250.9  0.002
+       H3t         25      17      17  1.00     0.181        0.39           0    0.47    0.17    0.05     7.7  0.001
+       H3t         50      53      69  0.77     0.320        0.65           0    0.94    0.28    0.09    26.3  0.004
+       H3t         75      99     156  0.64     0.436        0.85           0    1.41    0.38    0.17    53.3  0.011
+       H3t        100     131     277  0.47     0.504        0.81           0    1.89    0.36    0.18    75.2  0.001
+       H3t        150     136     624  0.22     0.512        0.93           0    2.83    0.28    0.27   106.4  0.003
+       H3t        200     168    1110  0.15     0.568        1.02           0    3.77    0.29    0.36   153.9  0.002
+       H3t        300     244    2497  0.10     0.679        1.16           0    5.66    0.34    0.53   269.8  0.001
+       H6t         25      18      18  1.00     0.183        0.38           0    0.25    0.09    0.03     4.5  0.000
+       H6t         50      73      74  0.99     0.364        0.74           0    0.50    0.17    0.06    17.8  0.002
+       H6t         75     134     166  0.81     0.493        0.95           0    0.75    0.22    0.08    35.9  0.003
+       H6t        100     212     295  0.72     0.620        1.14           0    1.01    0.28    0.12    60.1  0.004
+       H6t        150     232     664  0.35     0.649        1.17           0    1.51    0.22    0.20    88.9  0.001
+       H6t        200     287    1180  0.24     0.719        1.30           0    2.01    0.23    0.28   129.7  0.003
+       H6t        300     388    2656  0.15     0.835        1.69           8    3.02    0.27    0.42   229.1  0.002
+       H7t         25      20      20  1.00     0.197        0.40           0    0.31    0.11    0.03     5.1  0.000
+       H7t         50      81      81  0.99     0.393        0.78           0    0.63    0.21    0.06    20.5  0.001
+       H7t         75     148     183  0.81     0.532        1.00           0    0.94    0.27    0.10    41.2  0.008
+       H7t        100     230     325  0.71     0.662        1.16           0    1.26    0.33    0.13    67.7  0.003
+       H7t        150     269     732  0.37     0.716        1.20           0    1.88    0.27    0.20   103.2  0.001
+       H7t        200     315    1301  0.24     0.774        1.44           0    2.51    0.28    0.28   147.2  0.003
+       H7t        300     421    2927  0.14     0.894        1.75          12    3.77    0.33    0.43   256.3  0.002
+  Grid check: H1 linear at 25 kA gives 15 kN/m on the 10 mm grid against 17 kN/m on the 5 mm grid.
+
+  geometry plate mm rating kN/m at NI kA per coil mouth T  Bx/By mean T curve max NI for pair share NI for alone
+        H1      100         109      272    68.03   13.68   0.45/ 0.63       121       not reached  not reached
+        H3      100         200      265    52.99    5.00   0.33/ 0.47       223            259 kA  not reached
+        H4      100         177      266    53.13    3.64   0.26/ 0.45       196            300 kA  not reached
+        H6      100         242      224    33.56    2.25   0.26/ 0.29       269            145 kA  not reached
+        H7      100         254      245    36.68    3.07   0.32/ 0.33       283            118 kA  not reached
+       H3t      200         220      268    53.58    5.05   0.33/ 0.48       244            237 kA  not reached
+       H6t      200         349      262    39.26    2.63   0.26/ 0.37       388             95 kA  not reached
+       H7t      200         379      260    39.03    3.27   0.31/ 0.37       421             90 kA       273 kA
+  'NI for pair share' and 'NI for alone' interpolate the saturating curve for 196 and 393 kN/m per track; 'not reached' means the curve
+  does not get there within 300 kA per pole.
+
+  Chosen for the 100 mm plate: H7 (saturating solve).
+    3 coil groups (one per pole, 7 of the 20 coils on each pole, each coil 200 m long with its two legs in the slots
+    either side of its pole), neighboring poles of opposite polarity, half-width poles at the track edges, 200 mm slots, 300 mm full poles.
+    Rated pull (saturation rating): 254 kN/m per track, 509 kN/m for the pair, at 244.5 kA-turns
+    per pole and 36.68 kA-turns per coil; track mean field 0.716 T; stored energy 191.8 kJ per m of track.
+    pair share at 30 km/s: 196 kN/m, 214.9 kA-turns per pole, 32.23 per coil, slot mouth 2.70 T,
+      winding mean across the track 0.28 T (max 1.49), normal to the plate 0.29 T (max 1.44), stored 148.1 kJ/m
+    one track alone at 30 km/s: 254 kN/m, 244.5 kA-turns per pole, 36.68 per coil, slot mouth 3.07 T,
+      winding mean across the track 0.32 T (max 1.70), normal to the plate 0.33 T (max 1.64), stored 191.8 kJ/m
+    The pair's share (196 kN/m per track) takes 118 kA-turns per pole on the saturating curve, 48 % of the rated ampere-turns.
+    One track alone does NOT cover the 30 km/s pull (393 kN/m) with the 100 mm plate: the rating is 254 kN/m, 65 % of it, and the curve tops out at 283 kN/m.
+  With a 200 mm plate the best case is H7t: rating 379 kN/m, 260.2 kA-turns per pole, slot mouth 3.27 T, winding 0.31/0.37 T, covers one track alone (the whole pull at 273 kA per pole).
+  [QUESTION FOR AUTHOR] the one-track-alone requirement at full speed and mass needs a plate that saturates above 1.2 T, a thicker plate
+  with wider poles, a wider track, or a speed and mass limit while a track is out.  Part D uses the saturation pull of the chosen geometry
+  as the one-track cap (254 kN/m) and the pair at twice that.
+
+  One track alone with its pull capped at F_sat (point model, 20 and 30 km/s): excursion and whether the cap binds.
+    20 km/s: pull needed 222 kN/m, cap 254 kN/m, peak delivered 222 kN/m, excursion 6.9 mm, gaps   99.3   93.1 mm
+    30 km/s: pull needed 393 kN/m, cap 254 kN/m, peak delivered 254 kN/m, excursion 30.5 mm, gaps   69.5   91.4 mm
+  Stored energy against the gap field: 191.8 kJ/m at F_sat against F x gap = 25.4 kJ/m, ratio 7.54 (slot and leakage flux).
+
+  Casing support tracks: 40 coils of 25 mm, 52 turns x 400 A = 832 kA-turns per 1 m track (levitation_config.py).  Needed: half the casing
+  weight 47.5 kN/m per track (mean plate field 0.346 T), the 218 kN/m operating rating of the pair 109 kN/m per track (0.523 T).
+  Chapter 8 quotes mu0 K / 2 = 0.523 T for an infinite one-way current sheet of 832 kA per meter.
+                                                        case B_track T  F kN/m F/needed B_plate T  W kJ/m  Bx max/mean  By max/mean
+                     S1 support, 40 flat coils, one polarity    0.0174     0.2     0.00     0.005     1.6  0.30/ 0.07   0.62/ 0.28
+           S2 support, 40 coils on edge, return 25 mm behind    0.0380     2.2     0.05     0.383    16.6  0.98/ 0.48   0.37/ 0.05
+                  S3 support, 1 m sheet, return 1.2 m behind    0.3599   159.3     3.35     4.167   242.7  0.62/ 0.32   1.09/ 0.36
+           S4 support, iron, 3 full + 2 half poles of 200 mm    1.1978   757.8    15.95     2.427   816.5 10.72/ 2.96  10.97/ 0.71
+  With the iron pole geometry of S4 (5 coil groups) the support track needs 208 kA-turns per track (41.7 kA per pole, 5.21 kA per coil, 13 turns at 400 A) for half the casing weight, against the 832 kA installed;
+  for the 218 kN/m operating rating 316 kA-turns per track.  Winding field at half the weight: across 0.74 T, normal 0.18 T (means), slot mouth 2.09 T; plate flux 0.61 T.
+  Saturating solve, S4 geometry at 416 kA-turns per track: 39 kN/m (0.8 x half the weight), track mean 0.285 T, plate max 0.61 T, winding across 0.40 T, normal 0.31 T (means).
+  Saturating solve, S4 geometry at 832 kA-turns per track: 64 kN/m (1.4 x half the weight), track mean 0.366 T, plate max 0.72 T, winding across 0.39 T, normal 0.45 T (means).
+  Flat air-core coils side by side cannot reach the plate (0.2 kN/m from the installed ampere-turns); the support
+  tracks need the same pole arrangement as the compensation tracks, and the installed ampere-turns are then enough for half the weight.
+
+==============================================================================
+PART C: THE HTS WINDING
+==============================================================================
+  Tape data: THEVA Pro-Line Advanced Pinning 2G HTS 70 K Field Dependence.csv (critical current per cm of width at 70 K against applied field at 0, 30, 90 and 120 degrees).
+  0 degrees is taken as the field normal to the tape face and 90 degrees as the field along it [UNVERIFIED convention]; at 70 K the four
+  angles differ by under 10 %, so the field strength sets the current.  The tape is rated at the lower of the 0 and 90 degree values at
+  the mean winding field of Part B, and the operating current is 50% of that (as the casing support tracks, Ic/2).
+  Winding: H7, rated for one track alone (254 kN/m, the 30 km/s pull or the saturation pull if that is smaller): 244.5 kA-turns per pole, 36.68 kA-turns per coil.
+  Winding field at the rating: mean 0.46 T (across the track 0.32, normal 0.33), max 2.36 T at the slot corners.
+
+  C.1  Current, tape length and mass (per meter of ring for one track; four tracks around the ring, each rated alone).
+    tape  Ic/cm 0 Ic/cm 90   Ic A I_op A turns/coil  tape m/m   kg/m  ring 4 tracks  tape km (4) at max B: Ic A
+     3 mm      352      376    106     53        694    27,767   59.2       10.54 Mt      4940 M             50
+    12 mm      352      376    423    211        174     6,942   59.2       10.54 Mt      1235 M            201
+  Mass is tape only (0.08 mm thick, 8,890 kg/m^3) [UNVERIFIED], no former, insulation, cooling or yoke.  The same ampere-turns need the same
+  tape area whatever the width, so the mass per meter is the same for 3 and 12 mm tape; 3 mm tape needs four times the turns and length.
+  In normal use the pair shares the pull: each track runs at 88 % of its rated current (214.9 kA-turns per pole).
+  Hand estimate check (compensation_coil_estimates_v2.txt): 190,986 A-turns per pole pair at 1.2 T across two gaps, 158 A per 12 mm tape, 3,046 m of tape
+  per m, 26 kg/m.  Here: 734 kA-turns per track in total, 211 A per 12 mm tape, 6,942 m per m, 59.2 kg/m.
+
+  C.2  Loss in the tape per pulse and per launch, heat at 70 K and the electrical power to remove it.
+  Model [UNVERIFIED]: a fully penetrated thin strip in a field normal to its face swept 0 -> B -> 0 dissipates about 1/2 B_perp x w x Ic per
+  meter of tape (half the Bean value for a full cycle, B w Ic).  The field along the tape face and the transport current's own loss are
+  neglected (they go with the tape thickness).  B_perp is the mean field normal to the plate over the winding at the operating ampere-turns,
+  which goes as sqrt(pull), so the loss per pulse goes as sqrt(pull) and with tape width.  The pair shares the pull, so each track runs at
+  1/sqrt(2) of the one-track field and the two together dissipate sqrt(2) times one track alone.
+  Cryogenic COP = lim_physics.calc_cryo_cop(70, 400, lim_config.CRYO_EFF = 0.05) = 0.0106 (Carnot 70/330 times 0.05); lim_physics.py, def calc_cryo_cop, and lim_config.py CRYO_EFF.  Electrical = heat / COP.
+    tape   mode B_perp T J/pulse/m per lap GJ per launch GJ electrical GJ % of KE mean W/m  mean GW
+     3 mm  alone    0.328    1444.1      64.22        294.05       27724.4   0.601    0.581     2.44
+     3 mm   pair    0.232    2042.3      90.83        415.84       39208.2   0.850    0.822     3.45
+    12 mm  alone    0.328    5776.4     256.90       1176.19      110897.5   2.404    2.324     9.74
+    12 mm   pair    0.232    8169.1     363.31       1663.38      156832.7   3.400    3.286    13.78
+  Per launch is the lsm_simulation profile (190 min, 30 km/s), pull from Part A at each speed; the sled's kinetic energy is 4612 TJ.
+  'mean W/m' is the heat at 70 K per meter of ring averaged over the launch, 'mean GW' the electrical power for the whole ring over the launch.
+  The lift pair (above 7 km/s) and the load pair (below) are each pulsed only in their own speed range, so the total is split between them.
+
+  C.3  Coil voltage and supply for a 2 ms rise.
+  Stored energy per meter of track from the 2-D solve (gap, slots, leakage) at the one-track rating: 191.8 kJ/m; the pair's share 148.1 kJ/m;
+  the gap field alone is F x gap = 25.4 kJ/m, so the slot and leakage flux hold 7.5 times the useful energy.
+  A coil carries 1/20 of the track's ampere-turns over 200 m, so its share of the energy is W x 200 / 20 when all coils are on.
+  With E = L I^2 / 2 and a linear rise to I in tau, the coil voltage is V = L I / tau = 2 E / (I tau) and the supply delivers V x I = 2 E / tau,
+  whatever the current: a low-current winding of many turns needs a high voltage, and parallel tapes trade voltage for current at the same VA.
+    tape   mode E/coil MJ  turns    I A     L H  V at 2 ms V at 10 ms  VA, 2 ms VA, 10 ms 100 tapes parallel store MJ
+     3 mm  alone      1.92    694     53  1374.5   36.31 MV    7.26 MV   1.92 GVA   0.38 GVA    363 kV x  5.3 kA     1.93
+     3 mm   pair      1.48    694     46  1374.5   31.91 MV    6.38 MV   1.48 GVA   0.30 GVA    319 kV x  4.6 kA     1.50
+    12 mm  alone      1.92    174    211    85.9    9.08 MV    1.82 MV   1.92 GVA   0.38 GVA     91 kV x 21.1 kA     1.98
+    12 mm   pair      1.48    174    186    85.9    7.98 MV    1.60 MV   1.48 GVA   0.30 GVA     80 kV x 18.6 kA     1.54
+  The store per coil is the coil's field energy at its rating plus one pulse's loss; the field energy comes back to the store at the end of
+  the pulse less the losses.  Supplies: one per coil, a coil every 10 m per track, 4.45 million per track and 17.8 million for the four.
+  At 30 km/s a new coil starts every 0.33 ms, so 6 coils per track are rising at any moment with a 2 ms rise: the power into the
+  field of a pair is 17.8 GW on this count, against the 1.18 GW of Part A that counts the gap field only.
+  [QUESTION FOR AUTHOR] the 2 ms rise is needed for the gap protection; the normal spread pull could use a slower rise (10 ms is one fifth of
+  the 50 ms window) and cut the supply rating five times.  The number of supplies and the stored energy do not change.
+
+  C.4  Copper for comparison (same ampere-turns, both legs, no yoke in the mass).
+      5 A/mm^2:   2629 kg/m per track (467.7 Mt for four), loss per pulse at 30 km/s    7.0 kJ/m, per launch   1339 GJ (0.03 % of KE), heating per pulse 0.007 K
+     50 A/mm^2:    263 kg/m per track (46.8 Mt for four), loss per pulse at 30 km/s   69.8 kJ/m, per launch  13386 GJ (0.29 % of KE), heating per pulse 0.690 K
+  Against HTS: tape mass 59.2 kg/m per track, electrical energy per launch for the losses 39208 GJ (3 mm, pair) to 156833 GJ (12 mm, pair) after the cryogenic penalty.
+
+  C.5  Plate losses (hysteresis and eddy), as Part I of sled_passage_spread.py, for 1 m tracks.
+  Plate: mu_r 200, resistivity 1e-04 ohm m, 100 mm thick, hysteresis 50 J/m^3 per cycle at 1.2 T scaled as (B/1.2)^1.6 [UNVERIFIED coefficients],
+  magnetized through its thickness over the track width; the field rises over one gap length, holds for L_on / (u + V_rel), and falls.
+   u km/s   mode    B T hold ms hyst J/m eddy J/m  sum J/m  dT mK per lap MJ  drag N
+        1   pair  0.391    61.5      1.7    117.0    118.6   0.17    51831.3   132.1
+        1  alone  0.553    61.5      1.4    117.0    118.4   0.33    51737.2   131.8
+        5   pair  0.223    55.7      0.7     38.0     38.7   0.05     4760.7    60.6
+        5  alone  0.315    55.7      0.6     38.0     38.6   0.11     4749.9    60.5
+       10   pair  0.261    55.2      0.9     52.3     53.2   0.08     4450.2   113.4
+       10  alone  0.370    55.2      0.8     52.3     53.0   0.15     4440.7   113.1
+       20   pair  0.528    54.8      2.7    214.1    216.8   0.31    13894.1   708.0
+       20  alone  0.747    54.8      2.3    214.1    216.4   0.61    13871.8   706.9
+       30   pair  0.702    54.6      4.2    378.8    383.1   0.54    22048.2  1685.3
+       30  alone  0.993    54.6      3.7    378.8    382.5   1.08    22016.6  1682.9
+  Per launch (pair mode): 79.78 GJ in the plates, 0.0017 % of the sled's kinetic energy; a 1 m track at the same pull puts sqrt(2) more
+  field on its plate than each of a pair, so one track alone raises the plate loss per pass by about (sqrt 2)^1.6 / 2 = 0.87 (hysteresis) to 1 (eddy).
+
+==============================================================================
+PART D: GAP PROTECTION AND FAILURE CASES (no limiters; the compensation tracks guard the gap)
+==============================================================================
+  Protection law (point and beam models): gap sensors see the casing-to-cable offset with a delay; once the measured offset passes the
+  trigger, the compensation tracks on the face that can pull the casing back run a position loop (critically damped at 5 Hz) plus the weight
+  the support tracks are not carrying, clipped to the track rating (509 kN/m pair, 254 kN/m one), current lag 2 ms.
+  Gap_b / gap_t = smallest gap on the floor / ceiling face in mm (nominal 100).  Point model: one meter of casing and cable, both free.
+
+  D.1  Total loss of both casing support tracks.
+  Free fall from rest: 100 mm in 159 ms; 5, 10, 20 mm of drift take 36, 50, 71 ms.
+  At rest (no sled), point model, load compensation tracks catch the casing:
+  tracks trigger mm delay ms engaged ms  gap_b  gap_t peak pull kN/m hold kN/m hold B T
+    pair          5        1       37.8  100.0   92.6          334.9      95.0    0.519
+    pair          5        5       41.8  100.0   91.4          375.8      95.0    0.519
+    pair         10        1       55.1  100.0   87.2          440.3      95.0    0.519
+    pair         10        5       59.1  100.0   85.8          488.8      95.0    0.519
+    pair         20        1       82.2  100.0   76.5          505.9      95.0    0.519
+    pair         20        5       86.2  100.0   74.7          508.3      95.0    0.519
+     one          5        1       37.8  100.0   92.0          254.2      95.0    0.734
+     one          5        5       41.8  100.0   90.6          254.3      95.0    0.734
+     one         10        1       55.1  100.0   85.6          254.3      95.0    0.734
+     one         10        5       59.1  100.0   84.0          254.3      95.0    0.734
+     one         20        1       82.2  100.0   74.0          254.3      95.0    0.734
+     one         20        5       86.2  100.0   72.2          254.3      95.0    0.734
+  Protection loop bandwidth (pair, 10 mm trigger, 1 ms delay, at rest):
+       2 Hz: gaps  100.0   84.0, peak pull 203 kN/m
+       5 Hz: gaps  100.0   87.2, peak pull 423 kN/m
+      10 Hz: gaps  100.0   87.4, peak pull 508 kN/m
+      20 Hz: gaps  100.0   87.4, peak pull 509 kN/m
+  'hold' is the steady pull after the catch, the casing weight 95.0 kN/m, and 'hold B' the mean plate field that takes on the tracks that are
+  pulling (0.519 T on each of a pair, 0.734 T on one alone); the position loop then brings the casing back to the 100 mm gap.
+  Hand estimate check (10 mm trigger, 2 ms rise, 353 kN/m, no delay): stops after 14.8 mm; here with the 1 ms delay and the loop, the pair stops at 12.8 mm and one track at 14.4 mm (the casing falls toward the ceiling plates).
+
+  During a 30 km/s pass (point model, pair, support lost at t_fail; zone front at the point at t = 0, pull window centered on the zone):
+  t_fail ms trigger mm delay ms engaged ms  exc mm  gap_b  gap_t peak pull kN/m
+       -100         10        1      -44.9    15.6   97.3   84.4         1145.9
+        -25         10        1       -2.1    13.2   99.9   86.8          885.7
+          0         10        1        0.8    10.7   99.7   89.3          878.0
+         25         10        1        0.8    10.6   99.9   89.4          960.6
+        200         10        1        0.8    10.6  100.0   89.4          960.6
+          0          5        1       -7.6     9.5   94.7   90.5         1124.9
+          0          5        5       -3.6    10.4   91.9   89.6         1145.9
+          0         10        5        4.8    10.7   98.6   89.3          850.0
+          0         20        1       96.7    23.1   99.6   76.9          549.1
+          0         20        5      100.7    24.8   99.6   75.2          609.4
+  one track alone, t_fail 0, trigger 10 mm, delay 1 ms: engaged 26.1 ms, excursion 14.9 mm, gaps   85.1   91.4, peak pull 254 kN/m
+
+  Beam model (10 m truss, cable as a string, 10 km window), support lost at rest and as the zone reaches the window middle.  The protection
+  acts on the offset averaged over 50 m of casing with the closing speed taken over the sensor delay (at least 2 ms); a
+  casing with no stiffness at all is not run here, since a per-node loop on a structure that nothing couples along its length is unstable
+  on this grid, and the casing is at least a 10 m truss by the design rule.
+  trigger mm delay ms                                 case                  truss  exc mm  gap_b  gap_t engaged ms contact
+           5        1                 support lost at rest     h=10 m, f=0.1, CNT     8.2  100.0   91.8       34.8      no
+           5        1   support lost 50 ms before the zone     h=10 m, f=0.1, CNT    15.3   91.2   84.7       -3.4      no
+           5        1     support lost as the zone arrives     h=10 m, f=0.1, CNT    13.6   90.9   86.4       -3.4      no
+           5        5                 support lost at rest     h=10 m, f=0.1, CNT     9.8  100.0   90.2       38.8      no
+           5        5   support lost 50 ms before the zone     h=10 m, f=0.1, CNT    18.5   92.3   81.5        0.6      no
+           5        5     support lost as the zone arrives     h=10 m, f=0.1, CNT    15.7   92.7   84.3        0.6      no
+          10        1                 support lost at rest     h=10 m, f=0.1, CNT    14.3  100.0   85.7       49.0      no
+          10        1   support lost 50 ms before the zone     h=10 m, f=0.1, CNT    21.1   89.0   78.9        7.8      no
+          10        1     support lost as the zone arrives     h=10 m, f=0.1, CNT    16.3   92.2   83.7        7.8      no
+          10        5                 support lost at rest     h=10 m, f=0.1, CNT    16.3  100.0   83.7       53.0      no
+          10        5   support lost 50 ms before the zone     h=10 m, f=0.1, CNT    24.8   95.7   75.2       11.8      no
+          10        5     support lost as the zone arrives     h=10 m, f=0.1, CNT    17.1   97.5   82.9       11.8      no
+          20        1                 support lost at rest     h=10 m, f=0.1, CNT    25.4  100.0   74.6       68.8      no
+          20        1   support lost 50 ms before the zone     h=10 m, f=0.1, CNT    32.1   92.9   67.9      161.6      no
+          20        1     support lost as the zone arrives     h=10 m, f=0.1, CNT    25.9   87.1   74.1      211.6      no
+          20        5                 support lost at rest     h=10 m, f=0.1, CNT    28.1  100.0   71.9       72.8      no
+          20        5   support lost 50 ms before the zone     h=10 m, f=0.1, CNT    36.6   92.1   63.4      165.6      no
+          20        5     support lost as the zone arrives     h=10 m, f=0.1, CNT    28.7   96.4   71.3      215.6      no
+  (49 s)
+
+  D.2  Loss of one whole compensation track during a 30 km/s pass (point model, protection 10 mm / 1 ms on).
+  A lift track is lost, so the protection has one lift track (254 kN/m) to pull down and both load tracks (509 kN/m) to pull up.
+                                                  case  exc mm  gap_b  gap_t engaged ms peak kN/m
+       other track alone from the start (Part A 'one')    16.4   83.6   91.4       25.4       254
+  track lost at the start of the pull, no reassignment    28.3   71.7   93.1       18.1       254
+                  track lost mid-pull, no reassignment    19.4   80.6   91.4       23.9       254
+      track lost mid-pull, other takes over after 5 ms    16.7   83.3   91.4       25.1       254
+     track lost mid-pull, other takes over after 20 ms    19.2   80.8   91.4       23.9       254
+  'no reassignment' = half the pull is simply missing from then on; the gap protection catches what is left.  Half a pull missing over the
+  whole window is 9.8 kN s/m, 0.82 m/s on the casing.
+
+  D.3  Single failures at 30 km/s (pair, protection 10 mm / 1 ms).  One supply dead is one coil dead: each coil has its own supply.
+                                              case  model  exc mm  gap_b  gap_t engaged ms peak kN/m
+                                            normal  point    10.6   98.7   89.4        0.8       509
+    sensor error +5 mm (regulation and protection)  point    15.1  100.0   84.9      153.3       436
+    sensor error -5 mm (regulation and protection)  point     8.8   94.5   91.2       -6.5      1014
+                       false trigger, sensors true  point     6.7   93.7   93.3      -31.7      1146
+            false trigger with a 5 mm sensor error  point    11.5   98.5   88.5    -1216.0      1146
+              false full pull up for 5 ms, no sled  point     8.0   92.0  100.0        nan       428
+             false full pull up for 20 ms, no sled  point    17.0   83.0  100.0       26.0       509
+             false full pull up for 50 ms, no sled  point    38.7   61.3  100.0       25.6       509
+            false full pull down for 5 ms, no sled  point     8.0  100.0   92.0        nan       428
+           false full pull down for 10 ms, no sled  point    11.6  100.0   88.4       41.5       502
+           false full pull down for 20 ms, no sled  point    16.8  100.0   83.2       26.1       509
+           false full pull down for 50 ms, no sled  point    36.4  100.0   63.6       25.6       509
+      false full pull down 20 ms, protection 20 Hz  point    16.7  100.0   83.3       26.1       509
+      false one-track pull down for 50 ms, no sled  point    18.3  100.0   81.7       35.3       360
+                    spread pull fired with no sled  point    25.9  100.0   74.1        0.8       379
+         spread pull fired with no sled, one track  point    37.9  100.0   62.1        4.0       254
+                            spread pull 10 ms late  point    13.9   86.1   95.5       19.2       509
+                           spread pull 10 ms early  point    17.3   99.1   82.7       -9.2       509
+                            spread pull 50 ms late  point    45.0   55.0   97.6        8.5       509
+                           spread pull 50 ms early  point    25.9   79.0   74.1      -49.2       509
+                                            normal   beam    10.2  100.0   89.8        7.8            
+              one coil (one supply) dead, family 0   beam    10.3   91.0   89.7        7.8            
+                          one coil dead, family 10   beam    10.2   91.0   89.8        7.8            
+                          spread pull with no sled   beam    23.7  100.0   76.3        5.0            
+                  false full pull up 5 ms, no sled   beam     8.0   92.0  100.0        nan            
+               false full pull down 20 ms, no sled   beam    16.2  100.0   83.8      192.8            
+                           normal, one track alone   beam    14.9   85.1   91.7       20.6            
+                    one coil dead, one track alone   beam    15.1   84.9   91.6       20.6            
+  (21 s)  Beam: 10 m truss, one coil dead = that coil's 200 m carries 19/20 of the pull.
+  A false pull at the full track rating is a control failure that the protection on the other face must out-pull with the same rating; the
+  rows above give the time within which a watchdog must cut a faulty coil.  A false pull at the normal command level is the 'spread pull
+  fired with no sled' row.
+  Loss of ring power: the casing support tracks are persistent and keep the casing up; each compensation coil runs its pulse from its own
+  store, so the dynamics are those of the normal case.  The store per coil (Part C.3) is its field energy at the one-track rating,
+  1918.2 kJ, plus one pulse's loss; a catch after a support loss needs the same energy and then holds with no further
+  input but the cryogenic load, which is the ring's problem, not the coil's.
+
+  D.4  Roll from one track of a pair pulling alone (2-DOF heave and roll of casing and cable, 30 km/s, lift track at +2.8 m).
+  Geometry [UNVERIFIED]: support plates centered 1.2 m from the centerline, compensation plates 2.8 m (edges at 3.5 m), cable edge 4.12 m;
+  casing roll inertia 300,000 kg m^2 per m (radius of gyration 5.0 m), cable 1,354,396 kg m^2 per m (square section), no torsional stiffness.
+  Per-side protection: each load track regulates its own side once its ceiling or floor gap drifts 10 mm (1 ms delay).
+  The pull history is the one-track lane of Part A with the pull capped at the track rating of Part B (254 kN/m).
+                                                          case peak M kN m/m roll mrad plate edge mm cable edge mm  gap_b  gap_t
+  one lift track alone, support loops only, no roll protection           710     13.73         100.0         108.5   81.8   -0.0  CONTACT
+                     one lift track alone, per-side protection           843      6.28          40.3          44.2   59.7   81.9
+   one lift track alone, support lost too, per-side protection           696      5.67          34.1          37.5   91.1   65.9
+  The pair shares the pull in normal use, so there is no roll moment then; roll appears only when one track of a pair is out.
+  'plate edge' and 'cable edge' are the largest casing offsets at those lateral positions; gap_b and gap_t are the smallest gaps at the plate edges.
+
+  D.5  Summary of all cases in this part.
+  Cases run: 77; with contact: 1.
+    CONTACT: roll: one lift track alone, support loops only, no roll protection (2-DOF)
+  Smallest floor gap: 55.0 mm in 'spread pull 50 ms late' (point).
+  Smallest ceiling gap: -0.0 mm in 'roll: one lift track alone, support loops only, no roll protection' (2-DOF).
+  Smallest gap in any single-failure case: 55.0 mm, in 'spread pull 50 ms late' (point); the double failure (one track of a pair out and both
+  support tracks lost) and the roll case without per-side protection are listed separately in D.4.
+
+==============================================================================
+PART E: THE NUMBERS BEHIND THE REJECTED OPTIONS, AND THE 8,620 m/s FIX
+==============================================================================
+  Halbach array limiters (persistent HTS Halbach arrays repelling a copper plate on the cable), from the existing runs:
+  levitation.txt (rerun 2026-10-11): present arrays, 100 mm wavelength, surface field 0.640 T; repulsion at a 20 mm gap 27.0 kN/m, at 10 mm 93.8 kN/m,
+  at 2 mm 253.7 kN/m, against the casing weight 95.0 kN/m; a casing falling after a support loss is 'NOT arrested', gap reached 0.50 mm.
+  Reaction plate heating (OFHC copper, 20 mm) at a 20 mm gap 1.63 MW/m, service temperature in 44 s, melting in 94 s; at 100 mm 73.6 W/m.
+  sled_passage_limits.txt, limit 2 (5,000 t, 100 m zone, limiters as the only protection against the sled): the present limiter keeps the gap
+  above 20 mm only to 19.0 km/s and avoids contact only to 22.0 km/s.  To reach 30 km/s with the 20 mm margin takes 4 x the ampere-turns and a
+  200 mm wavelength: that limiter leaves 9.73 kN/m of repulsion at the nominal gap all the time and heats the plate at 419 kW/m, which is
+  19 TW around the ring; 3 x the ampere-turns at 100 mm wavelength avoids contact at 30 km/s but with 0 mm of margin (gap >= 20 mm only to 20.5 km/s).
+  The present limiter's drag at the nominal gap is small: 2.74e-6 N/m, 1.075 MW for the ring (levitation.txt, analysis 5).
+  Pulsed LIM limiter (driven traveling-wave coils under the cable pushing on a conducting plate), sled_passage_pulsed.txt part J: at full slip
+  (static coils, the limiter case) the push costs 69 W per newton; holding the casing weight alone would be 6.6 MW/m, 292 TW for the
+  ring; the pulsed-track case needs 22 to 2,000 m of push-down track beside the pull track and 17,000 to 1,600,000 GVA of reactive power.
+
+  The 8,620 m/s fix.  levitation_simulation.py had the cable speed relative to the casing hard-coded as v_cable = 8620 in four places (the 250 km
+  value); they now read ring_altitude.V_REL, 8,825.21 m/s at 700 km.  Backup: levitation_simulation_backup_2026-10-11.py; old log kept as
+  levitation_8620_2026-10-04.txt.  Lines that changed between the two logs:
+    old: Service temp (773 K) reached at gap = 51.3 mm
+    new: Service temp (773 K) reached at gap = 51.4 mm
+    old: Melting point (1358 K) reached at gap = 33.2 mm
+    new: Melting point (1358 K) reached at gap = 33.3 mm
+    old: Heating rate: 10481884.5 W/m
+    new: Heating rate: 10605918.1 W/m
+    old: Heating rate: 5609555.8 W/m
+    new: Heating rate: 5675934.5 W/m
+    old: Heating rate: 1606596.0 W/m
+    new: Heating rate: 1625607.1 W/m
+    old: Heating rate: 37743.4 W/m
+    new: Heating rate: 38190.0 W/m
+    old: Heating rate: 72.7 W/m
+    new: Heating rate: 73.6 W/m
+    old: Heating rate: 10481884.5 W/m
+    new: Heating rate: 10605918.1 W/m
+    old: Heating rate: 5609555.8 W/m
+    new: Heating rate: 5675934.5 W/m
+    old: Heating rate: 1606596.0 W/m
+    new: Heating rate: 1625607.1 W/m
+    old: Cable velocity: 8620 m/s
+    new: Cable velocity: 8825.210390257957 m/s
+    old: Cable velocity: 8620 m/s
+    new: Cable velocity: 8825.210390257957 m/s
+    old: Drag per meter: 2.80e-06 N/m
+    new: Drag per meter: 2.74e-06 N/m
+  41 of 249 lines differ in all (the rest are the heating-rate and equilibrium-temperature tables, which move a few percent).
+  What changed in substance: the eddy drag and heating of the copper plates scale with the speed, so the drag per meter went from 2.80e-6 to
+  2.74e-6 N/m (the skin depth shrinks with speed, so the force at a given gap falls slightly) and the ring drag power from 1.1 to 1.075 MW;
+  the limiter forces in the time-domain runs (sled_passage_*.py) already used V_REL from ring_altitude.py and are unchanged.
+  The limiter table used by the sled passage scripts at V_REL: F0 = 325.7 kN/m at zero gap, decay length 8.0 mm, 26.4 kN/m at 20 mm, 1.136 N/m at 100 mm.
+
+==============================================================================
+DONE (230 s)
+==============================================================================
+EXIT 0

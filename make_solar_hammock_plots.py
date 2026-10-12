@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Draws the 24-hour power profiles of the suspended solar array at several altitudes.
+Book: The Orbital Ring, Volume IV: Chapter 16 figures.
+Run: python make_solar_hammock_plots.py
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
+
 Regenerate the solar hammock 24-hour power profile plots at 250, 750, and
 1000 km altitudes using the restored Chapter 7 physics from the orbital
 ring power module.
@@ -36,6 +41,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import power_config as cfg
+import ring_altitude as ring
 import power_physics as pp
 
 
@@ -293,15 +299,8 @@ def main():
     print("=" * 78)
     print()
 
-    # Save outputs to multiple locations so the book build and the
-    # original "Python" scratch folder both pick up the refreshed plots.
-    out_dirs = [
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Python/orbitalring/graphs_power",
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Python",
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Vol_I/images",
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Vol_II/images",
-        "/sessions/confident-amazing-lamport/mnt/localbrain/Vol_III/images",
-    ]
+    # Save under the output folder (ORBITAL_RING_OUT, default runs); copy into the book by hand.
+    out_dirs = [ring.out_dir("graphs_power")]
     for d in out_dirs:
         if not os.path.isdir(d):
             os.makedirs(d, exist_ok=True)

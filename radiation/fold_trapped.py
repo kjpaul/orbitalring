@@ -1,4 +1,9 @@
-"""Trapped-proton dose behind a water shield: AP-8 spectra folded with the Geant4 depth-dose runs.
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python fold_trapped.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Trapped-proton dose behind a water shield: AP-8 spectra folded with the Geant4 depth-dose runs.
 Dose at the centre of a solid water sphere of radius t under isotropic flux (same geometry as SHIELDOSE's solid sphere).
 Includes nuclear interactions and all secondaries (neutrons, recoil protons, alphas, heavy recoils, gammas)."""
 import numpy as np

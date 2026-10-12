@@ -1,3 +1,9 @@
+"""
+Re-entry of a body released from the ring: speed, deceleration and heating against altitude.
+Book: The Orbital Ring, Volume IV: Not yet mapped to a revised chapter.
+Run: python reentry.py
+Environment: none
+"""
 import math
 
 # Constants and setup

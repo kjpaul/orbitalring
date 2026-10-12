@@ -1,4 +1,9 @@
-"""Present-day anomaly sector on the equator from a current field model (IGRF via ppigrf).
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python igrf_sector.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Present-day anomaly sector on the equator from a current field model (IGRF via ppigrf).
 1. Field direction (declination, dip) and strength along the geographic equator.
 2. McIlwain L and B/B0 by field-line tracing in IGRF, checked against the AP-8 package's own field (Jensen-Cain 1960).
 3. AP-8 MIN flux evaluated with present-day (L, B/B0): an UPPER BOUND (ECSS/Heynderickx warn that AP-8 with a

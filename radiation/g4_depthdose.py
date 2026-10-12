@@ -1,4 +1,9 @@
-"""Depth-dose response of a thick water slab to mono-energetic primaries (Geant4 via geant4_pybind).
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python g4_depthdose.py PHYSICS_LIST PARTICLE OUTDIR EVENTS:MEV ... (needs geant4_pybind; see README_radiation.md)
+Environment: DEPTH_CM (slab depth, default 600), NBIN (default 300); writes into OUTDIR.
+
+Depth-dose response of a thick water slab to mono-energetic primaries (Geant4 via geant4_pybind).
 
 A pencil beam enters a slab that is wide enough to contain the whole cascade. Energy deposited is
 scored in depth bins over the full lateral extent, which by reciprocity equals the dose at a point
@@ -89,6 +94,8 @@ class Gen(G4VUserPrimaryGeneratorAction):
 class Act(G4VUserActionInitialization):
     def Build(self): self.SetUserAction(Gen()); self.SetUserAction(Ev())
 
+if len(sys.argv) < 4 or "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
+    print(__doc__); sys.exit(0)
 plname, particle, outdir = sys.argv[1], sys.argv[2], sys.argv[3]
 jobs = [(int(a.split(":")[0]), float(a.split(":")[1])) for a in sys.argv[4:]]
 os.makedirs(outdir, exist_ok=True)

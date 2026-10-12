@@ -1,18 +1,30 @@
-.mypy_cache/
-updates/
+# Everything the scripts write goes under ORBITAL_RING_OUT (default runs/) and is not tracked.
+runs/
 output/
+graphs*/
+*.png
+*.txt
+/*.csv
+ch4_numbers.json
+__pycache__/
+.mypy_cache/
+*.bak
+
+# Private working folders of the author, never part of the repository.
 old/
+updates/
 graphs_old/
-graphs/
 diagrams/
 claude/
 helper/
 marketing/
-graphs_lim_md/
-graphs_tether/
-__pycache__/
 .claude/
-*.png
-*.bak
-*.cvs
-*.txt
+
+# Input files the scripts need, tracked although the patterns above would ignore them.
+!/requirements.txt
+!data/**
+!radiation/estar_al.txt
+!radiation/pstar_al.txt
+!radiation/pstar_carbon.txt
+!radiation/pstar_water.txt
+!radiation/igrf_altscan_clean.txt

@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 """
+Mass of the iron-core bearing against the cable it costs, and the air-core alternative (loop ratings, requirement sets, dynamics of the lightest design).
+Book: The Orbital Ring, Volume IV: Chapter 8 (named; the field solver and the mass argument).
+Run: python bearing_mass.py [--parts=ABCD] [--resolve] (reads data/bearing_sweep.json and data/bearing_air.json)
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
+
 Bearing mass, and an air-core alternative (Paul, 2026-10-12, second task of the day).
 
 Parts (Claude_Code_instructions_bearing_mass_2026-10-12.md):
@@ -34,9 +39,7 @@ import magnetostatic_2d as ms
 import bearing_design as bd
 
 MU0 = lc.MU0
-HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "output")
-AIR_JSON = os.path.join(OUT, "bearing_air.json")
+AIR_JSON = os.path.join(ring.DATA_DIR, "bearing_air.json")   # Part B air-core cache (24 min to redo): --resolve recomputes it
 G_NET = ring.G_NET
 M_LIM_PLATES = 1872.0                 # kg/m, the LIM reaction plates (Chapter 3), kept
 M_OLD_PLATES = 2204.0                 # kg/m, the two 100 mm levitation plates of Chapter 3, replaced
@@ -201,7 +204,7 @@ def air_sweep(verbose=True):
     if os.path.exists(AIR_JSON):
         with open(AIR_JSON, encoding="utf-8") as f:
             return json.load(f)
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(ring.DATA_DIR, exist_ok=True)
     geoms = []
     for W in (0.5, 1.0, 1.5, 2.0):
         for pt in (0.10, 0.20, 0.30, 0.40):
@@ -574,7 +577,9 @@ def part_D(results, theva):
 def main():
     parts = "ABCD"
     for arg in sys.argv[1:]:
-        if arg.startswith("--parts="):
+        if arg in ("--help", "-h"):
+            print(__doc__); return
+        elif arg.startswith("--parts="):
             parts = arg.split("=")[1].upper()
         elif arg == "--resolve" and os.path.exists(AIR_JSON):
             os.remove(AIR_JSON)

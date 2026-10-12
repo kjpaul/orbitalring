@@ -1,4 +1,9 @@
-"""Figure 5.1 and the Table 5.2 rows for Chapter 5: trapped proton flux on the equator, AP-8 read with the IGRF 2026
+"""
+Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Run from the radiation folder: python ch5_figure.py (see README_radiation.md for the order and the packages)
+Environment: none; reads and writes files in the radiation folder.
+
+Figure 5.1 and the Table 5.2 rows for Chapter 5: trapped proton flux on the equator, AP-8 read with the IGRF 2026
 field (ap8_igrf2026_spectra.npz, made by ap8_spectra.py / igrf_altscan.py). Prints the table and writes the figure."""
 import numpy as np, matplotlib
 matplotlib.use("Agg")
