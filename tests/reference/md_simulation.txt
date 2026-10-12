@@ -1,0 +1,3 @@
+  Final velocity           30.000 km/s
+  Total time                21729 s  (362.1 min, 6.04 hr)
+    Number of laps                   8.3

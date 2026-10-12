@@ -24,6 +24,8 @@ Optional, only for the scripts named:
 
 Every script writes its files (logs, figures, CSV, JSON) under the folder named by `ORBITAL_RING_OUT` (default `runs`). The ring's design point is set in `ring_altitude.py` and can be overridden for comparison runs with `ORBITAL_RING_ALT_KM`, `ORBITAL_RING_CABLE`, `ORBITAL_RING_HW_KGM` and `ORBITAL_RING_ARRAY_OFFSET_KM`. `python run_all.py` reruns the whole set and keeps one log per run; `data/` holds the tracked input files (tape data, solver caches, design-history logs, see `data/README.md`).
 
+To check that the code still prints the numbers in the book: `pip install pytest`, then `python -m pytest tests` from the repository root (about a minute). It asserts the design point of `ring_altitude.py`, runs every fast simulation and compares its headline lines with `tests/reference/`, and checks the slow simulations against the logs of your own `python run_all.py` run (skipped until that run exists).
+
 ---
 
 ## Quick Start

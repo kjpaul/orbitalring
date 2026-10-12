@@ -1,0 +1,2 @@
+  Self-weight stress (GPa)             10.464         10.464
+  N lines (d=10cm) per stn                331            331

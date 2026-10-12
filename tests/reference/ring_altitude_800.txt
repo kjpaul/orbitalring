@@ -1,0 +1,5 @@
+  Cable structural                          113,808.783 kg/m
+  Cable with hardware                       124,494.783 kg/m
+  Cable velocity                              8,220.564 m/s
+  Cable-casing relative                       8,744.002 m/s
+  Cable tension                                 836.829 GN

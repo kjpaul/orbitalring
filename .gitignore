@@ -23,6 +23,7 @@ marketing/
 # Input files the scripts need, tracked although the patterns above would ignore them.
 !/requirements.txt
 !data/**
+!tests/reference/*.txt
 !radiation/estar_al.txt
 !radiation/pstar_al.txt
 !radiation/pstar_carbon.txt

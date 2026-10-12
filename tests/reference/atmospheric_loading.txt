@@ -1,0 +1,2 @@
+  Peak drag altitude                     10.0 km
+  Peak drag per meter              1.0120e+01 N/m

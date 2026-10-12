@@ -1,0 +1,2 @@
+  L_sc   50 m, front , no loop  : width within 20 mm     8 m, within 10 mm     8 m, no contact     4 m; exc at 4 m  94.4, at 8 m   1.9 mm
+  L_sc   50 m, front , 1 Hz loop: width within 20 mm     5 m, within 10 mm     6 m, no contact     1 m; exc at 4 m  26.5, at 8 m   0.8 mm

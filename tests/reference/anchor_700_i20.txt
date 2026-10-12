@@ -1,0 +1,4 @@
+  F_total/anchor (GN)                   5.331          5.283
+  Self-weight stress (GPa)             10.464         10.467
+  Taper ratio                          2.3098         2.3103
+  N lines (d=10cm) per stn                334            331

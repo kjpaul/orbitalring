@@ -1,0 +1,4 @@
+  Total generation            680.89 GW
+  Total demand                 44.47 GW
+  Generation - Demand         636.42 GW
+  Peak power flow             321.46 GW

@@ -1,0 +1,2 @@
+  Taper ratio A(GEO)/A(bot)                    724.5004        305.3670
+  log10(taper ratio)                             2.8600          2.4848

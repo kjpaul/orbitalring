@@ -1,0 +1,4 @@
+   Peak power:              416.47 GW
+   Total KE:                4612.5 TJ
+   Payload KE:              2250.0 TJ
+   Energy efficiency:       48.8%

@@ -1,0 +1,4 @@
+  Smallest gap in any single failure: 50.2 mm in 'pull 50 ms late' (point).
+  Does any single failure lead to contact: no.
+  B.6  114 cases in all.  Contact in: one support track lost at rest, other takes over, no protection; roll: one lift track alone, no per-side regulation; 2. both support tracks lose both windings at rest; 2. both support tracks lose both windings during the pass.
+  Smallest gap in any single failure: 50.2 mm in 'pull 50 ms late'.  Case 2 (both tracks, both windings) is a double failure by design

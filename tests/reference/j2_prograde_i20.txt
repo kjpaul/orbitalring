@@ -1,0 +1,2 @@
+  The ring precesses freely at the J2 rate of 6.50 deg/day
+  J2 causes regression: dΩ/dt_J2 = -6.5033 deg/day

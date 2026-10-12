@@ -1,0 +1,1 @@
+A1 air, 20 flat coils, one polarity                  NI   100.0 kA: B_pole 0.0054 T  B_track 0.0054 T  F     0.0 kN/m  B_plate 0.001 T  W_mag      68.0 J/m  winding Bx 0.074/0.013  By 0.124/0.046 T (max/mean)

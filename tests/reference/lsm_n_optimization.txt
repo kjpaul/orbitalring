@@ -1,0 +1,1 @@
+  N=50: v_cross = 5.0 km/s, overhead ~ 2.3%

@@ -1,0 +1,4 @@
+  Panel width                      53.0 m
+  Power per site                    8.0 MW
+  Deployment 8 MW (53 m)          53m      680.89 GW      666.00 GW
+  Deployment 16 MW (107 m)       107m        1.37 TW        1.33 TW

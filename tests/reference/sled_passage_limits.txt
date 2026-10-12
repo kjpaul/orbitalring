@@ -1,0 +1,2 @@
+       29    29.52  11.74             2000 /    2900            2200 /    4300            3400 /    5800            6500 /    9900
+  L_sc * ((F_max - weight)/a_down - 525), which with 2 m of track at 400 A and L_sc = 100 m is 1,501 t at rest and 1,928 t at 3 km/s.

@@ -1,0 +1,2 @@
+  Peak radial load (g)                                                  12.2      12.6     12.15   pass
+  radial load is 12.60 g and every load-based hand value is 3.7 % higher.

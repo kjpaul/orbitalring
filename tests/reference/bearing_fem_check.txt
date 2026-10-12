@@ -1,0 +1,2 @@
+    box   12 m: y =   0 mm: 0.19751 T against 0.20000 (-1.24 %), y =  50 mm: 0.18606 T against 0.18824 (-1.16 %), y = 100 mm: 0.15856 T against 0.16000 (-0.90 %)
+    20.0 mm cells: 0.6166 T against 0.6283 (-1.86 %); the sheet is 4 m wide in a 6 m box, the error is the finite width

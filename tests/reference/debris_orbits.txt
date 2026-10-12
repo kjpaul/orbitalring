@@ -1,0 +1,3 @@
+   swept      0 kg/m, recoil  -429: v = 7,841 m/s, perigee 700 km, apogee 2,131 km
+   swept      0 kg/m, recoil    +0: v = 8,270 m/s, perigee 700 km, apogee 4,565 km
+   swept      0 kg/m, recoil  +429: v = 8,699 m/s, perigee 700 km, apogee 8,113 km

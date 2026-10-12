@@ -1,0 +1,2 @@
+   1. L= 3000m  W=2.00m  plate= 10764t  payload=   5580t  total=  16404t  η=34.0%  T=800K  #S3=3.0
+   2. L= 4500m  W=2.00m  plate= 16146t  payload=   8370t  total=  24606t  η=34.0%  T=800K  #S3=4.5

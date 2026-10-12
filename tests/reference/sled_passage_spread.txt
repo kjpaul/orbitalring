@@ -1,0 +1,2 @@
+  Chosen rule: 4 (fixed T = 50 ms, at least the pass), the rule inside the band with the shortest energized track, then the smallest excursion.
+  one-sentence rule: the pull lasts 50 ms, or as long as the spacecraft zone takes to pass if that is longer.

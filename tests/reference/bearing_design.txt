@@ -1,0 +1,4 @@
+    W = 1.5 m: best 452 kN/m (301 kN/m per meter of width): W 1.5 m, 2 full + 2 half poles of 350 mm, slots 150 mm, depth 300 mm, plate 300 mm
+    Design point, the rated pull at half Ic: 349 kN/m at 136.1 kA-turns per pole (3 poles, 408 kA-turns per track);
+    Rated pull (50 percent efficiency) 349 kN/m per track, 698 kN/m for the pair; curve maximum 611 kN/m at 300 kA.
+  Lift: W 1.5 m, 2 full + 2 half poles of 350 mm, slots 150 mm, depth 300 mm, plate 300 mm: rated 452 kN/m per track at 125 kA per pole.

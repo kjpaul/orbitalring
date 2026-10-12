@@ -1,0 +1,6 @@
+Final velocity:       30,000.1 m/s
+Total time:           189.7 minutes (3.16 hours)
+Distance traveled:    222,015.5 km
+Fraction of ring:     499.2%
+Peak thrust:          83.29 MN
+Peak g-load:          12.155 g

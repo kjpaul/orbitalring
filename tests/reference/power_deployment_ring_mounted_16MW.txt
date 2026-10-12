@@ -1,0 +1,2 @@
+  Panel width                      53.0 m
+  Total generation            685.17 GW

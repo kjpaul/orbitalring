@@ -1,0 +1,2 @@
+  Peak velocity:        3400.1 m/s   at    51.2 km
+  beta=  500  |  v_max= 3400.1 m/s @  51.2 km  |  q_max=  718.72 kW/m^2 @  27.2 km  |  g_max= 36.80 g  |  t_total=  508.8 s  |  Q_total=   6.93 MJ/m^2

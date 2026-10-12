@@ -1,0 +1,1 @@
+{'h': 700, 'peri_nom': 700.0, 'apo_nom': 4565.47, 'peri_w': 587.08, 'apo_w': 2300.51, 'life_nom_rod': inf, 'life_w_rod': 65950.48, 'life_w_600': 6265.41, 'life_w_60': 626.54}
