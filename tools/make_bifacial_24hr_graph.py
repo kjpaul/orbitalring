@@ -2,7 +2,7 @@
 """
 Draws the 24-hour output of a bifacial solar panel riding on the ring.
 Book: The Orbital Ring, Volume IV: Chapter 10 or 16 figure (bifacial panel output).
-Run: python make_bifacial_24hr_graph.py
+Run: python tools/make_bifacial_24hr_graph.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 
 Regenerate the bifacial solar panel 24-hour output graph for Chapter 7
@@ -27,6 +27,8 @@ contribution, blue stacks the albedo contribution on top, the red
 dashed line marks the 24-hour average, and the shadow regions are
 shaded gray with "Earth's Shadow" callouts.
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 
 import math
 import os

@@ -1,613 +1,159 @@
-# LIM Deployment Simulator for Orbital Ring Systems
+# The Orbital Ring, Volume IV: Space Mass Transit Complete Design Review
 
-A physics-based simulator for modeling the deployment of an orbital ring using Linear Induction Motors (LIMs). This code accompanies **"Ion Propulsion Engineering"** (Technical Book II of the *Astronomy's Shocking Twist* series) by Paul G de Jong.
+Simulation code by Paul G. de Jong, part of *Astronomy's Shocking Twist*, a ten-part series of five technical works and five novels.
 
-The simulator models the months-long process of decelerating a magnetically levitated cable from orbital velocity (7,755 m/s) to ground-stationary velocity (483 m/s at 250 km altitude) using distributed LIM sites around the ring.
+This repository holds the calculations behind *The Orbital Ring*, the first of the five technical works, published in four volumes: Volume I, *The Economic Case for Space Mass Transit*; Volume II, *First Principles: Orbital Mechanics, Materials Science, and Electrical Engineering*; Volume III, *Mass Transit Launch Technologies: Levitation, Linear Motors, Mass Drivers, and Space Elevators*; Volume IV, *Space Mass Transit Complete Design Review*. The scripts here produce the numbers, tables and figures of Volume IV: an orbital ring at 700 km, a cable moving retrograde inside a stationary casing, held off the casing by a superconducting levitation bearing, deployed by linear induction motors, and used as a launch track by a linear synchronous motor mass driver. The first edition of the book, which the manuals in `docs/` were written for, is *Orbital Ring Engineering: Mechanics and Material Science for Space Launch Mass Transit Systems* (October 16, 2025).
 
----
+Anyone can clone this repository, install the listed packages, run one command per subject, and get the numbers printed in the book.
 
-## Requirements
+## The design point
 
-Python 3.10 or later and the packages in `requirements.txt`:
+Set in `ring_altitude.py`, which every script reads (values from its log, `ring_altitude_700.txt`):
+
+| Quantity | Value |
+|---|---|
+| Ring altitude | 700 km, equatorial |
+| Cable direction | retrograde (westward) |
+| Ring circumference | 44,473 km |
+| Casing mass per meter | 12,000 kg/m |
+| Cable hardware per meter (motor plates and bearing plates) | 10,686 kg/m |
+| Cable mass per meter, structural | 115,005 kg/m |
+| Cable mass per meter, with hardware | 125,691 kg/m |
+| Cable speed | 8,270 m/s |
+| Cable speed relative to the casing | 8,786 m/s |
+| Cable tension | 845.6 GN |
+| Cable cross-section | 67.65 m² (8.22 m square) |
+| Ring mass | 6,124 million tonnes |
+| Deployment energy | 18.8 EJ |
+| Suspended solar array | 600 km, 100 km below the ring |
+
+## Install
+
+Python 3.10 or later. Then, from the repository root:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-That installs numpy, scipy, matplotlib, pymsis (the NRLMSIS atmosphere for `altitude_trade.py`) and scikit-fem (the independent check of the field solver in `bearing_fem_check.py`). The logs behind the book were made with Python 3.14, numpy 2.4, scipy 1.18, matplotlib 3.11, pymsis 0.13 and scikit-fem 12.0.
+This installs numpy, scipy, matplotlib, pymsis (the NRLMSIS atmosphere model, for `altitude_trade.py`) and scikit-fem (the independent check of the field solver in `bearing_fem_check.py`). The logs behind the book were made with Python 3.14, numpy 2.4, scipy 1.18, matplotlib 3.11, pymsis 0.13 and scikit-fem 12.0, and a clean installation of the same list reproduced them.
 
-Optional, only for the scripts named:
+Optional packages, only for the scripts named: `tabulate` for nicer tables in `lim_simulation.py` (the book's logs were made without it, so they carry the line "tabulate not installed"); `aep8`, `astropy`, `ppigrf`, `netCDF4` and `geant4_pybind` for the radiation chain in `radiation/` (the Geant4 and AP-8 results are tracked, so the Chapter 5 tables can be rebuilt without them); `cairosvg` to turn the bearing cross-section figure into a PNG; a LaTeX installation with `dvisvgm` for the equation images; `pytest` for the reference check.
 
-- `tabulate`: nicer tables in `lim_simulation.py` (the book's logs were made without it, so the log says "tabulate not installed").
-- `aep8`, `astropy`, `ppigrf`, `netCDF4`, `geant4_pybind`: the radiation chain in `radiation/` (Chapter 5). The Geant4 and AP-8 results are tracked, so the chapter's tables can be rebuilt without them.
-- A LaTeX installation with `dvisvgm`: the equation images.
-
-Every script writes its files (logs, figures, CSV, JSON) under the folder named by `ORBITAL_RING_OUT` (default `runs`). The ring's design point is set in `ring_altitude.py` and can be overridden for comparison runs with `ORBITAL_RING_ALT_KM`, `ORBITAL_RING_CABLE`, `ORBITAL_RING_HW_KGM` and `ORBITAL_RING_ARRAY_OFFSET_KM`. `python run_all.py` reruns the whole set and keeps one log per run; `data/` holds the tracked input files (tape data, solver caches, design-history logs, see `data/README.md`).
-
-To check that the code still prints the numbers in the book: `pip install pytest`, then `python -m pytest tests` from the repository root (about a minute). It asserts the design point of `ring_altitude.py`, runs every fast simulation and compares its headline lines with `tests/reference/`, and checks the slow simulations against the logs of your own `python run_all.py` run (skipped until that run exists).
-
----
-
-## Quick Start
-
-### Installation
+## Reproduce the book
 
 ```bash
-pip install matplotlib tabulate
+python run_all.py
 ```
 
-### Run with Defaults
+This runs the 48 cases behind Chapters 1 to 9 and writes one log per case into `runs/` (`runs/ring_altitude_700.txt`, `runs/final_bearing.txt` and so on), with the figures and CSV files in subfolders. It took 3 hours 18 minutes on a laptop, with the solver caches in `data/` in place; the LIM deployment and the levitation bearing dynamics take most of it. `python run_all.py --list` prints the cases, `--only=name,name` runs a few, `--no-lim` skips the two deployment runs (about 20 minutes). The same list is in `run_700.sh` and `run_700_lim.sh` for bash.
+
+## Subjects
+
+Run each script from the repository root. Chapters are chapters of Volume IV; "log" is the file `run_all.py` writes.
+
+### The ring
+
+| Script | What it prints | Chapter |
+|---|---|---|
+| `ring_altitude.py` | the design point: radius, speeds, cable mass and tension, ring mass, deployment energy (log `ring_altitude_700.txt`; the prograde, 250 km and 800 km tables through the environment variables) | 1, 3, 8 (Table 8.1), and every chapter's ring numbers |
+| `j2_simulation.py --inclination=20` | J2 precession of an inclined ring and the torque the anchor lines hold (logs `j2_retrograde_i*.txt`, `j2_prograde_i*.txt`) | 2 |
+| `anchor_line_analysis.py --inclination=20` | anchor lines of an inclined ring: lateral force, line angle, length, stress, taper, number of lines per station (logs `anchor_700_i*.txt`) | 2 (Table 2.1), 15 |
+| `lim_simulation.py` | deployment of the ring by linear induction motors: months of decelerating the cable, power, current and thermal limits (logs `lim_simulation.txt`, `lim_simulation_16MW.txt`; manual in `docs/LIM_README.md`) | 3 (deployment time and energy), 10, 12, 13 |
+| `debris_simulation.py` | where the released cable and the falling casing go after a break; drag lifetimes; minimum safe altitude (log `debris_simulation.txt`) | 4, 19 |
+| `debris_orbits.py` | orbits of the released cable: apogee for each recoil case, the two halves (log `debris_orbits.txt`) | 4 |
+| `altitude_trade.py` | released-cable orbits and drag lifetimes at several ring altitudes (log `altitude_trade.txt`) | 4, 19 |
+| `radiation/` | the trapped-proton and cosmic-ray chain of Chapter 5: AP-8 spectra, the anomaly sector, Geant4 depth-dose, dose tables, Figure 5.1 (see `radiation/README_radiation.md`) | 5 |
+
+### The levitation bearing
+
+The bearing has four tracks of air-core superconducting coils: two support tracks under the cable that carry the casing, each with a driven compensation winding, and two lift tracks above the cable that pull against a passing spacecraft. There are no Halbach arrays and no iron on the casing.
+
+| Script | What it prints | Chapter |
+|---|---|---|
+| `final_bearing.py` | the adopted bearing: track ratings, 114 dynamics cases (no single failure leads to contact, smallest gap 50 mm), losses, bundle and stray field, and the ring renumbered with the bearing's plates (log `final_bearing.txt`) | 8 (Sections 8.1 to 8.3, Tables 8.2 to 8.4) |
+| `bearing_mass.py` | the mass of an iron-core bearing against the cable it costs, and the air-core alternative (log `bearing_mass.txt`) | 8 |
+| `bearing_design.py` | iron-core field design: pole geometries solved with the 2-D solver, ratings, tape, coil lengths, protection (log `bearing_design.txt`) | 8 (the route that mass ruled out) |
+| `bearing_fem_check.py` | the field solver checked against known answers and against scikit-fem (log `bearing_fem_check.txt`) | 8 |
+| `compensation_fields.py` | the field cases of the compensation and support tracks; rewrites the cache `data/compensation_fields.json` (log `compensation_fields.txt`) | 8 |
+| `sled_passage_simulation.py` | the load a passing spacecraft puts on the bearing: 12.6 g radial, the neutral speed, the casing's movement (log `sled_passage.txt`) | 8 (Section 8.3) |
+| `magnetostatic_2d.py` | the two-dimensional field solver the bearing scripts import | 8 |
+| `lsm_simulation.py` | the mass driver launch the bearing scripts take their speed profile from (see below) | 8, 14 |
+
+A coil optimization script, `bearing_optimize.py`, is planned for this table.
+
+### Launch and power
+
+| Script | What it prints | Chapter |
+|---|---|---|
+| `lsm_simulation.py` | linear synchronous motor mass driver: the casing carries the stator coils and the sled carries DC superconducting magnets; laps, time, power and acceleration to the launch speed (log `lsm_simulation.txt`; manual in `docs/LSM_README.md`) | 14 |
+| `md_simulation.py --no-graphs` | four-stage linear induction mass driver, eddy current model (log `md_simulation.txt`) | 14 |
+| `md_trade_study.py` | the induction driver's payload against length, plate and thermal margin, with figures (log `md_trade_study.txt`) | 14 |
+| `power_simulation.py` | solar generation on the ring and the suspended array, HVDC distribution, deployment and operations demand (logs `power_*.txt`) | 10, 16 |
+| `tether_stress.py`, `freefall_trajectory.py`, `climber_descent.py`, `atmospheric_loading.py`, `rendezvous_analysis.py` | the ground-anchored tether: taper, free fall from release, descent from GEO, wind loading, rendezvous speeds (logs `tether_stress.txt`, `freefall.txt`, `climber_descent.txt`, `atmospheric_loading.txt`, `rendezvous.txt`; `tether_run_all.py` runs the five) | 17 |
+| `lunar/` | a mass driver on the Moon (its own configuration, physics and simulation; unchanged since the first edition). The Moon is covered in Volumes I and IV of *The Orbital Ring*. | 22 |
+
+### Tools (reproduce a table or figure)
+
+| Script | What it does | Chapter |
+|---|---|---|
+| `tools/ch4_numbers.py` | the numbers of the Chapter 4 tables, written to `runs/ch4_numbers.json` (log `ch4_numbers.txt`) | 4 (Tables 4.2 to 4.5) |
+| `tools/ch4_extra.py` | Chapter 4 numbers the tables do not carry | 4 (Table 4.1) |
+| `tools/ch4_figures.py` | Figures 4.1 to 4.6, as SVG and PNG in `runs/figures_ch04/` | 4 |
+| `tools/generate_equations_latex.py` | the worked equations with every number from `ring_altitude.py`, as LaTeX in `runs/equations/` (SVG when LaTeX is installed) | 1 to 4, 10 |
+| `tools/generate_fig_bearing_cross_section.py` | Figure 8.1, the bearing cross section, in `runs/figures_ch08/` | 8 |
+| `tools/numbers_700_hand.py` | hand calculations that check quoted numbers (Table 2.1, horizon, array shading) | 2, 3, 4, 15, 16 |
+| `tools/number_sheet_hw10686.py` | the number sheet of the cable hardware change, from two folders of logs | the renumbering pass |
+| `tools/lsm_chapter_metrics.py`, `tools/lsm_n_optimization_demo.py` | energies and cryogenic loads of the launch; why a fixed stator turn count is best (logs `lsm_chapter_metrics.txt`, `lsm_n_optimization.txt`) | 14 |
+| `tools/make_bifacial_24hr_graph.py`, `tools/make_solar_hammock_plots.py` | the solar panel and suspended array figures, in `runs/graphs_power/` | 10, 16 |
+| `tools/sled_passage_config_table.py` | the configuration table of the sled passage problem | review only |
+| `tools/graph_plate_thickness_vs_thrust.py`, `tools/hts_coil_inductance_analysis.py` | thrust against plate thickness; HTS coil inductance with eddy currents | 12 (not yet revised) |
+
+### Design history
+
+Kept and runnable, labelled in their first line. The bearing they describe is not the adopted one.
+
+| Script | What it is | Chapter |
+|---|---|---|
+| `levitation_simulation.py all`, `levitation_physics.py`, `levitation_config.py` | the Halbach limiter bearing that Chapter 8 considered and did not adopt (log `levitation.txt`) | 7, 8 |
+| `compensation_tracks.py` | the six-track layout with Halbach and LIM limiters, also not adopted (log `compensation_tracks.txt`) | 8 |
+| `sled_passage_limits.py`, `sled_passage_pulsed.py`, `sled_passage_spread.py` | the steps of the sled passage work that led to the adopted bearing (logs `sled_passage_limits.txt`, `sled_passage_pulsed.txt`, `sled_passage_spread.txt`) | 8 |
+
+### Not yet mapped to a revised chapter
+
+`gomory_lim_analysis.py`, `field_distribution.py`, `reentry.py`, `hts_coil_inductance_analysis.py` (in `tools/`), `gyro_simulation_v02.py`, `lim_optimizer_alu.py`, `lim_optimizer_gTiAl.py`. Chapters 10 onward have not yet been revised for the 700 km design; `docs/CHAPTER_MAP.md` maps Chapters 1 to 9.
+
+## Environment variables
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `ORBITAL_RING_ALT_KM` | ring altitude in km | 700 |
+| `ORBITAL_RING_CABLE` | `retrograde` or `prograde` | retrograde |
+| `ORBITAL_RING_HW_KGM` | cable hardware mass per meter, kg/m | 10686 |
+| `ORBITAL_RING_ARRAY_OFFSET_KM` | how far below the ring the solar array hangs, km (0 puts the panels on the ring) | 100 |
+| `ORBITAL_RING_OUT` | the folder every script writes to | runs |
+
+Every script that imports `ring_altitude.py` reads the first four; each script's docstring says which it uses. For example, `ORBITAL_RING_ALT_KM=800 python ring_altitude.py` prints the 800 km reference table, and `ORBITAL_RING_CABLE=prograde python j2_simulation.py --inclination=20` runs the prograde ring.
+
+## Tests
 
 ```bash
-python lim_simulation.py
+pip install pytest
+python -m pytest tests
 ```
 
-### Run with Graphs (Interactive Display)
+About a minute. The test asserts the design point of `ring_altitude.py` to the precision the book quotes, runs the 22 fast simulations and compares their headline lines with `tests/reference/` (copied from the reference run), and checks the 13 slow simulations against the logs of your own `python run_all.py` run (skipped, with the command to make them, until that run exists). Any difference is a changed number: the reference lines carry no run-time stamps and no paths.
 
-```bash
-python lim_simulation.py --show thrust power current
-```
+## Data and documentation
 
-### Save Graphs to Files
-
-```bash
-python lim_simulation.py --save all clean
-```
-
-### Select Thrust Model
-
-```bash
-python lim_simulation.py --model=1    # Narrow plate eddy current (default)
-python lim_simulation.py --model=2    # Goodness factor (Laithwaite)
-python lim_simulation.py --model=3    # Slip × pressure (theoretical max)
-```
-
-### Select Thermal Mode
-
-```bash
-python lim_simulation.py --thermal=cable   # Cable absorbs eddy heat (default)
-python lim_simulation.py --thermal=cryo    # Cryo handles all heat
-```
-
-### Quick Test Run
-
-```bash
-python lim_simulation.py --quick           # Fast run with larger time steps
-```
-
-### Custom Mass Configuration
-
-```bash
-python lim_simulation.py --m_load=50000    # Set cable mass based on new load mass of 50,000 kg/m
-```
-
-### Full Help
-
-```bash
-python lim_simulation.py --help
-```
-
----
-
-## Graph Output
-
-The simulator can save publication-quality graphs to files or display them interactively.
-
-### Saving Graphs
-
-```bash
-python lim_simulation.py --save all clean              # Save all graphs to ./graphs/
-python lim_simulation.py --outdir=./figures all clean  # Custom output directory
-python lim_simulation.py --dpi=600 all clean           # Higher resolution for print
-```
-
-Graphs are saved with numbered filenames in logical order:
-- `01-current.png`
-- `02-volts.png`
-- `03-v_slip.png`
-- ... and so on
-
-### Graph Configuration
-
-Edit `lim_config.py` to set defaults:
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `SAVE_GRAPHS` | True | Save to files (True) or display (False) |
-| `GRAPH_OUTPUT_DIR` | "./graphs" | Output directory for saved graphs |
-| `GRAPH_DPI` | 300 | Resolution (300 DPI is standard for print) |
-| `GRAPH_WIDTH_INCHES` | 10 | Figure width in inches |
-| `GRAPH_HEIGHT_INCHES` | 5 | Figure height in inches |
-| `GRAPH_FORMAT` | "png" | Output format: "png", "pdf", "svg", "jpg" |
-
-### Command-Line Overrides
-
-| Option | Description |
-|--------|-------------|
-| `--save` | Force save to files |
-| `--show` | Force interactive display |
-| `--outdir=PATH` | Set output directory |
-| `--dpi=N` | Set resolution |
-
----
-
-## Code Structure
-
-The simulator is organized into three modules:
-
-| File | Description |
-|------|-------------|
-| `lim_simulation.py` | Main entry point, simulation loop, plotting |
-| `lim_config.py` | All configurable parameters and material properties |
-| `lim_physics.py` | Physics calculation functions |
-
-This modular structure allows you to:
-- Modify parameters without touching physics code
-- Import physics functions for standalone calculations
-- Test individual components independently
-
-### Module Organization
-
-**lim_config.py** (Configuration):
-- Section 1: User-configurable parameters
-- Section 2: Physical constants
-- Section 3: Material properties (5 materials)
-- Section 4: Derived parameters
-- Section 5: Physics parameter dictionary
-- Section 6: Display utilities
-
-**lim_physics.py** (Physics):
-- Orbital dynamics (cable/casing velocity, deployment progress)
-- Slip and frequency calculations
-- Magnetic field calculations (B at plate, B in coil)
-- Material properties (temperature-dependent resistivity)
-- Eddy current losses (from thrust power balance)
-- Thrust models (3 options)
-- Thermal calculations (plate temperature, cable equilibrium)
-- Cryogenic system sizing (COP, heat loads)
-- Radiator calculations (width for heat rejection)
-- Kinetic energy tracking
-
-**lim_simulation.py** (Simulation):
-- Data collection arrays (23 tracked quantities)
-- Main simulation loop with 10-iteration controller
-- Predictive power control with slip ratio adjustment
-- Limit enforcement (voltage, power, temperature)
-- Monthly progress display
-- Plotting functions with peak/final annotations
-- High-resolution graph export
-- Command-line interface
-
----
-
-## Configuration
-
-All parameters are configured by editing `lim_config.py`. The most frequently-modified parameters appear at the top with detailed comments explaining valid ranges and trade-offs.
-
-### HTS Tape Configuration
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `HTS_TAPE_WIDTH_MM` | 3 | Tape width (3, 4, 6, or 12 mm) |
-| `HTS_TAPE_LAYERS` | 1 | Parallel tape layers (1–3) |
-| `IC_PER_MM_PER_LAYER` | 66.7 | Critical current density (A/mm/layer) |
-| `DE_RATING_FACTOR` | 0.9 | Multilayer self-inductance compensation |
-| `NORRIS_HYSTERESIS` | False | Use Norris formula for hysteresis loss |
-
-With 3 mm tape and 1 layer, I_c = 200 A, giving I_target ≈ 163 A.
-
-**Trade-off:** More layers → higher current capacity → more thrust, but more hysteresis losses and diminishing returns due to de-rating.
-
-### LIM Geometry
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `N_TURNS` | 200 | Turns per phase coil |
-| `TAU_P` | 100 m | Pole pitch (traveling wave wavelength / 2) |
-| `W_COIL` | 2.0 m | Coil width |
-| `GAP` | 0.20 m | Air gap to reaction plate |
-| `T_PLATE` | 0.2 m | Reaction plate thickness |
-| `PITCH_COUNT` | 3 | Pole pitches per LIM |
-
-**Key constraint:** The narrow-plate model (Model 1) assumes `W_COIL << TAU_P`.
-
-### Plate Geometry
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `W_PLATE` | 1.2 m | Reaction plate width |
-| `N_PLATES_PER_SIDE` | 1 | LIM reaction plates per side of cable |
-| `N_LEV_PLATES` | 1 | Levitation plates per side |
-| `D_LEV` | 0.10 m | Levitation plate thickness |
-| `W_LEV` | 1.4 m | Levitation plate width |
-
-### Reaction Plate Material
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `PLATE_MATERIAL` | `"gamma_titanium"` | Material selection |
-
-**Options:** `"aluminum"`, `"cuni7030"`, `"titanium"`, `"alpha_titanium"`, `"gamma_titanium"`
-
-The code includes full material properties for each option, including temperature-dependent resistivity.
-
-| Material | ρ₂₉₃ₖ (nΩ·m) | α (1/K) | Density (kg/m³) |
-|----------|-------------|---------|-----------------|
-| Aluminum | 26.5 | 0.00366 | 2700 |
-| CuNi 70/30 | 380 | 0.0004 | 8900 |
-| Pure Ti | 420 | 0.0035 | 4500 |
-| α₂-Ti₃Al | 500 | 0.0015 | 4200 |
-| γ-TiAl | 750 | 0.0012 | 3900 |
-
-### Site Configuration
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `LIM_SPACING` | 500 m | Distance between LIM sites |
-
-**Trade-off:** Closer spacing → faster deployment, higher plate temperature, limits τ_p length, less solar power per site.
-
-### Operating Limits
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `VOLTS_MAX` | 100 kV | Maximum induced coil voltage |
-| `MAX_SITE_POWER` | 8 MW | Power limit per LIM site |
-| `V_SLIP_MIN` | 5 m/s | Minimum slip velocity |
-| `V_SLIP_MAX` | 200 m/s | Maximum slip velocity |
-
-### Slip Control Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `SLIP_RATIO_NORMAL` | 0.02 | Target slip ratio at full current (2%) |
-| `SLIP_RATIO_REDUCED` | 0.005 | Reduced slip when power-limited (0.5%) |
-
-### Thermal Mode Configuration
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `EDDY_HEAT_TO_CABLE` | True | Thermal management strategy |
-| `CABLE_EMISSIVITY` | 0.85 | Cable surface emissivity |
-| `CABLE_SURFACE_AREA_PER_M` | 0.5 m²/m | Radiating surface area per meter |
-| `COIL_MLI_EFFECTIVENESS` | 0.001 | MLI insulation effectiveness |
-| `COIL_SURFACE_AREA_PER_SITE` | 10 m² | Approximate coil cryostat surface area |
-
-### Mass Model
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `M_CABLE_STRUCTURAL` | 96,581 kg/m | Structural cable mass per meter |
-| `M_LOAD_M` | 12,000 kg/m | Casing + payload per meter |
-| `SIGMA_CABLE` | 12.5 GPa | Operating stress (safety factor 2.0 on 25 GPa) |
-
-The `--m_load=` command-line option recalculates cable mass using the quadratic sizing equation in `calc_cable_mass()`, which couples momentum conservation, radial force balance, and the CNT stress constraint to determine the structural cable mass needed to support the specified load at 250 km orbital altitude.
-
----
-
-## Quick Mode
-
-For rapid testing, use `--quick` to run with larger time steps:
-
-```bash
-python lim_simulation.py --quick thrust power
-python lim_simulation.py --quick --thermal=cable radiator_width
-```
-
-Quick mode uses:
-- 10× larger time steps (10s → 100s → 500s instead of 1s → 10s → 50s)
-- More frequent data collection for smooth plots
-
-This reduces run time from several minutes to under a minute, with some loss of accuracy in the transient behavior. The final steady-state values are typically within a few percent of the full simulation.
-
----
-
-## Thermal Modes
-
-The simulator supports two thermal management strategies, selectable via `--thermal=` or by setting `EDDY_HEAT_TO_CABLE` in the config.
-
-### Cable Heat Sink Mode (`--thermal=cable`) — Default
-
-Eddy current heat remains in the cable, which warms until radiative equilibrium is reached (typically 300–450 K). Only hysteresis losses and coil environmental heat leak go through the cryogenic system.
-
-**Advantages:**
-- Dramatically smaller radiators (roughly 1/3 the size)
-- Lower cryocooler power consumption
-- Simpler heat path for eddy current losses
-
-**Disadvantages:**
-- Thermal expansion of cable (~0.3% strain at 350 K vs 70 K)
-- Must manage radiative coupling between warm cable and cold coils
-
-### Cryogenic Mode (`--thermal=cryo`)
-
-All heat—eddy current losses, hysteresis losses, and environmental absorption—is removed through the cryogenic system at 70 K. This requires large radiators due to the thermodynamic penalty of lifting heat from 70 K to 300 K.
-
-**Advantages:**
-- Cable stays cold, minimizing thermal expansion
-- Well-understood thermal path
-
-**Disadvantages:**
-- Requires massive radiators
-- High cryocooler power consumption
-
-### Comparing Modes
-
-Run both modes and compare radiator requirements:
-
-```bash
-python lim_simulation.py --thermal=cryo radiator_width cable_temp
-python lim_simulation.py --thermal=cable radiator_width cable_temp
-```
-
----
-
-## Thrust Models
-
-The simulator includes three physics models for LIM thrust, selectable via `--model=N`:
-
-### Model 1: Narrow Plate Eddy Current (Default)
-
-Accounts for the orbital ring geometry where coil width W is much smaller than pole pitch τ_p. Eddy currents form elongated loops with high return-path resistance and significant loop inductance.
-
-```
-←←←←←← current under negative pole ←←←←←←
-↓                                        ↑
-↓ return path (length τ_p = 100m)        ↑
-↓                                        ↑
-→→→→→→ current under positive pole →→→→→→
-```
-
-The loop impedance Z = √(R² + X²) where:
-- R = ρ × τ_p / (δ_eff × W) — dominated by the long return path
-- X = ω × L_loop — significant due to the elongated loop geometry
-
-**Best for:** Orbital ring design where W << τ_p. Most physically accurate for this application.
-
-### Model 2: Goodness Factor (Laithwaite)
-
-Classic LIM theory using Laithwaite's goodness factor G:
-
-$$G = \frac{\omega_{slip} \cdot \mu_0 \cdot \sigma \cdot \delta_{eff} \cdot \tau_p}{\pi}$$
-
-Slip efficiency: $\eta = \frac{2sG}{1 + s^2G^2}$
-
-**Best for:** Comparison with literature; assumes W > τ_p (wide plate).
-
-### Model 3: Slip × Pressure (Theoretical Maximum)
-
-Simple upper bound assuming perfect phase alignment:
-
-$$F = s \times \frac{B^2 A}{2\mu_0}$$
-
-**Best for:** Understanding theoretical limits.
-
----
-
-## Available Plots
-
-Specify plots as command-line arguments. When saving, plots are numbered in this order:
-
-| # | Name | Description |
-|---|------|-------------|
-| 01 | `current` | Coil current (A) |
-| 02 | `volts` | Induced voltage (V) |
-| 03 | `v_slip` | Slip velocity (m/s) |
-| 04 | `slip` | Slip ratio (%) |
-| 05 | `f_slip` | Slip frequency (Hz) |
-| 06 | `v_rel` | Relative velocity cable–casing (m/s) |
-| 07 | `b_peak` | Magnetic field at plate (T) |
-| 08 | `thrust` | Thrust force per site (N) |
-| 09 | `p_thrust` | Thrust power per site (W) |
-| 10 | `p_eddy` | Eddy current losses per site (W) |
-| 11 | `hyst` | HTS hysteresis losses per site (W) |
-| 12 | `p_heat` | Total heat losses per site (W) |
-| 13 | `lim_power` | LIM power (W) |
-| 14 | `power` | Total site power (W) |
-| 15 | `cryo` | Cryogenic power requirement (W) |
-| 16 | `q_cryo` | Cryo cold-side heat load (W) |
-| 17 | `plate_temp` | Reaction plate temperature (K) |
-| 18 | `cable_temp` | Cable equilibrium temperature (K) |
-| 19 | `radiator_width` | Required radiator width (m) |
-| 20 | `skin` | Effective skin depth (mm) |
-| 21 | `skin_calc` | Calculated skin depth (mm) |
-| 22 | `ke_site` | Cumulative kinetic energy per site (J) |
-| 23 | `ke_all` | Cumulative kinetic energy all sites (J) |
-
-Use `all` to generate all plots.
-
-### Plot Display Options
-
-| Option | Description |
-|--------|-------------|
-| `fulldata` | Show parameter list in title bar |
-| `timeonly` | Show deployment days and years in title bar |
-| `clean` | Only show title and axis labels |
-
-**Examples:**
-```bash
-python lim_simulation.py --save all clean
-python lim_simulation.py --show thrust power plate_temp cable_temp radiator_width
-python lim_simulation.py --outdir=./book_figures --dpi=600 all timeonly
-```
-
----
-
-## Output
-
-### Monthly Progress Display
-
-The simulator prints monthly progress during deployment:
-
-```
-Month | Progress | Voltage | Current | Thrust | Site Power | Radiator W
----------------------------------------------------------------------------
-    0 |    0.0% |    1234 V |  48.7 A |   134 N |  2.45 MW |   3.21 m
-    1 |    2.3% |    2456 V | 163.0 A |   538 N |  5.12 MW |   4.67 m
-   ...
-```
-
-### Final Summary
-
-Final summary includes:
-- Deployment time (days, years)
-- Final cable and casing velocities
-- Energy per site (TJ)
-- Total energy delivered (EJ)
-- Energy verification via ½mv² calculation
-- Thermal mode and key thermal metrics
-- Maximum cable temperature
-- Maximum radiator width
-- Maximum cryogenic cold-side heat load
-
-### Max/Min Tracking
-
-The simulation tracks peak values for 19 quantities including:
-- Voltage, current, slip velocity
-- Thrust, thrust power
-- Eddy current and hysteresis losses
-- Plate and cable temperatures
-- Site power, cryogenic power
-- Radiator width requirements
-
-### Output File
-
-Results are appended to `./output/_orbital_ring_modelN.txt` where N is the thrust model number.
-
----
-
-## Physics Summary
-
-### Orbital Parameters at 250 km
-
-| Parameter | Value |
-|-----------|-------|
-| Orbital velocity | 7,754.866 m/s |
-| Ground-stationary velocity | 483.331 m/s |
-| Ring circumference | 41,645,813 m |
-| Net acceleration | 9.038 m/s² |
-| Orbital radius | 6,628,137 m |
-
-### Magnetic Field at Reaction Plate
-
-For a rectangular current sheet at gap distance g, with 3-phase traveling wave:
-
-$$B = \frac{3\mu_0 N I_{peak}}{\pi W} \cdot \arctan\left(\frac{W}{2g}\right)$$
-
-The factor of 1.5 (giving 3μ₀/π) accounts for the 3-phase traveling wave amplitude.
-
-### Temperature-Dependent Resistivity
-
-Resistivity varies with temperature:
-
-$$\rho(T) = \rho_{293K} \times [1 + \alpha(T - 293)]$$
-
-### Skin Depth
-
-$$\delta = \sqrt{\frac{\rho}{\pi \mu_0 f_{slip}}}$$
-
-Effective depth = min(δ, plate_thickness).
-
-### Slip Power Balance
-
-Secondary (reaction plate) losses equal slip power:
-
-$$P_{eddy} = F \times v_{slip}$$
-
-This self-consistent approach prevents unphysical runaway in the thermal model.
-
-### Cable Equilibrium Temperature
-
-When `EDDY_HEAT_TO_CABLE = True`, the cable temperature is found from radiative equilibrium:
-
-$$T_{eq} = \left( \frac{P_{eddy,total} / L_{ring}}{\varepsilon \sigma A_{surface/m}} + T_{space}^4 \right)^{0.25}$$
-
-### Cryogenic Power and Radiator Sizing
-
-COP with practical efficiency:
-
-$$COP = \frac{T_{cold}}{T_{hot} - T_{cold}} \times \eta_{cryo}$$
-
-Heat rejected at radiator (must include both heat lifted and compressor work):
-
-$$Q_{reject} = Q_{cold} \times \left(1 + \frac{1}{COP}\right)$$
-
-Radiator width for given length L:
-
-$$W_{radiator} = \frac{Q_{reject}}{\varepsilon \sigma (T_{hot}^4 - T_{space}^4) \times L}$$
-
-Default: η_cryo = 0.05 (5% of Carnot), T_cold = 70 K, T_hot = 400 K.
-
-### Kinetic Energy Verification
-
-The simulation tracks cumulative thrust power and verifies against analytical kinetic energy:
-
-$$KE = \frac{1}{2} m_{per\_m} \cdot (v_{final}^2 - v_{initial}^2) \cdot L_{ring}$$
-
-This provides a sanity check that energy is conserved to high precision.
-
----
-
-## Typical Results
-
-With default parameters (3mm × 1-layer HTS tape, 200 turns, 8 MW site power, γ-TiAl plate):
-
-| Metric | Cable Mode |
-|--------|------------|
-| Deployment time | ~14 months |
-| Peak thrust per site | ~2,800 N |
-| Peak site power | 8 MW |
-| Max cable temperature | ~370 K |
-| Max radiator width | ~5 m |
-| Total energy | ~15 EJ |
-
-Results vary significantly with thrust model selection and configuration.
-
----
-
-## Controller Logic
-
-The simulation uses a proportional controller with predictive power management:
-
-1. **Power margin assessment**: Calculate headroom relative to MAX_SITE_POWER
-2. **Slip ratio targeting**: Interpolate between SLIP_RATIO_NORMAL (2%) and SLIP_RATIO_REDUCED (0.5%) based on power margin
-3. **Current headroom blending**: Further reduce slip target when current is well below target
-4. **Smooth actuator response**: Exponential smoothing with configurable time constant
-5. **Limit enforcement**: Scale back current and slip if voltage, power, or temperature limits exceeded
-6. **Startup ramp**: Gradual current increase during first hour
-
-The controller iterates up to 10 times per time step to achieve self-consistency between thrust, losses, temperature, and power.
-
----
-
-## Legacy Code
-
-The original single-file version of the simulator is available as `lim_deployment_sim.py`. To use the legacy code:
-
-```bash
-python lim_deployment_sim.py --model=1 thrust power
-```
-
-The legacy code has all parameters and physics in a single file. It does not include the thermal mode switch, radiator width calculations, graph saving, or the `--m_load` option. Use it if you prefer a single-file solution or need to compare with earlier results.
-
----
-
-## Related Resources
-
-- **Orbital Ring Engineering** (Volume I) — Cable mechanics, anchor systems, material science
-- **Ion Propulsion Engineering** (Volume II) — LIM physics, deployment analysis
-- Orbital Ring Engineering website: https://www.orbitalring.space/coding-hub/
-
----
+- `data/`: input files the scripts read, all tracked: the THEVA tape data (used with permission of THEVA), the three solver caches with their recompute commands, and three design-history logs. See `data/README.md`.
+- `docs/LIM_README.md` and `docs/LSM_README.md`: the manuals of the deployment simulator and the mass driver, written for the first edition at 250 km.
+- `docs/CHAPTER_MAP.md`: for Chapters 1 to 9, the script and log behind each table and figure.
+- `radiation/README_radiation.md`: the Chapter 5 radiation chain.
 
 ## License
 
-MIT License — see LICENSE file for details.
-
----
+MIT License, see `LICENSE`.
 
 ## Citation
 
-If you use this code in academic work, please cite:
-
-> de Jong, P.G. (2025). *Orbital Ring Engineering: Mechanics and Material Science for Space Launch Mass Transit Systems, Volume I*. Astronomy's Shocking Twist Series.
+Paul G. de Jong, *The Orbital Ring, Volume IV: Space Mass Transit Complete Design Review*. https://orbitalring.space and https://github.com/kjpaul/orbitalring

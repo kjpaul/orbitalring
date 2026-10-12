@@ -2,7 +2,7 @@
 """
 Prints the configuration table of the sled passage problem for review.
 Book: The Orbital Ring, Volume IV: Not quoted by a chapter (a review tool).
-Run: python sled_passage_config_table.py
+Run: python tools/sled_passage_config_table.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
 Configuration table for the sled passage problem (2026-10-09, for Paul's review).
@@ -16,6 +16,8 @@ variable that the limits script holds fixed:
 The limiter and the EML are assumed to share the same gap, as in the other scripts.
 Reaction plate: molybdenum.
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import math, sys
 import numpy as np
 import levitation_config as lc

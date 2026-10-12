@@ -22,14 +22,14 @@ python3 rendezvous_analysis.py > $O/rendezvous.txt 2>&1
 python3 freefall_trajectory.py > $O/freefall.txt 2>&1
 python3 atmospheric_loading.py > $O/atmospheric_loading.txt 2>&1
 python3 climber_descent.py > $O/climber_descent.txt 2>&1
-python3 lsm_chapter_metrics.py > $O/lsm_chapter_metrics.txt 2>&1
-python3 lsm_n_optimization_demo.py > $O/lsm_n_optimization.txt 2>&1
+python3 tools/lsm_chapter_metrics.py > $O/lsm_chapter_metrics.txt 2>&1
+python3 tools/lsm_n_optimization_demo.py > $O/lsm_n_optimization.txt 2>&1
 python3 lsm_simulation.py > $O/lsm_simulation.txt 2>&1
 python3 md_simulation.py --no-graphs > $O/md_simulation.txt 2>&1
 python3 md_trade_study.py > $O/md_trade_study.txt 2>&1
 python3 debris_simulation.py > $O/debris_simulation.txt 2>&1
 python3 debris_orbits.py > $O/debris_orbits.txt 2>&1
-python3 ch4_numbers.py > $O/ch4_numbers.txt 2>&1
+python3 tools/ch4_numbers.py > $O/ch4_numbers.txt 2>&1
 python3 altitude_trade.py > $O/altitude_trade.txt 2>&1
 python3 sled_passage_simulation.py > $O/sled_passage.txt 2>&1
 python3 sled_passage_limits.py > $O/sled_passage_limits.txt 2>&1

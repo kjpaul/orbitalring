@@ -2,7 +2,7 @@
 """
 Draws the 24-hour power profiles of the suspended solar array at several altitudes.
 Book: The Orbital Ring, Volume IV: Chapter 16 figures.
-Run: python make_solar_hammock_plots.py
+Run: python tools/make_solar_hammock_plots.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 
 Regenerate the solar hammock 24-hour power profile plots at 250, 750, and
@@ -30,6 +30,8 @@ Outputs:
   solar_hammock_1000km_power.png
   solar_hammock_24hr_comparison.png
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 
 import math
 import os

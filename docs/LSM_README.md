@@ -1,3 +1,5 @@
+*This manual was written with the ring at 250 km, the design point of the first edition, *Orbital Ring Engineering: Mechanics and Material Science for Space Launch Mass Transit Systems* (October 16, 2025); its example numbers are for that design point. The simulation now takes its design point from `ring_altitude.py` (700 km, retrograde cable), so the same commands print the 700 km numbers; the output folder is set by `ORBITAL_RING_OUT`. See the README at the repository root.*
+
 # LSM Mass Driver Simulation
 
 This directory contains a complete LSM (Linear Synchronous Motor) mass driver simulation for launching spacecraft from an orbital ring at 250 km altitude.

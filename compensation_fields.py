@@ -487,6 +487,11 @@ def run_all(verbose=True):
 JSON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "compensation_fields.json")
 
 
+def _without_times(res):
+    """The cases without their solve-time field, so the tracked cache does not change from one recompute to the next."""
+    return {k: [{kk: vv for kk, vv in c.items() if kk != "t"} for c in v] for k, v in res.items()}
+
+
 def load_or_run(verbose=True):
     """The solved cases (compensation and support), from the JSON of the last run of this file if it exists."""
     if os.path.exists(JSON_PATH):
@@ -496,7 +501,7 @@ def load_or_run(verbose=True):
     res = dict(compensation=comp, support=sup, nonlinear=nl)
     os.makedirs(os.path.dirname(JSON_PATH), exist_ok=True)
     with open(JSON_PATH, "w", encoding="utf-8") as f:
-        json.dump(res, f, indent=1, default=float)
+        json.dump(_without_times(res), f, indent=1, default=float)
     return res
 
 
@@ -515,7 +520,7 @@ if __name__ == "__main__":
             res = json.load(f)
         res["nonlinear"] = run_nonlinear()
         with open(JSON_PATH, "w", encoding="utf-8") as f:
-            json.dump(res, f, indent=1, default=float)
+            json.dump(_without_times(res), f, indent=1, default=float)
     else:
         if os.path.exists(JSON_PATH):
             os.remove(JSON_PATH)

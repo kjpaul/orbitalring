@@ -75,14 +75,14 @@ FAST = [
     ("freefall", ["freefall_trajectory.py"], {}),
     ("atmospheric_loading", ["atmospheric_loading.py"], {}),
     ("climber_descent", ["climber_descent.py"], {}),
-    ("lsm_chapter_metrics", ["lsm_chapter_metrics.py"], {}),
-    ("lsm_n_optimization", ["lsm_n_optimization_demo.py"], {}),
+    ("lsm_chapter_metrics", ["tools/lsm_chapter_metrics.py"], {}),
+    ("lsm_n_optimization", ["tools/lsm_n_optimization_demo.py"], {}),
     ("lsm_simulation", ["lsm_simulation.py"], {}),
     ("md_simulation", ["md_simulation.py", "--no-graphs"], {}),
     ("md_trade_study", ["md_trade_study.py"], {}),
     ("debris_simulation", ["debris_simulation.py"], {}),
     ("debris_orbits", ["debris_orbits.py"], {}),
-    ("ch4_numbers", ["ch4_numbers.py"], {}),
+    ("ch4_numbers", ["tools/ch4_numbers.py"], {}),
 ]
 
 

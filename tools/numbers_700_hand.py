@@ -1,10 +1,12 @@
 """
 Hand calculations for the design point: lateral forces, ring and cable totals, a few chapter figures from the constants of ring_altitude.py.
 Book: The Orbital Ring, Volume IV: Chapter 2 Table 2.1, Chapters 3, 4, 15 and 16 (checks of quoted numbers).
-Run: python numbers_700_hand.py
+Run: python tools/numbers_700_hand.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array)
 
 Hand calculations for the design point in ring_altitude.py (the values the 800 km sheet did by hand)."""
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import math, ring_altitude as R
 w = R.OMEGA_SIDEREAL; Re = R.R_EARTH_EQ; r = R.R_ORBIT
 vg = R.V_GROUND_SYNC

@@ -1,9 +1,11 @@
 """
 The numbers behind the Chapter 4 tables: released-cable orbits, recoil, drag lifetimes and the casing fall at each altitude; writes ch4_numbers.json.
 Book: The Orbital Ring, Volume IV: Chapter 4 Tables 4.1 to 4.5.
-Run: python ch4_numbers.py
+Run: python tools/ch4_numbers.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import math, json, os
 import numpy as np
 import debris_orbits as do

@@ -1,9 +1,11 @@
 """
 Draws the Chapter 4 figures (released-cable orbits, perigee and lifetime against altitude, ring mass against altitude, the share of the ring free of trapped protons).
 Book: The Orbital Ring, Volume IV: Chapter 4 Figures 4.1 to 4.6.
-Run: python ch4_figures.py (figures go to <output folder>/figures_ch04; IGRF_ALTSCAN names the AP-8 scan file, default radiation/igrf_altscan_clean.txt)
+Run: python tools/ch4_figures.py (figures go to <output folder>/figures_ch04; IGRF_ALTSCAN names the AP-8 scan file, default radiation/igrf_altscan_clean.txt)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs); IGRF_ALTSCAN (the AP-8 scan file)
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import math, json, os
 import numpy as np
 import matplotlib
@@ -109,7 +111,7 @@ axs[2].xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{
 save(fig,"fig04_05_ring_mass_vs_altitude")
 # Fig 4.4 share of the ring free of trapped protons (AP-8 read with the IGRF 2026 field; radiation/igrf_altscan.py)
 import re, os
-scan=os.environ.get("IGRF_ALTSCAN", os.path.join(os.path.dirname(os.path.abspath(__file__)), "radiation", "igrf_altscan_clean.txt"))
+scan=os.environ.get("IGRF_ALTSCAN", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "radiation", "igrf_altscan_clean.txt"))
 mn={}; mx={}
 for line in open(scan):
     m=re.match(r"\s*(\d+) km solar (min|max):.*clean\s+([\d.]+)%", line)

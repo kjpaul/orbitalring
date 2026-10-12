@@ -2,7 +2,7 @@
 """
 Why a fixed stator turn count is the optimum for the LSM.
 Book: The Orbital Ring, Volume IV: Chapter 14 text.
-Run: python lsm_n_optimization_demo.py
+Run: python tools/lsm_n_optimization_demo.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
 LSM Stator Turn Count Optimization — Why N=50 Fixed is Optimal
@@ -22,6 +22,8 @@ Key findings:
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong, Chapter 7
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 
 import math
 import ring_altitude as ring

@@ -2,7 +2,7 @@
 """
 Builds the number sheet of the cable hardware change (4,076 to 10,686 kg/m): every quantity the book quotes, old value beside new, from two folders of logs.
 Book: The Orbital Ring, Volume IV: The renumbering pass of 2026-10-12 (a tool, not a simulation).
-Run: python number_sheet_hw10686.py [--old=FOLDER] [--new=FOLDER] [--out=FILE]
+Run: python tools/number_sheet_hw10686.py [--old=FOLDER] [--new=FOLDER] [--out=FILE]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
 Build the number sheet for the cable hardware change (4,076 -> 10,686 kg/m, 2026-10-12): every quantity the book quotes, old value
@@ -13,6 +13,8 @@ Usage: python number_sheet_hw10686.py [--old=FOLDER] [--new=FOLDER] [--out=FILE]
   --new   folder with the new logs (default: ORBITAL_RING_OUT, default runs)
   --out   the sheet to write (default: <ORBITAL_RING_OUT>/numbers_hw10686.md)
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import os
 import re
 import sys
