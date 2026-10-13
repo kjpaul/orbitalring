@@ -2,7 +2,7 @@
 """
 Searches the LIM design parameters for an aluminium reaction plate.
 Book: The Orbital Ring, Volume IV: Chapter 12 plate material choice (text).
-Run: python lim_optimizer_alu.py
+Run: python tools/lim_optimizer_alu.py
 Environment: none
 
 LIM Design Parameter Optimizer
@@ -22,6 +22,8 @@ CONSTRAINTS:
 
 ================================================================================
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 
 import math
 from dataclasses import dataclass, field

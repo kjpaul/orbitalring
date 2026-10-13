@@ -176,7 +176,7 @@ def run_sweep(verbose=True):
     if verbose:
         print(f"  sweep done, {len(recs)} geometries, {time.time()-t0:.0f} s", flush=True)
     with open(SWEEP_JSON, "w", encoding="utf-8") as f:
-        json.dump(recs, f, indent=1, default=float)
+        json.dump([{k: v for k, v in r.items() if k != "t"} for r in recs], f, indent=1, default=float)   # without the solve times, so the tracked cache is stable
     return recs
 
 

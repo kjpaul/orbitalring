@@ -2,7 +2,7 @@
 """
 Searches the LIM design parameters for a gamma-TiAl reaction plate.
 Book: The Orbital Ring, Volume IV: Chapter 12 plate material choice (text).
-Run: python lim_optimizer_gTiAl.py
+Run: python tools/lim_optimizer_gTiAl.py
 Environment: none
 
 LIM Design Parameter Optimizer
@@ -23,6 +23,8 @@ CONSTRAINTS:
 Updated: January 2026 to match current lim_config.py defaults
 ================================================================================
 """
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 
 import math
 from dataclasses import dataclass, field

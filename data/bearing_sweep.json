@@ -343,7 +343,6 @@
     "F_lin": 2347701.662754925
    }
   ],
-  "t": 63.91808032989502,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -690,7 +689,6 @@
     "F_lin": 2654135.6769140316
    }
   ],
-  "t": 65.07270741462708,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -1037,7 +1035,6 @@
     "F_lin": 2961955.4053523717
    }
   ],
-  "t": 62.65765047073364,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -1384,7 +1381,6 @@
     "F_lin": 3150088.1400106247
    }
   ],
-  "t": 60.713696002960205,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -1731,7 +1727,6 @@
     "F_lin": 2073809.456460371
    }
   ],
-  "t": 68.56705641746521,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -2078,7 +2073,6 @@
     "F_lin": 2299684.541520282
    }
   ],
-  "t": 77.6464524269104,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -2425,7 +2419,6 @@
     "F_lin": 2496532.679329467
    }
   ],
-  "t": 71.29901933670044,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -2772,7 +2765,6 @@
     "F_lin": 2650526.5736443335
    }
   ],
-  "t": 76.23923301696777,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -3119,7 +3111,6 @@
     "F_lin": 1648990.785726842
    }
   ],
-  "t": 98.34643983840942,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -3466,7 +3457,6 @@
     "F_lin": 1863146.216932706
    }
   ],
-  "t": 76.27457547187805,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -3813,7 +3803,6 @@
     "F_lin": 1979420.6327070764
    }
   ],
-  "t": 84.25732803344727,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -4160,7 +4149,6 @@
     "F_lin": 2073676.4253524381
    }
   ],
-  "t": 81.00452303886414,
   "stage": "1: pole count and pole fraction (1 m, 300 mm slots, 200 mm plate)"
  },
  {
@@ -4507,7 +4495,6 @@
     "F_lin": 3854243.425697686
    }
   ],
-  "t": 66.93734788894653,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -4854,7 +4841,6 @@
     "F_lin": 3854243.425697686
    }
   ],
-  "t": 71.09231925010681,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -5201,7 +5187,6 @@
     "F_lin": 3881602.3607388395
    }
   ],
-  "t": 72.17399573326111,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -5548,7 +5533,6 @@
     "F_lin": 3881602.3607388395
    }
   ],
-  "t": 69.98747944831848,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -5895,7 +5879,6 @@
     "F_lin": 3150088.1400106247
    }
   ],
-  "t": 50.96899485588074,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -6242,7 +6225,6 @@
     "F_lin": 3914032.5637771976
    }
   ],
-  "t": 57.989264726638794,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -6589,7 +6571,6 @@
     "F_lin": 3914032.5637771976
    }
   ],
-  "t": 56.63831424713135,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -6936,7 +6917,6 @@
     "F_lin": 3608531.3026188836
    }
   ],
-  "t": 48.819709062576294,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -7283,7 +7263,6 @@
     "F_lin": 3608531.3026188836
    }
   ],
-  "t": 48.87043619155884,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -7630,7 +7609,6 @@
     "F_lin": 3635106.6661450933
    }
   ],
-  "t": 51.358981132507324,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -7977,7 +7955,6 @@
     "F_lin": 3635106.6661450933
    }
   ],
-  "t": 54.28984475135803,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -8324,7 +8301,6 @@
     "F_lin": 2961955.4053523717
    }
   ],
-  "t": 44.7604546546936,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -8671,7 +8647,6 @@
     "F_lin": 3665996.354875416
    }
   ],
-  "t": 55.64251923561096,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -9018,7 +8993,6 @@
     "F_lin": 3665996.354875416
    }
   ],
-  "t": 56.50504922866821,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -9365,7 +9339,6 @@
     "F_lin": 3218284.869157584
    }
   ],
-  "t": 45.06042742729187,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -9712,7 +9685,6 @@
     "F_lin": 3218284.869157584
    }
   ],
-  "t": 45.64472770690918,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -10059,7 +10031,6 @@
     "F_lin": 3242655.456387691
    }
   ],
-  "t": 46.30175280570984,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -10406,7 +10377,6 @@
     "F_lin": 3242655.456387691
    }
   ],
-  "t": 47.53538966178894,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -10753,7 +10723,6 @@
     "F_lin": 2654135.6769140316
    }
   ],
-  "t": 46.28999185562134,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -11100,7 +11069,6 @@
     "F_lin": 3270147.0976883145
    }
   ],
-  "t": 46.630093812942505,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -11447,7 +11415,6 @@
     "F_lin": 3270147.0976883145
    }
   ],
-  "t": 46.636314868927,
   "stage": "2: plate thickness and layout for the best three"
  },
  {
@@ -11794,7 +11761,6 @@
     "F_lin": 3878847.5604484337
    }
   ],
-  "t": 32.388667821884155,
   "stage": "3: slot depth for the best two"
  },
  {
@@ -12141,7 +12107,6 @@
     "F_lin": 3906038.5211477415
    }
   ],
-  "t": 56.96407151222229,
   "stage": "3: slot depth for the best two"
  },
  {
@@ -12488,7 +12453,6 @@
     "F_lin": 3638269.1377538904
    }
   ],
-  "t": 33.848575830459595,
   "stage": "3: slot depth for the best two"
  },
  {
@@ -12835,7 +12799,6 @@
     "F_lin": 3656733.671513173
    }
   ],
-  "t": 61.69386959075928,
   "stage": "3: slot depth for the best two"
  },
  {
@@ -13182,7 +13145,6 @@
     "F_lin": 4606882.724730538
    }
   ],
-  "t": 55.36272668838501,
   "stage": "4: wider tracks with the best pole pattern"
  },
  {
@@ -13529,7 +13491,6 @@
     "F_lin": 5727788.833059173
    }
   ],
-  "t": 68.36169910430908,
   "stage": "4: wider tracks with the best pole pattern"
  },
  {
@@ -13876,7 +13837,6 @@
     "F_lin": 6050708.997219046
    }
   ],
-  "t": 91.14455342292786,
   "stage": "4: wider tracks with the best pole pattern"
  },
  {
@@ -14223,7 +14183,6 @@
     "F_lin": 7525673.988821817
    }
   ],
-  "t": 98.29087376594543,
   "stage": "4: wider tracks with the best pole pattern"
  }
 ]

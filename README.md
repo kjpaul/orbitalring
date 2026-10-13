@@ -123,7 +123,7 @@ Kept and runnable, labelled in their first line. The bearing they describe is no
 
 ### Not yet mapped to a revised chapter
 
-`gomory_lim_analysis.py`, `field_distribution.py`, `reentry.py`, `hts_coil_inductance_analysis.py` (in `tools/`), `gyro_simulation_v02.py`, `lim_optimizer_alu.py`, `lim_optimizer_gTiAl.py`. Chapters 14 onward have not yet been revised for the 700 km design; `docs/CHAPTER_MAP.md` maps Chapters 1 to 13.
+`gomory_lim_analysis.py`, `field_distribution.py`, `reentry.py`, `hts_coil_inductance_analysis.py` (in `tools/`), `gyro_simulation_v02.py`, `tools/lim_optimizer_alu.py`, `tools/lim_optimizer_gTiAl.py`. Chapters 14 onward have not yet been revised for the 700 km design; `docs/CHAPTER_MAP.md` maps Chapters 1 to 13.
 
 ## Environment variables
 
