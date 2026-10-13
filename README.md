@@ -101,6 +101,9 @@ A coil optimization script, `bearing_optimize.py`, is planned for this table.
 | `tools/ch4_figures.py` | Figures 4.1 to 4.6, as SVG and PNG in `runs/figures_ch04/` | 4 |
 | `tools/generate_equations_latex.py` | the worked equations with every number from `ring_altitude.py`, as LaTeX in `runs/equations/` (SVG when LaTeX is installed) | 1 to 4, 10 |
 | `tools/generate_fig_bearing_cross_section.py` | Figure 8.1, the bearing cross section, in `runs/figures_ch08/` | 8 |
+| `tools/ch10_numbers.py` (with `ORBITAL_RING_ARRAY_OFFSET_KM=0`), `tools/ch13_numbers.py` | the Chapter 10 power numbers and the Chapter 13 cable-direction rows | 10 (Table 10.1), 13 (Table 13.1) |
+| `tools/lim_tape_current_check.py` | the tape current of the deployment LIM coil against the THEVA limit, by winding layout and layers | 11 (Table 11.2), 12 |
+| `tools/fig11_01_traveling_wave.py`, `tools/fig11_01_load_angle.py` | Figures 11.1 and 11.2, in `runs/figures_ch11/` | 11 |
 | `tools/numbers_700_hand.py` | hand calculations that check quoted numbers (Table 2.1, horizon, array shading) | 2, 3, 4, 15, 16 |
 | `tools/number_sheet_hw10686.py` | the number sheet of the cable hardware change, from two folders of logs | the renumbering pass |
 | `tools/lsm_chapter_metrics.py`, `tools/lsm_n_optimization_demo.py` | energies and cryogenic loads of the launch; why a fixed stator turn count is best (logs `lsm_chapter_metrics.txt`, `lsm_n_optimization.txt`) | 14 |

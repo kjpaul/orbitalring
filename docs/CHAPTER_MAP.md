@@ -104,7 +104,7 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 
 | Item | Script | Log or file |
 |---|---|---|
-| Table 10.1, power budget summary (ring-mounted panels for deployment, demand during operations) | `power_simulation.py` with `ORBITAL_RING_ARRAY_OFFSET_KM=0`, `--power=16` for the 16 MW case, `--width=` for the panel width (the chapter uses 55 m); `--demand=ops` for operations. The chapter's figures were assembled from `power_config.py` and `power_physics.py` by a short script kept with the author's book files. | `power_deployment_ring_mounted_8MW.txt`, `power_deployment_ring_mounted_16MW.txt`, `power_ops.txt` |
+| Table 10.1, power budget summary (ring-mounted panels for deployment, demand during operations) | `power_simulation.py` with `ORBITAL_RING_ARRAY_OFFSET_KM=0`, `--power=16` for the 16 MW case, `--width=` for the panel width (the chapter uses 55 m); `--demand=ops` for operations. The chapter's numbers come from `ORBITAL_RING_ARRAY_OFFSET_KM=0 python tools/ch10_numbers.py` (built on `power_config.py` and `power_physics.py`). | `power_deployment_ring_mounted_8MW.txt`, `power_deployment_ring_mounted_16MW.txt`, `power_ops.txt` |
 | Figure 10.1, power around the ring during deployment (`fig10_01_ring_power_profile_700`) | `power_simulation.py --save ring_profile` with `ORBITAL_RING_ARRAY_OFFSET_KM=0` | `graphs_power/01-ring_profile.png` |
 | Equations 10.1 and 10.2, deployment power and expanded power | `tools/generate_equations_latex.py` | `equations/eq10_01_deploy_power_700.tex`, `eq10_02_expanded_power_700.tex` |
 
@@ -114,9 +114,9 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 |---|---|---|
 | Table 11.1, choosing between a LIM and an LSM | the comparison draws on the three motor runs below; no single script | `lim_simulation.txt`, `lsm_simulation.txt`, `md_simulation.txt` |
 | Table 11.2, LIM parameters for deployment | `lim_simulation.py` (parameters in `lim_config.py`, physics in `lim_physics.py`); the 16 MW column from the second run | `lim_simulation.txt`, `lim_simulation_16MW.txt` |
-| Table 11.2, the tape current rows (layers of 3 mm tape) | a first check with the tape data of `data/` through `bearing_design.read_theva`, by a script kept with the author's book files; a 2-D solver check is a later task | |
+| Table 11.2, the tape current rows (layers of 3 mm tape) | `tools/lim_tape_current_check.py` (the THEVA data of `data/` through `bearing_design.read_theva`); a 2-D solver check is a later task | printed to the console |
 | Table 11.3, mass driver LSM parameters | `lsm_simulation.py` (parameters in `lsm_config.py`); `tools/lsm_chapter_metrics.py` for the energies and cryogenic loads | `lsm_simulation.txt`, `lsm_chapter_metrics.txt` |
-| Figure 11.1, how three phases make a traveling wave; Figure 11.2, the load angle of a linear synchronous motor | drawn with two small matplotlib scripts kept with the author's book files (no ring numbers in them) | |
+| Figure 11.1, how three phases make a traveling wave; Figure 11.2, the load angle of a linear synchronous motor | `tools/fig11_01_traveling_wave.py`, `tools/fig11_01_load_angle.py` (no ring numbers in them) | `figures_ch11/fig11_01_traveling_wave.png`, `figures_ch11/fig11_02_load_angle.png` (and .svg) |
 | Equations 11.1 to 11.3, slip frequency, LSM thrust, back EMF (symbolic) | `tools/generate_equations_latex.py` | `equations/eq11_01_slip_frequency.tex` to `eq11_03_back_emf.tex` |
 
 ## Chapter 12: The Linear Induction Motors
@@ -124,14 +124,14 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 | Item | Script | Log or file |
 |---|---|---|
 | The deployment at 8 MW and 16 MW per site: time, current, slip, plate heating, the voltage limit (Sections 12.1 to 12.5) | `lim_simulation.py`, the scripts the chapter names (`lim_config.py`, `lim_physics.py`); manual in `docs/LIM_README.md` | `lim_simulation.txt`, `lim_simulation_16MW.txt` |
-| The tape current (one [UNVERIFIED] marker in the chapter) | as Table 11.2 above; waits for the motor tape current task | |
+| The tape current | `tools/lim_tape_current_check.py`, as Table 11.2 above; the 2-D solver check waits for the motor tape current task | printed to the console |
 | Equations `eq26_V_lim` and `eq27_V_N2` (the LIM voltage) | images kept from the first edition, not in the generator | |
 
 ## Chapter 13: The Retrograde Cable Question
 
 | Item | Script | Log or file |
 |---|---|---|
-| Table 13.1, prograde and retrograde cables at 700 km as the subsystems see them | `ring_altitude.py` for both directions (`ORBITAL_RING_CABLE=prograde` for the second); the chapter's table was assembled from `ring_altitude.design()` by a short script kept with the author's book files | `ring_altitude_700.txt`, `ring_altitude_700_prograde.txt` |
+| Table 13.1, prograde and retrograde cables at 700 km as the subsystems see them | `ring_altitude.py` for both directions (`ORBITAL_RING_CABLE=prograde` for the second); the chapter's table rows come from `python tools/ch13_numbers.py`, run once for each direction | `ring_altitude_700.txt`, `ring_altitude_700_prograde.txt` |
 | The inclined-ring consequences of the cable direction | `j2_simulation.py --cable=prograde` | `j2_prograde_i5.txt` to `j2_prograde_i30.txt` |
 | The deployment with a prograde cable | `ORBITAL_RING_CABLE=prograde python lim_simulation.py` (not in the run set; run on demand) | |
 
