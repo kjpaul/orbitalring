@@ -8,7 +8,7 @@ Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the r
 J2 Perturbation Simulation for an Inclined Orbital Ring
 
 Models the effect of Earth's J2 oblateness on an orbital ring built at a
-non-equatorial inclination.  The ring orbits at 250 km altitude and consists
+non-equatorial inclination.  The ring orbits at the design altitude set in ring_altitude.py (700 km) and consists
 of a fast-spinning internal cable held in place by a ground-synchronous
 casing through magnetic levitation.
 

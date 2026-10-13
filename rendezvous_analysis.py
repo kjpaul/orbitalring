@@ -9,7 +9,7 @@ Rendezvous Velocity Analysis (Section 5)
 ==========================================
 
 Computes rendezvous delta-v requirements for spacecraft transferring from
-the orbital ring (250 km altitude) to various points along the space elevator
+the orbital ring (at the design altitude set in ring_altitude.py, 700 km) to various points along the space elevator
 tether.  The tether co-rotates with Earth at omega_sidereal, so its velocity
 at radius r is simply omega * r.  A Hohmann transfer from the ring arrives
 at radius r with a different velocity, and the difference is the rendezvous
@@ -18,7 +18,7 @@ delta-v that must be supplied to dock with the tether.
 Key results: the rendezvous delta-v is minimised where the Hohmann arrival
 velocity crosses the tether velocity curve.  GEO is the unique altitude where
 tether velocity equals circular orbital velocity (both = omega * R_GEO), but
-the Hohmann arrival from 250 km is sub-circular at GEO, requiring a burn.
+the Hohmann arrival from the ring is sub-circular at GEO, requiring a burn.
 The total mission delta-v (departure + rendezvous) varies with target altitude.
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong

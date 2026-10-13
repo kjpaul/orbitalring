@@ -8,7 +8,7 @@ Environment: none
 Orbital Ring Aerodynamic Braking & Winch Payout Simulation
 
 Models the lateral atmospheric drag on tethers and parachutes dropped from 
-an orbital ring at 250 km altitude drifting laterally at 241 m/s.
+an orbital ring drifting laterally at 241 m/s (first-edition numbers for a ring at 250 km; this script does not read ring_altitude.py).
 Calculates the aerodynamic braking force and the kinetic energy injected 
 into the global weather system.
 """

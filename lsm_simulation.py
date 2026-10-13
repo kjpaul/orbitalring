@@ -9,7 +9,7 @@ LSM Mass Driver Simulation - Main simulation loop and plotting
 
 This simulates an LSM (Linear Synchronous Motor) mass driver launching a
 10 km sled with a 5,000-tonne spacecraft from rest to target velocity on
-an orbital ring at 250 km altitude.
+an orbital ring at the design altitude set in ring_altitude.py (700 km).
 
 Key differences from LIM:
   - No slip (synchronous operation)
