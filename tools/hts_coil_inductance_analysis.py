@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 HTS coil inductance with eddy currents in the copper stabilizer, with two figures.
-Book: The Orbital Ring, Volume IV: Not yet mapped to a revised chapter (Chapter 12 is not yet revised).
+Book: The Orbital Ring, Volume IV: Not yet mapped to a revised chapter (Chapter 12 does not name it).
 Run: python tools/hts_coil_inductance_analysis.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

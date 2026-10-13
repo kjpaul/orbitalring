@@ -106,7 +106,7 @@ A coil optimization script, `bearing_optimize.py`, is planned for this table.
 | `tools/lsm_chapter_metrics.py`, `tools/lsm_n_optimization_demo.py` | energies and cryogenic loads of the launch; why a fixed stator turn count is best (logs `lsm_chapter_metrics.txt`, `lsm_n_optimization.txt`) | 14 |
 | `tools/make_bifacial_24hr_graph.py`, `tools/make_solar_hammock_plots.py` | the solar panel and suspended array figures, in `runs/graphs_power/` | 10, 16 |
 | `tools/sled_passage_config_table.py` | the configuration table of the sled passage problem | review only |
-| `tools/graph_plate_thickness_vs_thrust.py`, `tools/hts_coil_inductance_analysis.py` | thrust against plate thickness; HTS coil inductance with eddy currents | 12 (not yet revised) |
+| `tools/graph_plate_thickness_vs_thrust.py`, `tools/hts_coil_inductance_analysis.py` | thrust against plate thickness; HTS coil inductance with eddy currents | 12 (not named by the chapter) |
 
 ### Design history
 
@@ -120,7 +120,7 @@ Kept and runnable, labelled in their first line. The bearing they describe is no
 
 ### Not yet mapped to a revised chapter
 
-`gomory_lim_analysis.py`, `field_distribution.py`, `reentry.py`, `hts_coil_inductance_analysis.py` (in `tools/`), `gyro_simulation_v02.py`, `lim_optimizer_alu.py`, `lim_optimizer_gTiAl.py`. Chapters 10 onward have not yet been revised for the 700 km design; `docs/CHAPTER_MAP.md` maps Chapters 1 to 9.
+`gomory_lim_analysis.py`, `field_distribution.py`, `reentry.py`, `hts_coil_inductance_analysis.py` (in `tools/`), `gyro_simulation_v02.py`, `lim_optimizer_alu.py`, `lim_optimizer_gTiAl.py`. Chapters 14 onward have not yet been revised for the 700 km design; `docs/CHAPTER_MAP.md` maps Chapters 1 to 13.
 
 ## Environment variables
 
@@ -147,7 +147,7 @@ About a minute. The test asserts the design point of `ring_altitude.py` to the p
 
 - `data/`: input files the scripts read, all tracked: the THEVA tape data (used with permission of THEVA), the three solver caches with their recompute commands, and three design-history logs. See `data/README.md`.
 - `docs/LIM_README.md` and `docs/LSM_README.md`: the manuals of the deployment simulator and the mass driver, written for the first edition at 250 km.
-- `docs/CHAPTER_MAP.md`: for Chapters 1 to 9, the script and log behind each table and figure.
+- `docs/CHAPTER_MAP.md`: for Chapters 1 to 13, the script and log behind each table and figure.
 - `radiation/README_radiation.md`: the Chapter 5 radiation chain.
 
 ## License

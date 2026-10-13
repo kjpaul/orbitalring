@@ -560,18 +560,6 @@ The controller iterates up to 10 times per time step to achieve self-consistency
 
 ---
 
-## Legacy Code
-
-The original single-file version of the simulator is available as `lim_deployment_sim.py`. To use the legacy code:
-
-```bash
-python lim_deployment_sim.py --model=1 thrust power
-```
-
-The legacy code has all parameters and physics in a single file. It does not include the thermal mode switch, radiator width calculations, graph saving, or the `--m_load` option. Use it if you prefer a single-file solution or need to compare with earlier results.
-
----
-
 ## Related Resources
 
 - *The Orbital Ring*, in four volumes: Volume I, *The Economic Case for Space Mass Transit*; Volume II, *First Principles: Orbital Mechanics, Materials Science, and Electrical Engineering*; Volume III, *Mass Transit Launch Technologies: Levitation, Linear Motors, Mass Drivers, and Space Elevators*; Volume IV, *Space Mass Transit Complete Design Review*
