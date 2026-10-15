@@ -5,7 +5,8 @@ Part 1: make the field solution trustworthy: grid convergence of the present des
 field on every tape of a modelled winding instead of the largest cell field at a bundle corner, and an independent check
 of the pull by the method of images.
 Book: The Orbital Ring, Volume IV: Chapter 8 (Sections 8.1 to 8.5, Tables 8.2 and 8.3; the optimized numbers are for a later pass).
-Run: python bearing_optimize.py --part=1 [--quick]   (about an hour; --quick skips the finest grid)
+Run: python bearing_optimize.py --part=1 [--quick]   (about two hours; --quick skips the finest grid)
+     python bearing_optimize.py --part=2 --stage=screen|confirm25|confirm125|report   (Part 2, see below)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
 Nothing here changes a default of final_bearing.py, bearing_mass.py or magnetostatic_2d.py; the present design is rebuilt
@@ -28,7 +29,20 @@ Method (Part 1)
   Image check.  At 25 kA per leg the plate is far from saturation and the solver is linear; the pull is compared with the
   method of images for an unsaturated plate (image strength (mu - 1)/(mu + 1) with mu = 200, the plate's back face ignored),
   integrating over the bundle cross-sections.
+
+Part 2 (support track search; results cached in <output folder>/bearing_optimize_part2_<cells>.json, so a stage can be rerun)
+  --stage=screen      5 mm window: loops, widths and spacings with square 100 mm bundles and a 20 mm wall; then the bundle
+                      cross-sections on the four best geometries and the present one; then the wall allowance; then the
+                      one-at-a-time neighbours of the best.  About four hours.
+  --stage=confirm25   the eight best of the screen and the present design at 2.5 mm (about four hours).
+  --stage=confirm125  the two best at 1.25 mm, requirement point only (about three hours).
+  --stage=report      the tables from the caches, without solving.
+  Each case: a 10 mm full box solved once (saturating plate) for the window's edge values, which then scale with the
+  ampere-turns; a linear solve for the linear pull; nonlinear solves at the requirement (two, interpolated in log-log),
+  at 1.13 times the requirement (the rating check) and at the load winding's 198 kN/m.  The tape limit is the worst tape of
+  the modelled winding (Part 1), faces vertical or horizontal, whichever is lower; one current per track.
 """
+import json
 import math
 import os
 import sys
@@ -387,14 +401,634 @@ def part_1(quick=False):
     print("  field 0.92 T average over the bundle at 322,000 ampere-turns; support track 250.6 kN/m at 322 kA per leg (bearing_air.json, 10 mm cells).")
     return results
 
+# =============================================================================
+# Part 2: support track search
+# =============================================================================
+
+PLATE_W = fb.PLATE_W                  # 1.4 m, fixed (rule 7)
+I_REF_12, I_REF_3 = 163.0, 43.0       # A, the present design's currents: they set the turn count of the field model only
+CRYO = bm.CRYO_FACTOR                 # formers, cryostat and supports as a multiple of the tape mass [UNVERIFIED, as bearing_mass]
+F_REQ = None                          # set from design_NI: 248 kN/m
+F_RATE_MARGIN = 1.13
+F_LOAD = fb.F_LOAD_TRACK              # 198 kN/m, the load compensation winding on the same loops
+SAT_LIMIT = 0.12                      # the plate may not be saturated beyond the present 12 percent (task, Part 2); the present computes to 9.7 to 10 percent
+COARSE_H = 0.01
+SHAPES = {
+    "square 100": dict(kind="rect", w=0.10, h=0.10),
+    "wide 150x67": dict(kind="rect", w=0.15, h=0.0667),
+    "tall 67x150": dict(kind="rect", w=0.0667, h=0.15),
+    "wide 150x100": dict(kind="rect", w=0.15, h=0.10),
+    "tall 100x150": dict(kind="rect", w=0.10, h=0.15),
+    "square 141": dict(kind="rect", w=0.1414, h=0.1414),
+    "flat 200x50": dict(kind="rect", w=0.20, h=0.05),
+    "round 56": dict(kind="round", R=0.0564),
+    "round 80": dict(kind="round", R=0.08),
+    "graded 80": dict(kind="graded", R=0.08),
+    "graded 100": dict(kind="graded", R=0.10),
+}
+THEVA_77 = os.path.join(ring.DATA_DIR, "THEVA_Pro-Line_Advanced_Pinning_2G_HTS_77.5K_Field_Dependence.csv")
+
+
+def read_theva_file(path):
+    import csv
+    data = {}
+    with open(path, encoding="utf-8-sig") as f:
+        rd = csv.reader(f); next(rd)
+        for row in rd:
+            if len(row) < 4 or not row[1]:
+                continue
+            data.setdefault(int(round(float(row[2]))), []).append((float(row[1]), float(row[3])))
+    return {a: (np.array([q[0] for q in sorted(v)]), np.array([q[1] for q in sorted(v)])) for a, v in data.items()}
+
+
+def shape_width(shape):
+    s = SHAPES[shape]
+    return s["w"] if s["kind"] == "rect" else 2 * s["R"]
+
+
+def shape_height(shape):
+    s = SHAPES[shape]
+    return s["h"] if s["kind"] == "rect" else 2 * s["R"]
+
+
+def shape_area(shape):
+    s = SHAPES[shape]
+    return s["w"] * s["h"] if s["kind"] == "rect" else math.pi * s["R"]**2
+
+
+def geom_key(g):
+    sp = "joined" if g["gc"] is None else f"{g['gc']*1e3:.0f}"
+    return f"{g['n']} x {g['W']:.2f} m, spacing {sp}, {g['shape']}, wall {g['allow']*1e3:.0f} mm"
+
+
+def tape_lattice(shape, xc, y_top, w_tape, N):
+    """N tape centers filling the bundle whose top face is at y_top, centered on xc.  rect: columns of w_tape, rows evenly
+    spread; round: the same lattice clipped to the circle, row pitch set so that N tapes fit; graded: the clipped lattice
+    thinned toward the rim with density 1 - (r/R)^2 (a quasi-random threshold), row pitch set so that N remain."""
+    s = SHAPES[shape]
+    if s["kind"] == "rect":
+        xs, ys, n_col, n_row, pitch = tape_centers(xc - s["w"] / 2, xc + s["w"] / 2, y_top - s["h"], y_top, w_tape, N)
+        return xs, ys
+    R = s["R"]; yc = y_top - R
+    n_col = max(1, int((2 * R) // w_tape))
+    cols = xc + w_tape * (np.arange(n_col) - (n_col - 1) / 2)
+    def lattice(pitch):
+        n_row = int(2 * R / pitch)
+        rows = yc + pitch * (np.arange(n_row) - (n_row - 1) / 2)
+        X, Y = np.meshgrid(cols, rows, indexing="ij")
+        I, J = np.meshgrid(np.arange(n_col), np.arange(n_row), indexing="ij")
+        r = np.hypot(X - xc, Y - yc)
+        keep = r <= R
+        if s["kind"] == "graded":
+            u = np.mod(0.7548776662 * I + 0.5698402910 * J, 1.0)
+            keep &= (1 - (r / R)**2) >= u
+        return X[keep], Y[keep]
+    lo, hi = TAPE_T, 2 * R
+    for _ in range(60):
+        mid = math.sqrt(lo * hi)
+        n = len(lattice(mid)[0])
+        if n > N: lo = mid
+        else: hi = mid
+    xs, ys = lattice(lo)
+    return xs[:N], ys[:N]
+
+
+def build_geometry(geom, h, NI, grid=None, window_parent=None, w_tape=0.012, I_ref=I_REF_12, linear=False):
+    """The track of `geom` with NI ampere-turns per leg on a grid of cell h: either a full box (grid=None, window_parent=None)
+    or a Window of window_parent.  The current is deposited tape by tape from the lattice of the field model (I_ref per tape),
+    so the field is that of the modelled winding.  Returns the grid, the bundles (x, NI, tape lattice) and the plate box."""
+    n, W, gc, shape, allow = geom["n"], geom["W"], geom["gc"], geom["shape"], geom["allow"]
+    wb = shape_width(shape)
+    split = 0.0 if gc is None else wb + gc                      # center-to-center distance of the two center bundles
+    x0 = -(n * W + (n - 1) * split) / 2
+    legs = []
+    for k in range(n):
+        sgn = 1 if k % 2 == 0 else -1
+        xl = x0 + k * (W + split); xr = xl + W
+        legs.append((xl, sgn * NI)); legs.append((xr, -sgn * NI))
+    merged = {}
+    for x, a in legs:
+        merged[round(x, 6)] = merged.get(round(x, 6), 0.0) + a
+    legs = sorted(merged.items())
+    if grid is None:
+        g = Window(window_parent, h) if window_parent is not None else ms.Grid(4.0, 3.0, h)
+    else:
+        g = grid
+    if linear:
+        g.add_iron(-PLATE_W / 2, PLATE_W / 2, GAP, GAP + PLATE_T, cf.PLATE_MU)
+    else:
+        g.add_iron(-PLATE_W / 2, PLATE_W / 2, GAP, GAP + PLATE_T, cf.PLATE_MU, B_sat=cf.PLATE_B_SAT)
+    bundles = []
+    y_top = -allow
+    for x, a in legs:
+        N = max(1, int(round(abs(a) / I_ref)))
+        xs, ys = tape_lattice(shape, x, y_top, w_tape, N)
+        I = a / len(xs)
+        i = np.clip(np.round((xs - g.x0) / g.h).astype(int), 0, g.nx - 1); j = np.clip(np.round((ys - g.y0) / g.h).astype(int), 0, g.ny - 1)
+        np.add.at(g.J, (i, j), I / (g.h * g.h))
+        bundles.append(dict(x=x, NI=a, xs=xs, ys=ys))
+    box = (-PLATE_W / 2 - 0.1, PLATE_W / 2 + 0.1, GAP - 2 * h, GAP + PLATE_T + 2 * h)
+    return g, bundles, box, legs, split
+
+
+def tape_limits(g, bundles, w_tape, theva, theva77=None, scale=1.0):
+    """Worst tape of each bundle (faces vertical and horizontal), with the 77.5 K value at the same tape when given.
+    scale: the solved ampere-turns over the build ampere-turns of the bundles."""
+    out = []
+    for b in bundles:
+        Bx, By = field_at_points(g, b["xs"], b["ys"])
+        Bm = np.hypot(Bx, By)
+        th_v = np.degrees(np.arctan2(np.abs(By), np.abs(Bx))); th_h = np.degrees(np.arctan2(np.abs(Bx), np.abs(By)))
+        ic_v = ic_angle(theva, Bm, th_v, w_tape); ic_h = ic_angle(theva, Bm, th_h, w_tape)
+        k_v = int(ic_v.argmin()); k_h = int(ic_h.argmin())
+        d = dict(x=b["x"], NI=b["NI"] * scale, n_model=len(b["xs"]), B_mean=float(Bm.mean()), B_max=float(Bm.max()),
+                 ic_v=float(ic_v[k_v]), ic_h=float(ic_h[k_h]), B_v=float(Bm[k_v]), th_v=float(th_v[k_v]), B_h=float(Bm[k_h]), th_h=float(th_h[k_h]),
+                 at_v=(float(b["xs"][k_v]), float(b["ys"][k_v])), at_h=(float(b["xs"][k_h]), float(b["ys"][k_h])))
+        if theva77 is not None:
+            d["ic77_v"] = float(ic_angle(theva77, np.array([Bm[k_v]]), np.array([th_v[k_v]]), w_tape)[0])
+            d["ic77_h"] = float(ic_angle(theva77, np.array([Bm[k_h]]), np.array([th_h[k_h]]), w_tape)[0])
+        out.append(d)
+    return out
+
+
+def plate_saturation(g):
+    m = g.box(-PLATE_W / 2, PLATE_W / 2, GAP, GAP + PLATE_T)
+    return float(np.mean(g.mu_r[m] < 0.1 * cf.PLATE_MU)), float(np.sqrt(g.Bx[m]**2 + g.By[m]**2).max())
+
+
+def stored_energy(g):
+    return float(0.5 * np.sum(g.A * g.J) * g.h * g.h)
+
+
+class Evaluator:
+    """Everything Part 2 needs for one geometry at one cell size: the pull curve near the requirement, the rating check,
+    the load winding, the tape limits and the masses."""
+
+    def __init__(self, geom, h, theva, theva77, verbose=False):
+        self.geom, self.h, self.theva, self.theva77, self.verbose = geom, h, theva, theva77, verbose
+        self.solves = 0; self.t0 = time.time()
+        # the coarse full box, nonlinear, at an estimate of the required ampere-turns (edge values scale with NI from it)
+        self.NI_est = 322e3
+        g0, _, box0, _, _ = build_geometry(geom, COARSE_H, self.NI_est)
+        g0.solve_nonlinear(force_box=box0)
+        self.w, self.bundles, self.box, self.legs, self.split = build_geometry(geom, h, self.NI_est, window_parent=g0)
+        self.J_ref = self.w.J.copy(); self.A_edge_ref = self.w.A_edge.copy()
+        self.wb = shape_width(geom["shape"]); self.hb = shape_height(geom["shape"])
+        self.track_width = geom["n"] * geom["W"] + (geom["n"] - 1) * self.split + self.wb
+
+    def run(self, NI, linear=False):
+        s = NI / self.NI_est
+        self.w.J = self.J_ref * s; self.w.A_edge = self.A_edge_ref * s
+        if linear:
+            mu_save = self.w.mu_r.copy(); mats = self.w.materials
+            self.w.mu_r[:] = 1.0; self.w.mu_r[self.w.box(-PLATE_W / 2, PLATE_W / 2, GAP, GAP + PLATE_T)] = cf.PLATE_MU
+            self.w.materials = []
+            self.w.solve()
+            F = self.w.force_on_box(*self.box)
+            self.w.mu_r = mu_save; self.w.materials = mats
+            self.solves += 1
+            return F
+        self.w.solve_nonlinear(force_box=self.box)
+        self.solves += 1
+        return self.w.force_on_box(*self.box)
+
+    def curve_point(self, NI):
+        F = self.run(NI)
+        sat, Bpl = plate_saturation(self.w)
+        lim12 = tape_limits(self.w, self.bundles, 0.012, self.theva, self.theva77, scale=NI / self.NI_est)
+        return dict(NI=NI, F=F, sat=sat, B_plate=Bpl, W_mag=stored_energy(self.w), eff=F / (self.F_lin1 * (NI / self.NI_est)**2),
+                    B_mean=float(np.mean([d["B_mean"] for d in lim12])), lim12=lim12,
+                    lim3=tape_limits(self.w, self.bundles, 0.003, self.theva, self.theva77, scale=NI / self.NI_est))
+
+    @staticmethod
+    def interp_NI(points, F):
+        """NI for a pull F from the solved points: log-log interpolation of F(NI), extrapolated with the local slope."""
+        pts = sorted(points, key=lambda p: p["NI"])
+        x = np.log([p["NI"] for p in pts]); y = np.log([p["F"] for p in pts]); lf = math.log(F)
+        if len(pts) == 1:
+            return pts[0]["NI"] * math.sqrt(F / pts[0]["F"])
+        if y[0] <= lf <= y[-1]:
+            return float(np.exp(np.interp(lf, y, x)))
+        a, b = (0, 1) if lf < y[0] else (len(pts) - 2, len(pts) - 1)      # extrapolate with the slope of the nearest pair
+        return float(np.exp(x[a] + (lf - y[a]) * (x[b] - x[a]) / (y[b] - y[a])))
+
+    def evaluate(self, F_req=None, s_share=0.5, light_from=None):
+        """light_from: a result of a coarser grid; then only the requirement point is solved here (one linear, one nonlinear
+        solve) and the rating and load quantities are taken from that result."""
+        F_req = F_req or F_REQ
+        self.F_lin1 = self.run(self.NI_est, linear=True)
+        if light_from is not None:
+            return self.evaluate_light(light_from, F_req, s_share)
+        pts = []
+        # the requirement: two nonlinear solves and a log-log interpolation
+        NI1 = self.NI_est * math.sqrt(F_req / self.F_lin1 / 0.6)      # the saturating pull is about 0.6 of the linear one at the requirement
+        pts.append(self.curve_point(NI1))
+        NI2 = self.interp_NI(pts, F_req)
+        if abs(NI2 / NI1 - 1) < 0.004:
+            NI2 = NI1 * 1.03
+        pts.append(self.curve_point(NI2))
+        NI_req = self.interp_NI(pts, F_req)
+        p_req = min(pts, key=lambda p: abs(p["NI"] - NI_req))
+        if abs(p_req["F"] / F_req - 1) > 0.01:
+            pts.append(self.curve_point(NI_req)); p_req = pts[-1]; NI_req = self.interp_NI(pts, F_req)
+        # the rating, as bearing_mass rates an air-core track: the pull where the mean field over the bundles reaches
+        # B_WIND_LIMIT (1.0 T); one solve at the ampere-turns that scaling predicts, then a local power-law correction
+        NI_r = NI_req * bm.B_WIND_LIMIT / p_req["B_mean"]
+        p_r = self.curve_point(NI_r); pts.append(p_r)
+        NI_e = NI_r * bm.B_WIND_LIMIT / p_r["B_mean"]
+        F_rated = math.exp(float(np.interp(math.log(NI_e), np.log([q["NI"] for q in sorted(pts, key=lambda q: q["NI"])]), np.log([q["F"] for q in sorted(pts, key=lambda q: q["NI"])]))))
+        # the load winding at 198 kN/m
+        NI_l = self.interp_NI(pts, F_LOAD)
+        p_l = self.curve_point(NI_l); pts.append(p_l)
+        NI_l = self.interp_NI(pts, F_LOAD)
+        # scale the solved fields to the interpolated ampere-turns (a few percent at most) for the limits
+        def limits_at(p, NI, key):
+            out = []
+            for d in p[key]:
+                sc = NI / p["NI"]
+                w_t = 0.012 if key == "lim12" else 0.003
+                r = dict(d)
+                for face in ("v", "h"):
+                    B = d[f"B_{face}"] * sc; th = d[f"th_{face}"]
+                    r[f"ic_{face}"] = float(ic_angle(self.theva, np.array([B]), np.array([th]), w_t)[0])
+                    r[f"ic77_{face}"] = float(ic_angle(self.theva77, np.array([B]), np.array([th]), w_t)[0])
+                    r[f"B_{face}"] = B
+                out.append(r)
+            return out
+        lim12 = limits_at(p_req, NI_req, "lim12")
+        lim3 = limits_at(p_l, NI_l, "lim3")
+        # the tape: one current per track (its worst tape), at the share s of the limit
+        ic12 = min(min(d["ic_v"], d["ic_h"]) for d in lim12); face12 = "v" if min(d["ic_v"] for d in lim12) <= min(d["ic_h"] for d in lim12) else "h"
+        ic3 = min(min(d["ic_v"], d["ic_h"]) for d in lim3); face3 = "v" if min(d["ic_v"] for d in lim3) <= min(d["ic_h"] for d in lim3) else "h"
+        I12 = s_share * ic12; I3 = s_share * ic3
+        turns12 = sum(abs(d["NI"]) for d in lim12) * NI_req / p_req["NI"] / I12
+        turns3 = sum(abs(d["NI"]) for d in lim3) * NI_l / p_l["NI"] / I3
+        tape12 = turns12 * 0.012 * TAPE_T * TAPE_RHO; tape3 = turns3 * 0.003 * TAPE_T * TAPE_RHO
+        fill = (turns12 * 0.012 + turns3 * 0.003) * TAPE_T / (shape_area(self.geom["shape"]) * len(self.bundles))
+        W_req = p_req["W_mag"] * (NI_req / p_req["NI"])**2
+        W_load = p_l["W_mag"] * (NI_l / p_l["NI"])**2
+        E_coil = W_load * fb.L_LOAD / fb.N_FAM
+        res = dict(key=geom_key(self.geom), geom=self.geom, h=self.h, NI_req=NI_req, F_req=F_req, F_lin_req=self.F_lin1 * (NI_req / self.NI_est)**2,
+                   eff_req=p_req["eff"], sat=p_req["sat"], B_plate=p_req["B_plate"], NI_rate=NI_r, F_rate=p_r["F"], eff_rate=p_r["eff"],
+                   rating_ok=F_rated >= F_RATE_MARGIN * F_req, NI_rated=NI_e, F_rated=F_rated, B_mean_req=p_req["B_mean"], NI_load=NI_l, W_req=W_req, W_load=W_load, E_coil=E_coil, VA=2 * E_coil / fb.TAU_HW,
+                   ic12=ic12, face12=face12, ic3=ic3, face3=face3, I12=I12, I3=I3, turns12=turns12, turns3=turns3, tape12=tape12, tape3=tape3, fill=fill,
+                   track_width=self.track_width, fits=self.track_width <= PLATE_W + 1e-9, lim12=lim12, lim3=lim3, solves=self.solves, seconds=time.time() - self.t0,
+                   B_mean=float(np.mean([d["B_mean"] for d in lim12])), split=self.split)
+        return res
+
+
+def _evaluate_light(self, light_from, F_req, s_share):
+    p = self.curve_point(light_from["NI_req"])
+    NI_req = light_from["NI_req"] * math.sqrt(F_req / p["F"])           # one correction, linear scaling (a fraction of a percent)
+    lim12 = []
+    for d in p["lim12"]:
+        r = dict(d); sc = NI_req / p["NI"]
+        for face in ("v", "h"):
+            B = d["B_" + face] * sc; th = d["th_" + face]
+            r["ic_" + face] = float(ic_angle(self.theva, np.array([B]), np.array([th]), 0.012)[0])
+            r["ic77_" + face] = float(ic_angle(self.theva77, np.array([B]), np.array([th]), 0.012)[0])
+            r["B_" + face] = B
+        lim12.append(r)
+    ic12 = min(min(d["ic_v"], d["ic_h"]) for d in lim12); face12 = "v" if min(d["ic_v"] for d in lim12) <= min(d["ic_h"] for d in lim12) else "h"
+    I12 = s_share * ic12
+    turns12 = sum(abs(d["NI"]) for d in lim12) * NI_req / p["NI"] / I12
+    tape12 = turns12 * 0.012 * TAPE_T * TAPE_RHO
+    res = dict(light_from)
+    res.update(h=self.h, NI_req=NI_req, F_at_coarse_NI=p["F"], B_mean_req=p["B_mean"], F_lin_req=self.F_lin1 * (NI_req / self.NI_est)**2, eff_req=p["eff"], sat=p["sat"], B_plate=p["B_plate"],
+               W_req=p["W_mag"] * (NI_req / p["NI"])**2, ic12=ic12, face12=face12, I12=I12, turns12=turns12, tape12=tape12, lim12=lim12,
+               fill=(turns12 * 0.012 + light_from["turns3"] * 0.003) * TAPE_T / (shape_area(self.geom["shape"]) * len(self.bundles)),
+               B_mean=float(np.mean([d["B_mean"] for d in lim12])), solves=self.solves, seconds=time.time() - self.t0, light=True)
+    return res
+
+
+Evaluator.evaluate_light = _evaluate_light
+
+
+def casing_mass(res, lift_tape):
+    """Casing-side mass per meter for both support tracks (support and load windings) and the two lift tracks, with formers,
+    cryostat and supports at CRYO times the tape (as bearing_mass.py)."""
+    tape = 2 * (res["tape12"] + res["tape3"]) + 2 * lift_tape
+    return tape, tape * (1 + CRYO)
+
+
+def mass_factors():
+    d0 = ring.design(); d1 = ring.design(m_load=ring.M_LOAD_M + 1.0); d2 = ring.design(m_hw=ring.M_HARDWARE_M + 1.0)
+    return d1["m_cable"] - d0["m_cable"], d2["m_cable"] - d0["m_cable"]
+
+
+def temperature_table(lim, face, shares=(0.5, 0.6, 0.7, 0.8), NI_normal_frac=None):
+    """The tape current table at the worst tape: current at each share, the warming the tape can take before its limit falls
+    to that current (critical current linear in temperature between the 70 K and 77.5 K data [UNVERIFIED]), and the current in
+    normal operation (the ampere-turns of the weight share over those of the requirement)."""
+    d = min(lim, key=lambda q: q[f"ic_{face}"])
+    ic70 = d[f"ic_{face}"]; ic77 = d[f"ic77_{face}"]
+    slope = (ic70 - ic77) / 7.5                       # A per kelvin
+    rows = []
+    for s in shares:
+        I = s * ic70
+        dT = (ic70 - I) / slope if slope > 0 else float("inf")
+        rows.append((s, I, dT, I * NI_normal_frac if NI_normal_frac else None))
+    return ic70, ic77, slope, rows
+
+
+def stray_field_check(geom, NI_normal, NI_rating, NI_lift=0.0):
+    """The stray field of all four tracks in the 30 x 30 m linear box of final_bearing Part D.2 (50 mm cells), with the
+    candidate's legs under both support plates and the present lift loops above the top plates; returns the field (T) at the
+    LIM stator points and 1, 3 and 10 m below, beside and above the ring, for the normal and the rating currents."""
+    side = ring.CABLE_SIDE
+    out = {}
+    for mode, NI_s, NI_l in (("normal", NI_normal, 0.0), ("rating", NI_rating, NI_lift)):
+        g = ms.Grid(30.0, 30.0, 0.05, x0=-15.0, y0=-10.0)
+        for sx in (-1, 1):
+            xc = sx * fb.Y_TRACK
+            g.add_iron(xc - PLATE_W / 2, xc + PLATE_W / 2, 0.0, PLATE_T, cf.PLATE_MU)
+            g.add_iron(xc - 0.7, xc + 0.7, side - PLATE_T, side, cf.PLATE_MU)
+            # the candidate's legs (merged bundles), their tops at -allow below the underside plate's lower face
+            n, W, gc, shape, allow = geom["n"], geom["W"], geom["gc"], geom["shape"], geom["allow"]
+            wb = shape_width(shape); hb = shape_height(shape); split = 0.0 if gc is None else wb + gc
+            x0 = -(n * W + (n - 1) * split) / 2
+            legs = {}
+            for k in range(n):
+                sgn = 1 if k % 2 == 0 else -1
+                xl = x0 + k * (W + split)
+                for x, a in ((xl, sgn * NI_s), (xl + W, -sgn * NI_s)):
+                    legs[round(x, 6)] = legs.get(round(x, 6), 0.0) + a
+            for x, a in legs.items():
+                g.add_current(xc + x - wb / 2, xc + x + wb / 2, -PLATE_T - allow - hb, -PLATE_T - allow, a)
+            if NI_l:
+                for dx, a in ((-0.5, NI_l), (0.5, -NI_l)):
+                    g.add_current(xc + dx - 0.05, xc + dx + 0.05, side + 0.1, side + 0.2, a)
+        g.solve()
+        pts = {"LIM stator, center": (fb.STATOR_X, fb.STATOR_Y), "LIM stator, bottom": (fb.STATOR_X, fb.STATOR_Y - 1.0), "LIM stator, top": (fb.STATOR_X, fb.STATOR_Y + 1.0)}
+        for d_ in (1.0, 3.0, 10.0):
+            pts[f"{d_:.0f} m below the ring"] = (fb.Y_TRACK, -PLATE_T - geom["allow"] - shape_height(geom["shape"]) - d_)
+            pts[f"{d_:.0f} m beside the ring"] = (side / 2 + d_, side / 2)
+            pts[f"{d_:.0f} m above the ring"] = (fb.Y_TRACK, side + 0.2 + d_)
+        res = {k: math.hypot(*g.field_at(x, y)) for k, (x, y) in pts.items()}
+        m_st = g.box(fb.STATOR_X - 0.1, fb.STATOR_X + 0.1, fb.STATOR_Y - 1.0, fb.STATOR_Y + 1.0)
+        res["largest over the stator"] = float(np.sqrt(g.Bx[m_st]**2 + g.By[m_st]**2).max())
+        out[mode] = res
+    return out
+
+
+def part2_cache(h):
+    return os.path.join(ring.out_dir(), f"bearing_optimize_part2_{h*1e3:g}mm.json")
+
+
+def load_cache(h):
+    p = part2_cache(h)
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_cache(h, cache):
+    with open(part2_cache(h), "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=1, default=float)
+
+
+def run_cases(geoms, h, theva, theva77, cache, light=None):
+    for geom in geoms:
+        k = geom_key(geom)
+        if k in cache:
+            continue
+        if not geometry_fits(geom):
+            cache[k] = dict(key=k, geom=geom, h=h, fits=False, track_width=track_width_of(geom)); save_cache(h, cache)
+            print(f"    {k:60} does not fit the {PLATE_W:.1f} m plate ({track_width_of(geom):.2f} m)", flush=True)
+            continue
+        ev = Evaluator(geom, h, theva, theva77)
+        r = ev.evaluate(light_from=(light.get(k) if light else None))
+        cache[k] = r; save_cache(h, cache)
+        print(f"    {k:60} NI {r['NI_req']/1e3:5.0f} kA (mean {r['B_mean_req']:.2f} T), rated {r['F_rated']/1e3:5.1f} kN/m at {r['NI_rated']/1e3:4.0f} kA {'ok' if r['rating_ok'] else 'NO'}, sat {r['sat']*100:4.1f} %, "
+              f"Ic {r['ic12']:5.0f} A ({r['face12']}), tape {r['tape12']:5.1f} + load {r['tape3']:5.1f} kg/m, W {r['W_req']/1e3:5.1f} kJ/m, fill {r['fill']*100:3.0f} %  ({r['solves']} solves, {r['seconds']:.0f} s)", flush=True)
+    return cache
+
+
+def track_width_of(geom):
+    wb = shape_width(geom["shape"]); split = 0.0 if geom["gc"] is None else wb + geom["gc"]
+    return geom["n"] * geom["W"] + (geom["n"] - 1) * split + wb
+
+
+def geometry_fits(geom):
+    return track_width_of(geom) <= PLATE_W + 1e-9
+
+
+def passes(r):
+    """Rating, fit and plate saturation, all at once."""
+    return "tape12" in r and r["rating_ok"] and r["fits"] and r["sat"] <= SAT_LIMIT + 1e-9
+
+
+def objective(r, lift_tape, f_casing):
+    if not r.get("fits", True) or "tape12" not in r:
+        return float("inf")
+    tape, casing = casing_mass(r, lift_tape)
+    return casing * f_casing
+
+
+def present_geom(allow=0.0, shape="square 100", gc=0.0):
+    return dict(n=2, W=0.5, gc=gc, shape=shape, allow=allow)
+
+
+def part_2(stage="screen"):
+    global F_REQ
+    d = design_NI()
+    theva = d["theva"]; theva77 = read_theva_file(THEVA_77)
+    F_REQ = d["F_s"]
+    f_casing, f_cable = mass_factors()
+    hr(f"PART 2: SUPPORT TRACK SEARCH ({stage})")
+    print(f"  Requirement {F_REQ/1e3:.1f} kN/m per track; rating = the pull where the mean field over the bundles reaches {bm.B_WIND_LIMIT:.1f} T (bearing_mass.B_WIND_LIMIT,")
+    print(f"  the rule behind the book's 280 kN/m at 346 kA), required to be at least {F_RATE_MARGIN:.2f} x the requirement ({F_RATE_MARGIN*F_REQ/1e3:.1f} kN/m); load winding {F_LOAD/1e3:.0f} kN/m")
+    print(f"  on the same loops; plate {PLATE_W:.1f} m x {PLATE_T*1e3:.0f} mm fixed,")
+    print(f"  gap {GAP*1e3:.0f} mm plus the cryostat wall allowance; the track must fit the plate.  Mass factors from ring_altitude.design(): {f_casing:.2f} kg of cable")
+    print(f"  per kg on the casing, {f_cable:.2f} kg of cable per kg on the cable (plates fixed, so only the casing side moves).  Spacing of the center")
+    print(f"  bundles is edge to edge ('joined' = one bundle holding both loops' turns).  Tape currents: the worst tape of the track at the share;")
+    print(f"  the field model carries {I_REF_12:.0f} A per 12 mm tape and {I_REF_3:.0f} A per 3 mm tape (the present currents) to place its tapes.")
+    print(f"  Coil ends: assumed bent down below the ring with a loop as large as needed, so they do not set the tape limit [UNVERIFIED].")
+    # the lift tracks at the worst-tape current (Part 1: 60 A limit, 30 A at 50 percent), carried unchanged into every candidate's mass
+    lift_tape = d["NI_l"] / (0.5 * 59.5) * 2 * 0.003 * TAPE_T * TAPE_RHO
+    print(f"  Lift tracks carried unchanged: {d['NI_l']/1e3:.0f} kA per leg at 30 A (half of the Part 1 worst-tape limit 59.5 A), {lift_tape:.1f} kg/m of tape per track.")
+    stages = dict(screen=0.005, confirm25=0.0025, confirm125=0.00125)
+    if stage in stages:
+        h = stages[stage]
+        cache = load_cache(h)
+        if stage == "screen":
+            geoms = [present_geom()]
+            for n in (1, 2, 3):
+                for W in (0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2):
+                    for gc in ((None, 0.0, 0.05, 0.10, 0.15, 0.20, 0.30) if n >= 2 else (0.0,)):
+                        geoms.append(dict(n=n, W=W, gc=gc, shape="square 100", allow=0.02))
+            print(f"\n  2.1  Loops, width and spacing at 5 mm cells, square 100 mm bundles, wall 20 mm ({len(geoms)} cases, the present design first at wall 0):")
+            cache = run_cases(geoms, h, theva, theva77, cache)
+            ranked = sorted((r for r in cache.values() if passes(r)), key=lambda r: objective(r, lift_tape, f_casing))
+            best4 = [r["geom"] for r in ranked[:4]]
+            geoms = []
+            for g in best4 + [present_geom(allow=0.02)]:
+                for shape in SHAPES:
+                    geoms.append(dict(g, shape=shape))
+            print(f"\n  2.2  Bundle cross-sections on the four best geometries and on the present one ({len(geoms)} cases):")
+            cache = run_cases(geoms, h, theva, theva77, cache)
+            ranked = sorted((r for r in cache.values() if passes(r)), key=lambda r: objective(r, lift_tape, f_casing))
+            best2 = [r["geom"] for r in ranked[:2]]
+            geoms = []
+            for g in best2 + [present_geom()]:
+                for allow in (0.0, 0.01, 0.02, 0.03, 0.04):
+                    geoms.append(dict(g, allow=allow))
+            print(f"\n  2.3  Cryostat wall allowance 0 to 40 mm on the two best and on the present ({len(geoms)} cases):")
+            cache = run_cases(geoms, h, theva, theva77, cache)
+            # one-at-a-time sensitivities around the best
+            best = ranked[0]["geom"]
+            geoms = []
+            for W in (best["W"] - 0.1, best["W"] + 0.1):
+                geoms.append(dict(best, W=round(W, 3)))
+            if best["gc"] is not None:
+                for gc in (max(0.0, best["gc"] - 0.05), best["gc"] + 0.05):
+                    geoms.append(dict(best, gc=round(gc, 3)))
+            print(f"\n  2.4  Sensitivities around the best ({len(geoms)} extra cases):")
+            cache = run_cases(geoms, h, theva, theva77, cache)
+            # 2.5 the combined grid: the three cross-sections that raised the limit most, with widths, spacings and walls
+            geoms = []
+            for shape in ("flat 200x50", "wide 150x67", "wide 150x100"):
+                for W in (0.3, 0.4, 0.5):
+                    for gc in (0.0, 0.05, 0.10):
+                        for allow in (0.0, 0.01, 0.02):
+                            geoms.append(dict(n=2, W=W, gc=gc, shape=shape, allow=allow))
+                for allow in (0.0, 0.02):
+                    geoms.append(dict(n=3, W=0.3, gc=None, shape=shape, allow=allow))
+                    geoms.append(dict(n=1, W=1.0, gc=0.0, shape=shape, allow=allow))
+            geoms = [g for g in geoms if geom_key(g) not in cache]
+            print(f"\n  2.5  The combined grid: flat and wide bundles with two loops of 0.3 to 0.5 m, center spacing 0 to 100 mm, wall 0 to 20 mm,")
+            print(f"       plus three joined 0.3 m loops and one 1 m loop with the same bundles ({len(geoms)} new cases):")
+            cache = run_cases(geoms, h, theva, theva77, cache)
+        else:
+            cache5 = load_cache(0.005) if stage == "confirm25" else load_cache(0.0025)
+            ranked = sorted((r for r in cache5.values() if passes(r)), key=lambda r: objective(r, lift_tape, f_casing))
+            n_top = 8 if stage == "confirm25" else 2
+            geoms = [r["geom"] for r in ranked[:n_top]] + ([present_geom()] if stage == "confirm25" else [])
+            print(f"\n  Confirming the {n_top} best of the coarser stage{' and the present design' if stage == 'confirm25' else ' (the present design is in Part 1)'} at {h*1e3:g} mm:")
+            cache = run_cases(geoms, h, theva, theva77, cache, light=(cache5 if stage == "confirm125" else None))
+        report_tables(cache, lift_tape, f_casing, f_cable, d, h)
+    elif stage == "report":
+        for h in (0.005, 0.0025, 0.00125):
+            cache = load_cache(h)
+            if cache:
+                report_tables(cache, lift_tape, f_casing, f_cable, d, h, full=True)
+
+
+def report_tables(cache, lift_tape, f_casing, f_cable, d, h, full=False):
+    rows = [r for r in cache.values() if "tape12" in r]
+    ok = [r for r in rows if passes(r)]
+    present_key = geom_key(present_geom())
+    sat_ref = cache[present_key]["sat"] if present_key in cache and "sat" in cache[present_key] else None
+    ranked = sorted(ok, key=lambda r: objective(r, lift_tape, f_casing))
+    print()
+    note = "" if sat_ref is None else f" (the present design computes to {sat_ref*100:.1f} % here)"
+    print(f"  Ranking at {h*1e3:g} mm cells ({len(rows)} cases run, {len(ok)} meet rating, fit and plate saturation <= {SAT_LIMIT:.0%}{note}); cable-equivalent = casing side x {f_casing:.2f}:")
+    print(f"  {'rank':>4} {'geometry':60} {'NI kA':>6} {'rated':>6} {'sat %':>5} {'Ic A':>5} {'I50 A':>5} {'tape kg/m':>9} {'load kg/m':>9} {'casing kg/m':>11} {'cable-eq kg/m':>13} {'W kJ/m':>7} {'MVA':>5} {'fill %':>6}")
+    for i, r in enumerate(ranked[:12]):
+        tape, casing = casing_mass(r, lift_tape)
+        print(f"  {i+1:4d} {r['key']:60} {r['NI_req']/1e3:6.0f} {r['F_rated']/1e3:6.1f} {r['sat']*100:5.1f} {r['ic12']:5.0f} {r['I12']:5.0f} {r['tape12']:9.1f} {r['tape3']:9.1f} {casing:11.1f} {casing*f_casing:13.0f} {r['W_req']/1e3:7.1f} {r['VA']/1e6:5.0f} {r['fill']*100:6.0f}")
+    if present_key in cache and "tape12" in cache[present_key]:
+        r = cache[present_key]; tape, casing = casing_mass(r, lift_tape)
+        print(f"  {'now':>4} {r['key']:60} {r['NI_req']/1e3:6.0f} {r['F_rated']/1e3:6.1f} {r['sat']*100:5.1f} {r['ic12']:5.0f} {r['I12']:5.0f} {r['tape12']:9.1f} {r['tape3']:9.1f} {casing:11.1f} {casing*f_casing:13.0f} {r['W_req']/1e3:7.1f} {r['VA']/1e6:5.0f} {r['fill']*100:6.0f}")
+        print(f"       (the present design at wall 0; its tape at the design currents 163 A and 43 A was 2 x (67.3 + 55.8) + 2 x 47.1 = 340 kg/m, casing side 681 kg/m)")
+    rejected = [r for r in rows if not passes(r)]
+    if rejected:
+        print(f"  Rejected ({len(rejected)}): " + "; ".join(f"{r['key']} ({'rating' if not r['rating_ok'] else 'fit' if not r['fits'] else 'saturation'})" for r in rejected[:30]))
+    if not full or not ranked:
+        return
+    # shapes: how the worst-tape limit rises with the cross-section (the best geometry's family and the present one)
+    print()
+    print("  Bundle cross-section against the worst-tape limit (same loops, same ampere-turns for the requirement):")
+    for base in {geom_key(dict(r["geom"], shape="square 100")) for r in ranked[:4]} | {geom_key(present_geom(allow=0.02, shape="square 100"))}:
+        fam = [r for r in rows if geom_key(dict(r["geom"], shape="square 100")) == base]
+        if len(fam) < 2:
+            continue
+        ref = next((r for r in fam if r["geom"]["shape"] == "square 100"), fam[0])
+        print(f"    {base}:")
+        for r in sorted(fam, key=lambda q: -q["ic12"]):
+            print(f"      {r['geom']['shape']:13} Ic {r['ic12']:5.0f} A ({(r['ic12']/ref['ic12']-1)*100:+5.1f} %), NI {r['NI_req']/1e3:5.0f} kA ({(r['NI_req']/ref['NI_req']-1)*100:+5.1f} %), tape {r['tape12']:5.1f} kg/m ({(r['tape12']/ref['tape12']-1)*100:+5.1f} %), rating {'ok' if r['rating_ok'] else 'NO'}, fill {r['fill']*100:3.0f} %")
+    # allowance
+    print()
+    print("  Cryostat wall allowance (bundle face to plate = 100 mm + wall):")
+    for base in {geom_key(dict(r["geom"], allow=0.0)) for r in rows}:
+        fam = sorted([r for r in rows if geom_key(dict(r["geom"], allow=0.0)) == base], key=lambda q: q["geom"]["allow"])
+        if len(fam) < 3:
+            continue
+        print(f"    {base}: " + "; ".join(f"{r['geom']['allow']*1e3:.0f} mm: NI {r['NI_req']/1e3:.0f} kA, Ic {r['ic12']:.0f} A, tape {r['tape12']:.1f} kg/m" for r in fam))
+    # sensitivities: one line per variable from the cases around the best
+    best = ranked[0]
+    print()
+    print(f"  Sensitivities around the best ({best['key']}); pull at the best's ampere-turns is not solved separately, so each line gives the")
+    print(f"  ampere-turns for the requirement and the tape mass of the neighbouring case:")
+    g = best["geom"]
+    for var, name in (("W", "loop width"), ("gc", "center spacing"), ("allow", "wall allowance"), ("n", "loops per track"), ("shape", "bundle shape")):
+        parts = []
+        for r in sorted(rows, key=lambda q: str(q["geom"][var])):
+            if r is best or any(r["geom"][k] != g[k] for k in g if k != var) or r["geom"][var] == g[var]:
+                continue
+            v = r["geom"][var]
+            if var == "gc":
+                vs = "joined" if v is None else f"{v*1e3:.0f} mm"
+            elif var == "allow":
+                vs = f"{v*1e3:.0f} mm"
+            elif var == "W":
+                vs = f"{v:g} m"
+            else:
+                vs = str(v)
+            parts.append(f"{vs}: NI {(r['NI_req']/best['NI_req']-1)*100:+.1f} %, Ic {(r['ic12']/best['ic12']-1)*100:+.1f} %, tape {(r['tape12']/best['tape12']-1)*100:+.1f} %, rated {r['F_rated']/1e3:.0f} kN/m{'' if passes(r) else ' (fails)'}")
+        print(f"    {name:16}: " + ("; ".join(parts) if parts else "no neighbouring case run"))
+    # the tape current table (Table 8.2) for the best and the present
+    print()
+    NI_normal = None
+    weight_share = d["m_casing"] * ring.G_NET / 2
+    for label, r in (("best", best), ("present", cache.get(present_key))):
+        if not r or "lim12" not in r:
+            continue
+        NI_normal = r["NI_req"] * math.sqrt(weight_share / r["F_lin_req"])      # the weight share is far below saturation: linear scaling
+        ic70, ic77, slope, trows = temperature_table(r["lim12"], r["face12"], NI_normal_frac=NI_normal / r["NI_req"])
+        print(f"  Tape current table, {label} ({r['key']}): worst 12 mm tape {ic70:.0f} A at 70 K, {ic77:.0f} A at 77.5 K ({slope:.1f} A per kelvin, {slope/ic70*100:.1f} % per kelvin);")
+        print(f"    full load {r['NI_req']/1e3:.0f} kA per leg, normal operation (the weight share, {weight_share/1e3:.1f} kN/m) {NI_normal/1e3:.0f} kA")
+        print(f"    {'share':>6} {'full-load current A':>20} {'warming the tape can take K':>28} {'normal current A':>16} {'turns per bundle':>16} {'tape kg/m':>10}")
+        for s_, I, dT, I_n in trows:
+            turns = r["turns12"] * r["I12"] / I
+            print(f"    {s_*100:5.0f}% {I:20.0f} {dT:28.1f} {I_n:16.0f} {turns/ (len(r['lim12'])):16,.0f} {r['tape12']*r['I12']/I:10.1f}")
+    # stray field of the three best and the present, at the normal (weight share) and the rating currents
+    print()
+    print("  Stray field (30 x 30 m linear box, 50 mm cells, as final_bearing Part D.2): normal = support at the weight share, lift off; rating = support at the")
+    print("  requirement plus the load winding (ampere-turns from the log-log fit of the solved points, an extrapolation), lift at its present 446 kA.")
+    weight_share = d["m_casing"] * ring.G_NET / 2
+    ref = None
+    for label, r in [("present", cache.get(present_key))] + [(f"rank {i+1}", q) for i, q in enumerate(ranked[:3])]:
+        if not r or "lim12" not in r:
+            continue
+        NI_normal = r["NI_req"] * math.sqrt(weight_share / r["F_lin_req"])
+        pts = sorted([(r["NI_req"], r["F_req"]), (r["NI_rated"], r["F_rated"])])
+        NI_rating = math.exp(math.log(pts[1][0]) + (math.log(r["F_req"] + F_LOAD) - math.log(pts[1][1])) * (math.log(pts[1][0]) - math.log(pts[0][0])) / (math.log(pts[1][1]) - math.log(pts[0][1])))
+        sf = stray_field_check(r["geom"], NI_normal, NI_rating, NI_lift=d["NI_l"])
+        if ref is None:
+            ref = sf
+        print(f"    {label} ({r['key']}): normal {NI_normal/1e3:.0f} kA, rating {NI_rating/1e3:.0f} kA per leg")
+        for mode in ("normal", "rating"):
+            print(f"      {mode:7}: " + ", ".join(f"{k} {v*1e3:.3f} mT" + (f" ({v/ref[mode][k]:.2f} x)" if ref is not sf and ref[mode][k] > 0 else "") for k, v in sf[mode].items() if k in ("LIM stator, center", "largest over the stator", "1 m below the ring")))
+        r["stray"] = sf
+    print()
+    if present_key in cache and "tape12" in cache[present_key]:
+        ob, op = objective(best, lift_tape, f_casing), objective(cache[present_key], lift_tape, f_casing)
+        print(f"  Is the present design near the optimum?  Best cable-equivalent {ob:,.0f} kg/m against the present {op:,.0f} kg/m ({(ob/op-1)*100:+.1f} %).")
+    else:
+        print(f"  Best cable-equivalent {objective(best, lift_tape, f_casing):,.0f} kg/m (the present design was not run at this cell size here; Part 1 has it).")
+
 
 def main():
-    part = "1"; quick = False
+    part = "1"; quick = False; stage = "screen"
     for arg in sys.argv[1:]:
         if arg in ("--help", "-h"):
             print(__doc__); return
         elif arg.startswith("--part="):
             part = arg.split("=")[1]
+        elif arg.startswith("--stage="):
+            stage = arg.split("=")[1]
         elif arg == "--quick":
             quick = True
         else:
@@ -404,6 +1038,8 @@ def main():
     print(f"  Ring at {ring.ALTITUDE_KM:.0f} km: casing {ring.M_LOAD_M:,.0f} kg/m ({ring.M_LOAD_M*ring.G_NET/1e3:.1f} kN/m), cable hardware {ring.M_HARDWARE_M:,.0f} kg/m, cable {ring.M_CABLE_M:,.0f} kg/m, face {ring.CABLE_SIDE:.2f} m.")
     if "1" in part:
         part_1(quick)
+    if "2" in part:
+        part_2(stage)
     hr(f"DONE ({time.time()-t_all:.0f} s)")
 
 

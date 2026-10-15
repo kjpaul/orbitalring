@@ -17,7 +17,9 @@ Columns, one row per measurement point:
 | Applied field angle (°) | angle between the field and the tape, 0, 30, 90 and 120 degrees (0 is the field perpendicular to the tape face, the convention Chapter 6 uses) |
 | Critical current per cm width (A/cm) | critical current of the tape per centimetre of tape width |
 
-Read by `bearing_design.py` (`read_theva`), `bearing_mass.py`, `final_bearing.py` and `compensation_tracks.py`. The scripts multiply the per-centimetre value by the tape width (3 mm or 12 mm) and take the lower of the 0 and 90 degree curves at the field in the winding.
+Read by `bearing_design.py` (`read_theva`), `bearing_mass.py`, `final_bearing.py` and `compensation_tracks.py`. The scripts multiply the per-centimetre value by the tape width (3 mm or 12 mm) and take the lower of the 0 and 90 degree curves at the field in the winding. `bearing_optimize.py` reads the angle too.
+
+`THEVA_Pro-Line_Advanced_Pinning_2G_HTS_77.5K_Field_Dependence.csv`: the same measurement at 77.5 K, same columns and source, used with permission of THEVA. Read by `bearing_optimize.py` for the warming a tape can take before its limit falls to the operating current (Part 2 of the coil optimization).
 
 ## Solver caches
 

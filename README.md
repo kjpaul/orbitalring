@@ -79,7 +79,7 @@ The bearing has four tracks of air-core superconducting coils: two support track
 | `magnetostatic_2d.py` | the two-dimensional field solver the bearing scripts import | 8 |
 | `lsm_simulation.py` | the mass driver launch the bearing scripts take their speed profile from (see below) | 8, 14 |
 
-| `bearing_optimize.py --part=1` | the field solution checked for the present bearing: grid convergence at 5, 2.5 and 1.25 mm, the tape current limit from the field on every tape of a modelled winding, and an image-method check of the pull (about two hours; later parts will optimize the coils and gaps) | 8 |
+| `bearing_optimize.py --part=1`, `--part=2 --stage=screen` (then `confirm25`, `confirm125`, `report`) | Part 1: the field solution checked for the present bearing (grid convergence, the tape limit from every tape of a modelled winding, an image-method check; two hours). Part 2: the support track search over loop width, center spacing, bundle cross-section, cryostat wall and loop count at 5 mm, confirmed at 2.5 and 1.25 mm (a day of computing; results cached in the output folder) | 8 |
 
 ### Launch and power
 
