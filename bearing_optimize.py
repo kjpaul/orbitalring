@@ -7,6 +7,8 @@ of the pull by the method of images.
 Book: The Orbital Ring, Volume IV: Chapter 8 (Sections 8.1 to 8.5, Tables 8.2 and 8.3; the optimized numbers are for a later pass).
 Run: python bearing_optimize.py --part=1 [--quick]   (about two hours; --quick skips the finest grid)
      python bearing_optimize.py --part=2 --stage=screen|confirm25|confirm125|report   (Part 2, see below)
+     python bearing_optimize.py --part=2b --stage=rerate|rerate25|wall   (Part 2 redone on Paul's rules of 2026-10-21, and the cryostat wall)
+     python bearing_optimize.py --part=3 --stage=lift|lift25|report3   (Part 3: lift tracks and the load winding, coil length)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
 Nothing here changes a default of final_bearing.py, bearing_mass.py or magnetostatic_2d.py; the present design is rebuilt
@@ -57,6 +59,7 @@ import bearing_design as bd
 import bearing_mass as bm
 import compensation_fields as cf
 import final_bearing as fb
+import levitation_config as lc
 import magnetostatic_2d as ms
 
 MU0 = ms.MU0
@@ -1019,6 +1022,400 @@ def report_tables(cache, lift_tape, f_casing, f_cable, d, h, full=False):
     else:
         print(f"  Best cable-equivalent {objective(best, lift_tape, f_casing):,.0f} kg/m (the present design was not run at this cell size here; Part 1 has it).")
 
+# =============================================================================
+# Paul's decisions of 2026-10-21: the design cryostat allowance is 10 mm (5 mm as a sensitivity); the 1.0 T mean-field rule is
+# dropped and the rating is the pull at which the worst tape reaches a share of its critical current at its own field and
+# angle (the share was left as "XX": 60, 70 and 80 percent are reported, [QUESTION FOR AUTHOR]).  Then the wall check and Part 3.
+# =============================================================================
+
+WALL_DESIGN, WALL_SENS = 0.010, 0.005
+RATE_SHARES = (0.6, 0.7, 0.8)
+LIFT_REQ = fb.F_LIFT_TRACK                     # 196.5 kN/m per lift track
+RHO_TI, RHO_SS = 4430.0, 7900.0                # kg/m^3 [UNVERIFIED: handbook values]
+RES_TI_77, RES_SS_77 = 1.5e-6, 0.5e-6          # ohm m at 77 K, Ti-6Al-4V and 304 stainless [UNVERIFIED: handbook values, not from a run]
+CP_TI_77, CP_SS_77 = 215.0, 200.0              # J/kg/K at 77 K [UNVERIFIED]
+YIELD_TI_RT, YIELD_TI_77 = 880e6, 1300e6       # Pa, Ti-6Al-4V [UNVERIFIED: typical handbook values]
+WALL_T, LN2_T, MLI_T = 0.002, 0.003, 0.005     # m: 2 mm Ti wall, 3 mm liquid nitrogen, the rest of the 10 mm as insulation face (Paul)
+
+
+def tape_rating(points, NI_req, I_req, w_tape, shares=RATE_SHARES):
+    """The pull at which the worst tape of a winding built for the requirement at 50 percent reaches each share of its
+    critical current, from the solved points (share interpolated linearly in log NI, pull in log-log)."""
+    key = "lim12" if w_tape == 0.012 else "lim3"
+    pts = sorted(points, key=lambda p: p["NI"])
+    N_leg = NI_req / I_req                                         # turns per leg-equivalent, fixed by the requirement
+    xs = []; ss = []; fs = []
+    for p in pts:
+        ic = min(min(d["ic_v"], d["ic_h"]) for d in p[key])
+        xs.append(math.log(p["NI"])); ss.append((p["NI"] / N_leg) / ic); fs.append(math.log(p["F"]))
+    out = {}
+    for s in shares:
+        if s < min(ss) or s > max(ss):
+            out[s] = (float("nan"), float("nan")); continue
+        x = float(np.interp(s, ss, xs))
+        out[s] = (math.exp(x), math.exp(float(np.interp(x, xs, fs))))
+    return out
+
+
+def _evaluate_rerate(self, F_req=None, s_share=0.5, kind="support", margin=F_RATE_MARGIN):
+    """The full evaluation on the new rules: requirement, two points above it (1.3 and 1.6 times) for the tape rating,
+    the load winding at its own field and at the combined field (support kind only), the old 1.0 T rating by interpolation."""
+    F_req = F_req or F_REQ
+    w_main = 0.012 if kind == "support" else 0.003
+    I_ref = I_REF_12 if kind == "support" else I_REF_3
+    self.F_lin1 = self.run(self.NI_est, linear=True)
+    pts = []
+    NI1 = self.NI_est * math.sqrt(F_req / self.F_lin1 / 0.6)
+    pts.append(self.curve_point(NI1))
+    NI2 = self.interp_NI(pts, F_req)
+    if abs(NI2 / NI1 - 1) < 0.004:
+        NI2 = NI1 * 1.03
+    pts.append(self.curve_point(NI2))
+    NI_req = self.interp_NI(pts, F_req)
+    p_req = min(pts, key=lambda p: abs(p["NI"] - NI_req))
+    if abs(p_req["F"] / F_req - 1) > 0.01:
+        pts.append(self.curve_point(NI_req)); p_req = pts[-1]; NI_req = self.interp_NI(pts, F_req)
+    p13 = self.curve_point(1.3 * NI_req); pts.append(p13)
+    if self.h >= 0.004 or kind == "lift":                          # at 2.5 mm the combined point below serves as the high point
+        p16 = self.curve_point(1.6 * NI_req); pts.append(p16)
+    else:
+        p16 = p13
+    if kind == "support":
+        NI_l = self.interp_NI(pts, F_LOAD)
+        p_l = self.curve_point(NI_l); pts.append(p_l)
+        NI_l = self.interp_NI(pts, F_LOAD)
+        p_c = self.curve_point(NI_req + NI_l)                       # both windings energized: the 3 mm tape's worst field
+    key = "lim12" if kind == "support" else "lim3"
+    def limits_at(p, NI, k, w_t):
+        out = []
+        for d in p[k]:
+            sc = NI / p["NI"]; r = dict(d)
+            for face in ("v", "h"):
+                B = d["B_" + face] * sc; th = d["th_" + face]
+                r["ic_" + face] = float(ic_angle(self.theva, np.array([B]), np.array([th]), w_t)[0])
+                r["ic77_" + face] = float(ic_angle(self.theva77, np.array([B]), np.array([th]), w_t)[0])
+                r["B_" + face] = B
+            out.append(r)
+        return out
+    lim = limits_at(p_req, NI_req, key, w_main)
+    ic = min(min(d["ic_v"], d["ic_h"]) for d in lim); face = "v" if min(d["ic_v"] for d in lim) <= min(d["ic_h"] for d in lim) else "h"
+    I_op = s_share * ic
+    turns = sum(abs(d["NI"]) for d in lim) * NI_req / p_req["NI"] / I_op
+    tape = turns * w_main * TAPE_T * TAPE_RHO
+    rate = tape_rating(pts, NI_req, I_op, w_main)
+    # the old rule for reference: mean field over the bundles reaching 1.0 T
+    bm_pts = sorted(((p["NI"], p["B_mean"], p["F"]) for p in pts), key=lambda q: q[0])
+    bms = [q[1] for q in bm_pts]
+    if min(bms) <= bm.B_WIND_LIMIT <= max(bms):
+        NI_1T = math.exp(float(np.interp(bm.B_WIND_LIMIT, bms, np.log([q[0] for q in bm_pts]))))
+        F_1T = math.exp(float(np.interp(math.log(NI_1T), np.log([q[0] for q in bm_pts]), np.log([q[2] for q in bm_pts]))))
+    else:
+        NI_1T = F_1T = float("nan")
+    W_req = p_req["W_mag"] * (NI_req / p_req["NI"])**2
+    res = dict(key=geom_key(self.geom), geom=self.geom, h=self.h, kind=kind, NI_req=NI_req, F_req=F_req, F_lin_req=self.F_lin1 * (NI_req / self.NI_est)**2,
+               eff_req=p_req["eff"], sat=p_req["sat"], B_plate=p_req["B_plate"], B_mean_req=p_req["B_mean"], W_req=W_req,
+               F_rated=F_1T, NI_rated=NI_1T, rate_tape={str(int(s * 100)): v for s, v in rate.items()},
+               track_width=self.track_width, fits=self.track_width <= PLATE_W + 1e-9, solves=self.solves, seconds=time.time() - self.t0, split=self.split,
+               sat13=p13["sat"], sat16=p16["sat"], rules="tape")
+    if kind == "support":
+        lim3 = limits_at(p_l, NI_l, "lim3", 0.003)
+        lim3c = limits_at(p_c, NI_req + NI_l, "lim3", 0.003)
+        ic3 = min(min(d["ic_v"], d["ic_h"]) for d in lim3); ic3c = min(min(d["ic_v"], d["ic_h"]) for d in lim3c)
+        I3 = s_share * ic3; I3c = s_share * ic3c
+        turns3 = sum(abs(d["NI"]) for d in lim3) * NI_l / p_l["NI"] / I3; turns3c = sum(abs(d["NI"]) for d in lim3) * NI_l / p_l["NI"] / I3c
+        W_load = p_l["W_mag"] * (NI_l / p_l["NI"])**2
+        E_coil = W_load * fb.L_LOAD / fb.N_FAM
+        res.update(ic12=ic, face12=face, I12=I_op, turns12=turns, tape12=tape, lim12=lim, NI_load=NI_l, W_load=W_load, E_coil=E_coil, VA=2 * E_coil / fb.TAU_HW,
+                   ic3=ic3, I3=I3, turns3=turns3, tape3=turns3 * 0.003 * TAPE_T * TAPE_RHO, lim3=lim3,
+                   ic3_comb=ic3c, I3_comb=I3c, turns3_comb=turns3c, tape3_comb=turns3c * 0.003 * TAPE_T * TAPE_RHO, lim3_comb=lim3c,
+                   F_comb=p_c["F"], sat_comb=p_c["sat"], W_comb=p_c["W_mag"],
+                   fill=(turns * 0.012 + turns3c * 0.003) * TAPE_T / (shape_area(self.geom["shape"]) * len(self.bundles)),
+                   rating_ok=True)
+    else:
+        res.update(ic3=ic, face3=face, I3=I_op, turns3=turns, tape3=tape, lim3=lim, W_load=W_req, E_coil=W_req * fb.L_LIFT / fb.N_FAM,
+                   VA=2 * W_req * fb.L_LIFT / fb.N_FAM / fb.TAU_HW, tape12=0.0, turns12=0.0, ic12=float("nan"), I12=float("nan"), face12="-",
+                   fill=turns * 0.003 * TAPE_T / (shape_area(self.geom["shape"]) * len(self.bundles)), rating_ok=True, B_wall=None)
+    return res
+
+
+Evaluator.evaluate_rerate = _evaluate_rerate
+
+
+def rated_tape(r, share):
+    v = r.get("rate_tape", {}).get(str(int(share * 100)))
+    return v[1] if v else float("nan")
+
+
+def passes_tape(r, share, margin=F_RATE_MARGIN):
+    return "rate_tape" in r and r["fits"] and r["sat"] <= SAT_LIMIT + 1e-9 and rated_tape(r, share) >= margin * r["F_req"]
+
+
+def part3_cache(h, kind):
+    return os.path.join(ring.out_dir(), f"bearing_optimize_part3_{kind}_{h*1e3:g}mm.json")
+
+
+def load_json(p):
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+
+def save_json(p, d):
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=1, default=float)
+
+
+def run_cases_rerate(geoms, h, theva, theva77, cache, path, kind="support", F_req=None):
+    for geom in geoms:
+        k = geom_key(geom)
+        if k in cache:
+            continue
+        if not geometry_fits(geom):
+            cache[k] = dict(key=k, geom=geom, h=h, fits=False, track_width=track_width_of(geom)); save_json(path, cache)
+            print(f"    {k:60} does not fit the {PLATE_W:.1f} m plate ({track_width_of(geom):.2f} m)", flush=True)
+            continue
+        ev = Evaluator(geom, h, theva, theva77)
+        r = ev.evaluate_rerate(F_req=F_req, kind=kind)
+        cache[k] = r; save_json(path, cache)
+        rt = " ".join(f"{s}:{rated_tape(r, s)/1e3:5.1f}" for s in RATE_SHARES)
+        if kind == "support":
+            print(f"    {k:60} NI {r['NI_req']/1e3:5.0f} kA, rated(tape 60/70/80 %) {rt} kN/m, 1 T {r['F_rated']/1e3:5.1f}, sat {r['sat']*100:4.1f} %, Ic {r['ic12']:5.0f} A, "
+                  f"tape {r['tape12']:5.1f} + load {r['tape3']:5.1f} ({r['tape3_comb']:5.1f} at the combined field, Ic3 {r['ic3']:.0f}/{r['ic3_comb']:.0f} A) kg/m, W {r['W_req']/1e3:5.1f} kJ/m ({r['solves']} solves, {r['seconds']:.0f} s)", flush=True)
+        else:
+            print(f"    {k:60} NI {r['NI_req']/1e3:5.0f} kA, rated(tape 60/70/80 %) {rt} kN/m, 1 T {r['F_rated']/1e3:5.1f}, sat {r['sat']*100:4.1f} %, Ic3 {r['ic3']:4.0f} A ({r['face3']}), "
+                  f"tape {r['tape3']:5.1f} kg/m, W {r['W_req']/1e3:5.1f} kJ/m, {r['E_coil']/1e6:.3f} MJ per 50 m coil ({r['solves']} solves, {r['seconds']:.0f} s)", flush=True)
+    return cache
+
+
+def casing_mass_new(r_sup, r_lift):
+    """Casing side from a support result and a lift result, both on the worst-tape basis, the load winding at the combined field."""
+    tape = 2 * (r_sup["tape12"] + r_sup["tape3_comb"]) + 2 * r_lift["tape3"]
+    return tape, tape * (1 + CRYO)
+
+
+def ranking_tables(cache, title, kind, share_list=RATE_SHARES, lift_tape=None):
+    rows = [r for r in cache.values() if "rate_tape" in r]
+    for s in share_list:
+        ok = sorted((r for r in rows if passes_tape(r, s)), key=lambda r: (r["tape12"] + r.get("tape3_comb", r.get("tape3", 0.0))) if kind == "support" else r["tape3"])
+        print(f"\n  {title}: rating = the pull at which the worst tape reaches {s:.0%} of its limit, >= {F_RATE_MARGIN:.2f} x the requirement; {len(ok)} of {len(rows)} pass (with fit and saturation <= {SAT_LIMIT:.0%}):")
+        if kind == "support":
+            print(f"  {'rank':>4} {'geometry':60} {'NI kA':>6} {'rated kN/m':>10} {'1 T rule':>8} {'sat %':>5} {'Ic A':>5} {'I50 A':>5} {'tape':>6} {'load':>6} {'load*':>6} {'casing kg/m':>11} {'cable-eq':>9} {'W kJ/m':>7} {'MVA':>5} {'fill %':>6}")
+            for i, r in enumerate(ok[:10]):
+                tape = 2 * (r["tape12"] + r["tape3_comb"]) + 2 * (lift_tape or 0.0); casing = tape * (1 + CRYO)
+                print(f"  {i+1:4d} {r['key']:60} {r['NI_req']/1e3:6.0f} {rated_tape(r, s)/1e3:10.1f} {r['F_rated']/1e3:8.1f} {r['sat']*100:5.1f} {r['ic12']:5.0f} {r['I12']:5.0f} {r['tape12']:6.1f} {r['tape3']:6.1f} {r['tape3_comb']:6.1f} {casing:11.1f} {casing*9.65:9.0f} {r['W_req']/1e3:7.1f} {r['VA']/1e6:5.0f} {r['fill']*100:6.0f}")
+        else:
+            print(f"  {'rank':>4} {'geometry':60} {'NI kA':>6} {'rated kN/m':>10} {'1 T rule':>8} {'sat %':>5} {'Ic3 A':>5} {'I50 A':>5} {'tape kg/m':>9} {'W kJ/m':>7} {'MJ/coil':>7} {'MVA 2 ms':>8} {'fill %':>6}")
+            for i, r in enumerate(ok[:10]):
+                print(f"  {i+1:4d} {r['key']:60} {r['NI_req']/1e3:6.0f} {rated_tape(r, s)/1e3:10.1f} {r['F_rated']/1e3:8.1f} {r['sat']*100:5.1f} {r['ic3']:5.0f} {r['I3']:5.0f} {r['tape3']:9.1f} {r['W_req']/1e3:7.1f} {r['E_coil']/1e6:7.3f} {r['VA']/1e6:8.0f} {r['fill']*100:6.0f}")
+        rej = [r for r in rows if not passes_tape(r, s)]
+        if rej:
+            print("  rejected: " + "; ".join(f"{r['key']} ({'rating' if (r['fits'] and r['sat'] <= SAT_LIMIT) else 'fit' if not r['fits'] else 'saturation'}, {rated_tape(r, s)/1e3:.0f})" for r in rej[:20]))
+
+
+def best_of(cache, share, kind="support", wall=None):
+    rows = [r for r in cache.values() if "rate_tape" in r and passes_tape(r, share) and (wall is None or abs(r["geom"]["allow"] - wall) < 1e-9)]
+    if not rows:
+        return None
+    return min(rows, key=lambda r: (r["tape12"] + r["tape3_comb"]) if kind == "support" else r["tape3"])
+
+
+# ------------------------------------------------------------------ the cryostat wall
+def wall_check(geom, h, theva, theva77, NI_req, NI_load, label, kind="support"):
+    """The 2 mm titanium wall between the bundle face (10 mm below the plate's clearance) and the gap: bending stress against
+    the coolant pressure for the span of one bundle width (clamped and simply supported strips), and the eddy loss in the
+    wall when a driven winding pulses (its field at the wall plane, rising in the 2 ms protection rise or the 20 ms ramp)."""
+    wb = shape_width(geom["shape"])
+    print(f"  {label}: bundle {wb*1e3:.0f} mm wide; wall {WALL_T*1e3:.0f} mm Ti-6Al-4V, {LN2_T*1e3:.0f} mm liquid nitrogen behind it, {MLI_T*1e3:.0f} mm insulation face to the bundle (the 10 mm allowance).")
+    print(f"  Coolant pressure at the coil: no cryogenic hydraulics code exists in the repository and Chapter 18 states no pressure [QUESTION FOR AUTHOR];")
+    print(f"  the stress is tabulated against pressure.  A strip of width b and thickness t under pressure p: clamped edges sigma = p b^2 / (2 t^2),")
+    print(f"  simply supported 3 p b^2 / (4 t^2) [UNVERIFIED: plate-strip formulas, Roark]; yield Ti-6Al-4V {YIELD_TI_RT/1e6:.0f} MPa at room temperature,")
+    print(f"  {YIELD_TI_77/1e6:.0f} MPa at 77 K [UNVERIFIED: handbook values].  The outside of the cryostat is in vacuum, so the whole absolute pressure loads the wall.")
+    print(f"  {'pressure':>9} {'clamped MPa':>11} {'margin RT':>9} {'margin 77 K':>11} {'supported MPa':>13} {'margin RT':>9} {'span for yield/2 at RT, clamped':>32}")
+    for p_bar in (1.0, 1.5, 2.0, 3.0, 5.0, 10.0):
+        p = p_bar * 1e5
+        s_cl = p * wb**2 / (2 * WALL_T**2); s_ss = 3 * p * wb**2 / (4 * WALL_T**2)
+        b_half = math.sqrt(0.5 * YIELD_TI_RT * 2 * WALL_T**2 / p)
+        print(f"  {p_bar:7.1f} bar {s_cl/1e6:11.0f} {YIELD_TI_RT/s_cl:9.2f} {YIELD_TI_77/s_cl:11.2f} {s_ss/1e6:13.0f} {YIELD_TI_RT/s_ss:9.2f} {b_half*1e3:29.0f} mm")
+    # the eddy loss: the driven winding's field along the wall plane
+    ev = Evaluator(geom, h, theva, theva77)
+    for tag, NI in (("load winding pulse (its own field)", NI_load), ("support plus load (the full-load state)", NI_req + NI_load)) if kind == "support" else (("lift winding pulse", NI_req),):
+        ev.run(NI)
+        y_wall = -(MLI_T + LN2_T) - WALL_T / 2                      # the wall's mid-plane, 2 mm below the gap's lower edge... measured from the bundle face at -allow
+        y_wall = -geom["allow"] + MLI_T + LN2_T + WALL_T / 2       # bundle face at -allow; insulation, nitrogen, then the wall nearest the gap
+        xs = np.arange(-ev.track_width / 2 - 0.3, ev.track_width / 2 + 0.3, ev.w.h)
+        Bx, By = field_at_points(ev.w, xs, np.full_like(xs, y_wall))
+        # a long thin sheet in a normal field B_y(x, t): E_z(x) = -d/dt int B_y dx + C, C from zero net current along z
+        dBdt_unit = By                                             # per unit of dB/dt scaling: B rises from 0 to By in tau
+        Ez = -np.cumsum(dBdt_unit) * ev.w.h
+        Ez -= Ez.mean()
+        integral = float(np.sum(Ez**2) * ev.w.h)                   # (V/m)^2 m at unit rate (1/s)
+        Bmax = float(np.abs(By).max())
+        print(f"  {tag}: {NI/1e3:.0f} kA per leg; field through the wall plane up to {Bmax:.3f} T (the pulse's change at the wall).")
+        print(f"  {'wall':>22} {'resistivity':>12} {'W/m of ring in the 2 ms rise':>28} {'J/m per pulse (rise+fall)':>26} {'at the 20 ms ramp':>18} {'per launch, ring':>16} {'wall dT per pulse':>17} {'slit into 20 mm strips':>22}")
+        for name, rho, dens, cp in (("Ti-6Al-4V", RES_TI_77, RHO_TI, CP_TI_77), ("304 stainless", RES_SS_77, RHO_SS, CP_SS_77), ("composite (non-conducting)", float("inf"), 1800.0, 800.0)):
+            sigma = 0.0 if rho == float("inf") else 1.0 / rho
+            P2 = sigma * WALL_T * integral / fb.TAU_HW**2           # W per m of ring during the 2 ms rise
+            E2 = 2 * P2 * fb.TAU_HW                                   # rise and fall
+            E20 = 2 * sigma * WALL_T * integral / (fb.RAMP + fb.TAU_HW)
+            m_wall = dens * WALL_T * (xs[-1] - xs[0])
+            dT = E2 / (m_wall * cp) if sigma else 0.0
+            n_strip = (xs[-1] - xs[0]) / 0.020
+            print(f"  {name:>22} {('%.2f' % (rho*1e6)) if sigma else '-':>9} uOhm m {P2:28.1f} {E2:26.2f} {E20:18.2f} {E2*ring.L_RING/1e6:13.1f} MJ {dT*1e3:14.2f} mK {E2/n_strip**2:16.3f} J/m")
+        print(f"  (a continuous sheet across the whole track width plus 0.3 m each side; the eddy currents run along the ring and return across the sheet's width,")
+        print(f"  so the loss scales with the cube of the sheet width and the thin-sheet assumption (no self-shielding) overstates it once the sheet's own time")
+        print(f"  constant, about mu0 sigma t w, nears the rise time [UNVERIFIED]; slitting the wall along the ring into strips 20 mm wide across the track divides")
+        print(f"  the loss by the square of the strip count, the last column; a non-conducting composite wall has none)")
+
+
+# ------------------------------------------------------------------ coil length
+def coil_length_table(r, kind, label):
+    """Stored energy per coil, supply rating at the two rise times, supplies per track and the coil-end ripple heating against
+    the coil length, from the result's stored energy per meter and its plate peak field (final_bearing Part C.3 and C.4)."""
+    Wm = r["W_load"] if kind == "support" else r["W_req"]
+    I_op = r["I3"]
+    Bp = r["B_plate"]
+    print(f"  {label}: stored {Wm/1e3:.1f} kJ per m of track at the winding's working pull; plate peak field {Bp:.2f} T; {I_op:.0f} A per tape.")
+    print(f"  {'coil length':>11} {'MJ per coil':>11} {'MVA at 2 ms':>11} {'MVA at 20 ms':>12} {'kV per tape at 2 ms':>19} {'supplies per track':>18} {'ripple W/m (10 per bundle)':>26} {'ring MW':>8}")
+    ell = 2 * (GAP + 0.05)
+    for L in (12.5, 25.0, 50.0, 100.0, 200.0, 400.0):
+        E = Wm * L / fb.N_FAM
+        n = 10
+        dB = Bp / n
+        E_step = 0.5 * bd.eddy_cycle(dB, ell / bd.V_REL, 0.0, d_p=PLATE_T, mu_r=cf.PLATE_MU, rho_p=lc.FERRO_RESISTIVITY)
+        steps = 2 * 2 * n / L
+        P = 2 * E_step * (0.5 + 0.4) * bd.V_REL * steps
+        print(f"  {L:9.1f} m {E/1e6:11.3f} {2*E/fb.TAU_HW/1e6:11.0f} {2*E/(fb.RAMP+fb.TAU_HW)/1e6:12.1f} {2*E/fb.TAU_HW/I_op/1e3:19.0f} {fb.N_FAM*ring.L_RING/L/1e6:15.1f} M {P:26.2f} {P*ring.L_RING/1e6:8.1f}")
+    print(f"  (ripple as final_bearing Part C.3: each coil end steps the plate field by 1/n of the winding's field over {ell*1e3:.0f} mm, n = 10 coils per bundle;")
+    print(f"  it applies while the winding is energized, that is during a pass for the driven windings; the planned 20 ms ramp and the 2 ms protection rise are kept)")
+
+
+# ------------------------------------------------------------------ the stages
+def part_2b(stage):
+    """Redo of the Part 2 ranking on the new rules, and the wall check."""
+    global F_REQ
+    d = design_NI(); theva = d["theva"]; theva77 = read_theva_file(THEVA_77); F_REQ = d["F_s"]
+    lift_tape = d["NI_l"] / (0.5 * 59.5) * 2 * 0.003 * TAPE_T * TAPE_RHO
+    hr(f"PART 2 REDONE ON PAUL'S RULES ({stage}): wall {WALL_DESIGN*1e3:.0f} mm design, {WALL_SENS*1e3:.0f} mm sensitivity; rating from the worst tape's share")
+    print(f"  Requirement {F_REQ/1e3:.1f} kN/m; the winding is built for it at 50 percent of the worst tape's limit; the rating is the pull at which that tape")
+    print(f"  reaches 60, 70 or 80 percent of its limit at its own field and angle (the share was left open [QUESTION FOR AUTHOR]), required >= {F_RATE_MARGIN:.2f} x the")
+    print(f"  requirement.  The load winding is sized at its own field and at the combined field (support at the requirement plus load at {F_LOAD/1e3:.0f} kN/m).")
+    print(f"  Plate saturation <= {SAT_LIMIT:.0%} at the requirement; fit in the {PLATE_W:.1f} m plate; lift tracks carried at {lift_tape:.1f} kg/m of tape per track until Part 3.")
+    stages = dict(rerate=0.005, rerate25=0.0025, rerate125=0.00125)
+    h = stages.get(stage, 0.0025)
+    path = part3_cache(h, "support"); cache = load_json(path)
+    if stage == "rerate":
+        geoms = [present_geom()]
+        for shape in ("square 100", "flat 200x50", "wide 150x67", "wide 150x100", "square 141"):
+            for W in (0.4, 0.5):
+                for gc in (0.0, 0.05):
+                    for allow in (0.0, WALL_SENS, WALL_DESIGN, 0.02):
+                        geoms.append(dict(n=2, W=W, gc=gc, shape=shape, allow=allow))
+        for shape in ("flat 200x50", "wide 150x67"):
+            for allow in (WALL_SENS, WALL_DESIGN):
+                geoms.append(dict(n=2, W=0.3, gc=0.0, shape=shape, allow=allow))
+                geoms.append(dict(n=1, W=1.0, gc=0.0, shape=shape, allow=allow))
+        print(f"\n  2b.1  {len(geoms)} geometries at 5 mm cells (two loops of 0.4 and 0.5 m, five bundle shapes, spacing 0 and 50 mm, walls 0, 5, 10, 20 mm; plus 0.3 m and one loop):")
+        cache = run_cases_rerate(geoms, h, theva, theva77, cache, path)
+    elif stage in ("rerate25", "rerate125"):
+        coarse = load_json(part3_cache(0.005 if stage == "rerate25" else 0.0025, "support"))
+        geoms = []
+        for s in RATE_SHARES:
+            for wall in (WALL_DESIGN, WALL_SENS):
+                b = best_of(coarse, s, "support", wall)
+                if b and b["geom"] not in geoms:
+                    geoms.append(b["geom"])
+        if stage == "rerate25":
+            geoms.append(present_geom()); geoms.append(present_geom(allow=WALL_DESIGN))
+            ranked = sorted((r for r in coarse.values() if "rate_tape" in r and passes_tape(r, 0.7) and abs(r["geom"]["allow"] - WALL_DESIGN) < 1e-9), key=lambda r: r["tape12"] + r["tape3_comb"])
+            for r in ranked[:6]:
+                if r["geom"] not in geoms:
+                    geoms.append(r["geom"])
+        else:
+            geoms = geoms[:2]
+        print(f"\n  2b.2  {len(geoms)} geometries at {h*1e3:g} mm:")
+        cache = run_cases_rerate(geoms, h, theva, theva77, cache, path)
+    elif stage == "wall":
+        c25 = load_json(part3_cache(0.0025, "support"))
+        hr("THE CRYOSTAT WALL")
+        for label, r in (("present loops at the design wall", c25.get(geom_key(present_geom(allow=WALL_DESIGN)))), ("best at the design wall (70 percent rule)", best_of(c25, 0.7, "support", WALL_DESIGN))):
+            if r:
+                wall_check(r["geom"], 0.005, theva, theva77, r["NI_req"], r["NI_load"], f"{label}: {r['key']}")
+                coil_length_table(r, "support", f"load winding on {r['key']}")
+        return
+    ranking_tables(cache, f"Support track ranking at {h*1e3:g} mm", "support", lift_tape=lift_tape)
+    for wall in (WALL_DESIGN, WALL_SENS, 0.0):
+        line = []
+        for s in RATE_SHARES:
+            b = best_of(cache, s, "support", wall)
+            line.append(f"{s:.0%}: {b['key'] if b else 'none'}" + (f" ({b['tape12']:.1f} + {b['tape3_comb']:.1f} kg/m, rated {rated_tape(b, s)/1e3:.0f})" if b else ""))
+        print(f"  best at wall {wall*1e3:.0f} mm by share: " + "; ".join(line))
+    pk = geom_key(present_geom())
+    if pk in cache and "rate_tape" in cache[pk]:
+        r = cache[pk]
+        print(f"  present design (wall 0): rated(tape) " + ", ".join(f"{s:.0%} {rated_tape(r, s)/1e3:.0f} kN/m" for s in RATE_SHARES) + f"; 1 T rule {r['F_rated']/1e3:.0f}; load winding {r['tape3']:.1f} kg/m at its own field, {r['tape3_comb']:.1f} at the combined field (Ic3 {r['ic3']:.0f} against {r['ic3_comb']:.0f} A)")
+
+
+def part_3(stage):
+    """Part 3: the lift compensation tracks and the load winding, with the coil length."""
+    global F_REQ
+    d = design_NI(); theva = d["theva"]; theva77 = read_theva_file(THEVA_77); F_REQ = d["F_s"]
+    hr(f"PART 3: LIFT COMPENSATION TRACKS AND THE LOAD WINDING ({stage})")
+    print(f"  Lift track requirement {LIFT_REQ/1e3:.1f} kN/m per track (the pair shares the 30 km/s pull), 3 mm tape, driven, built at 50 percent of the worst tape;")
+    print(f"  rating by the tape rule as for the support tracks, >= {F_RATE_MARGIN:.2f} x; plate {PLATE_W:.1f} m x {PLATE_T*1e3:.0f} mm on top of the cable; wall {WALL_DESIGN*1e3:.0f} mm")
+    print(f"  ({WALL_SENS*1e3:.0f} mm as a sensitivity).  The field model places its tapes at {I_REF_3:.0f} A.  Coil length from the stored energy (Part C.4) and the ripple (C.3).")
+    stages = dict(lift=0.005, lift25=0.0025)
+    h = stages.get(stage, 0.0025)
+    path = part3_cache(h, "lift"); cache = load_json(path)
+    if stage == "lift":
+        geoms = [dict(n=1, W=1.0, gc=0.0, shape="square 100", allow=0.0)]          # the present lift track
+        for shape in ("square 100", "flat 200x50", "wide 150x67", "wide 150x100"):
+            for allow in (WALL_DESIGN, WALL_SENS):
+                for W in (0.5, 0.6, 0.8, 1.0, 1.2):
+                    geoms.append(dict(n=1, W=W, gc=0.0, shape=shape, allow=allow))
+                for W in (0.3, 0.4, 0.5):
+                    for gc in (0.0, 0.05):
+                        geoms.append(dict(n=2, W=W, gc=gc, shape=shape, allow=allow))
+        print(f"\n  3.1  {len(geoms)} lift track geometries at 5 mm (the present first):")
+        cache = run_cases_rerate(geoms, h, theva, theva77, cache, path, kind="lift", F_req=LIFT_REQ)
+    elif stage == "lift25":
+        coarse = load_json(part3_cache(0.005, "lift"))
+        geoms = [dict(n=1, W=1.0, gc=0.0, shape="square 100", allow=0.0)]
+        for s in RATE_SHARES:
+            for wall in (WALL_DESIGN, WALL_SENS):
+                b = best_of(coarse, s, "lift", wall)
+                if b and b["geom"] not in geoms:
+                    geoms.append(b["geom"])
+        print(f"\n  3.2  {len(geoms)} lift geometries at 2.5 mm:")
+        cache = run_cases_rerate(geoms, h, theva, theva77, cache, path, kind="lift", F_req=LIFT_REQ)
+    ranking_tables(cache, f"Lift track ranking at {h*1e3:g} mm", "lift")
+    for wall in (WALL_DESIGN, WALL_SENS, 0.0):
+        line = []
+        for s in RATE_SHARES:
+            b = best_of(cache, s, "lift", wall)
+            line.append(f"{s:.0%}: {b['key'] if b else 'none'}" + (f" ({b['tape3']:.1f} kg/m, rated {rated_tape(b, s)/1e3:.0f})" if b else ""))
+        print(f"  best lift track at wall {wall*1e3:.0f} mm by share: " + "; ".join(line))
+    if stage == "lift25" or stage == "report3":
+        pk = geom_key(dict(n=1, W=1.0, gc=0.0, shape="square 100", allow=0.0))
+        for label, r in (("present lift track", cache.get(pk)), ("best lift track at the design wall (70 percent rule)", best_of(cache, 0.7, "lift", WALL_DESIGN))):
+            if r and "rate_tape" in r:
+                print()
+                coil_length_table(r, "lift", f"{label}: {r['key']}")
+        # the load winding's coil length on the chosen support track
+        c25 = load_json(part3_cache(0.0025, "support"))
+        b = best_of(c25, 0.7, "support", WALL_DESIGN)
+        if b:
+            print()
+            coil_length_table(b, "support", f"load winding on the best support track at the design wall: {b['key']}")
+            print(f"  Load winding on that track: {b['NI_load']/1e3:.0f} kA per leg for {F_LOAD/1e3:.0f} kN/m; worst 3 mm tape {b['ic3']:.0f} A at its own field, {b['ic3_comb']:.0f} A with the support winding at the")
+            print(f"  requirement ({b['F_comb']/1e3:.0f} kN/m together, plate saturation {b['sat_comb']*100:.1f} %); at 50 percent {b['I3']:.0f} and {b['I3_comb']:.0f} A; tape {b['tape3']:.1f} and {b['tape3_comb']:.1f} kg/m per track.")
+        # the casing side with both
+        bl = best_of(cache, 0.7, "lift", WALL_DESIGN)
+        if b and bl:
+            tape, casing = casing_mass_new(b, bl)
+            print(f"\n  Casing side with the best support track and the best lift track at the design wall, 70 percent rule, all windings at 50 percent of their worst tape")
+            print(f"  (load winding at the combined field): tape {tape:.1f} kg/m, casing side {casing:.0f} kg/m, cable-equivalent {casing*9.65:,.0f} kg/m.  Book: 681 kg/m at the mean-field currents.")
+
 
 def main():
     part = "1"; quick = False; stage = "screen"
@@ -1038,8 +1435,12 @@ def main():
     print(f"  Ring at {ring.ALTITUDE_KM:.0f} km: casing {ring.M_LOAD_M:,.0f} kg/m ({ring.M_LOAD_M*ring.G_NET/1e3:.1f} kN/m), cable hardware {ring.M_HARDWARE_M:,.0f} kg/m, cable {ring.M_CABLE_M:,.0f} kg/m, face {ring.CABLE_SIDE:.2f} m.")
     if "1" in part:
         part_1(quick)
-    if "2" in part:
+    if part == "2":
         part_2(stage)
+    if part == "2b":
+        part_2b(stage)
+    if part == "3":
+        part_3(stage)
     hr(f"DONE ({time.time()-t_all:.0f} s)")
 
 
