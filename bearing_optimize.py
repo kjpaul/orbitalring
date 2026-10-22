@@ -1084,7 +1084,10 @@ def _evaluate_rerate(self, F_req=None, s_share=0.5, kind="support", margin=F_RAT
         NI_l = self.interp_NI(pts, F_LOAD)
         p_l = self.curve_point(NI_l); pts.append(p_l)
         NI_l = self.interp_NI(pts, F_LOAD)
-        p_c = self.curve_point(NI_req + NI_l)                       # both windings energized: the 3 mm tape's worst field
+        p_c = self.curve_point(NI_req + NI_l); pts.append(p_c)      # both windings at their full ampere-turns: the upper bound for the 3 mm tape
+        NI_446 = self.interp_NI(pts, F_req + F_LOAD)                 # the book's full-load state: requirement plus the load share, 446 kN/m together
+        p_446 = self.curve_point(NI_446); pts.append(p_446)
+        NI_446 = self.interp_NI(pts, F_req + F_LOAD)
     key = "lim12" if kind == "support" else "lim3"
     def limits_at(p, NI, k, w_t):
         out = []
@@ -1120,6 +1123,9 @@ def _evaluate_rerate(self, F_req=None, s_share=0.5, kind="support", margin=F_RAT
     if kind == "support":
         lim3 = limits_at(p_l, NI_l, "lim3", 0.003)
         lim3c = limits_at(p_c, NI_req + NI_l, "lim3", 0.003)
+        lim3f = limits_at(p_446, NI_446, "lim3", 0.003)
+        ic3f = min(min(d["ic_v"], d["ic_h"]) for d in lim3f); I3f = s_share * ic3f
+        turns3f = sum(abs(d["NI"]) for d in lim3) * NI_l / p_l["NI"] / I3f
         ic3 = min(min(d["ic_v"], d["ic_h"]) for d in lim3); ic3c = min(min(d["ic_v"], d["ic_h"]) for d in lim3c)
         I3 = s_share * ic3; I3c = s_share * ic3c
         turns3 = sum(abs(d["NI"]) for d in lim3) * NI_l / p_l["NI"] / I3; turns3c = sum(abs(d["NI"]) for d in lim3) * NI_l / p_l["NI"] / I3c
@@ -1129,6 +1135,7 @@ def _evaluate_rerate(self, F_req=None, s_share=0.5, kind="support", margin=F_RAT
                    ic3=ic3, I3=I3, turns3=turns3, tape3=turns3 * 0.003 * TAPE_T * TAPE_RHO, lim3=lim3,
                    ic3_comb=ic3c, I3_comb=I3c, turns3_comb=turns3c, tape3_comb=turns3c * 0.003 * TAPE_T * TAPE_RHO, lim3_comb=lim3c,
                    F_comb=p_c["F"], sat_comb=p_c["sat"], W_comb=p_c["W_mag"],
+                   NI_446=NI_446, F_446=p_446["F"], sat_446=p_446["sat"], ic3_446=ic3f, I3_446=I3f, turns3_446=turns3f, tape3_446=turns3f * 0.003 * TAPE_T * TAPE_RHO, lim3_446=lim3f,
                    fill=(turns * 0.012 + turns3c * 0.003) * TAPE_T / (shape_area(self.geom["shape"]) * len(self.bundles)),
                    rating_ok=True)
     else:
@@ -1181,7 +1188,7 @@ def run_cases_rerate(geoms, h, theva, theva77, cache, path, kind="support", F_re
         rt = " ".join(f"{s}:{rated_tape(r, s)/1e3:5.1f}" for s in RATE_SHARES)
         if kind == "support":
             print(f"    {k:60} NI {r['NI_req']/1e3:5.0f} kA, rated(tape 60/70/80 %) {rt} kN/m, 1 T {r['F_rated']/1e3:5.1f}, sat {r['sat']*100:4.1f} %, Ic {r['ic12']:5.0f} A, "
-                  f"tape {r['tape12']:5.1f} + load {r['tape3']:5.1f} ({r['tape3_comb']:5.1f} at the combined field, Ic3 {r['ic3']:.0f}/{r['ic3_comb']:.0f} A) kg/m, W {r['W_req']/1e3:5.1f} kJ/m ({r['solves']} solves, {r['seconds']:.0f} s)", flush=True)
+                  f"tape {r['tape12']:5.1f} + load {r['tape3']:5.1f} ({r['tape3_446']:5.1f} at 446 kN/m together, {r['tape3_comb']:5.1f} with both at full ampere-turns; Ic3 {r['ic3']:.0f}/{r['ic3_446']:.0f}/{r['ic3_comb']:.0f} A) kg/m, W {r['W_req']/1e3:5.1f} kJ/m ({r['solves']} solves, {r['seconds']:.0f} s)", flush=True)
         else:
             print(f"    {k:60} NI {r['NI_req']/1e3:5.0f} kA, rated(tape 60/70/80 %) {rt} kN/m, 1 T {r['F_rated']/1e3:5.1f}, sat {r['sat']*100:4.1f} %, Ic3 {r['ic3']:4.0f} A ({r['face3']}), "
                   f"tape {r['tape3']:5.1f} kg/m, W {r['W_req']/1e3:5.1f} kJ/m, {r['E_coil']/1e6:.3f} MJ per 50 m coil ({r['solves']} solves, {r['seconds']:.0f} s)", flush=True)
