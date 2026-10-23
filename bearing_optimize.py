@@ -9,6 +9,8 @@ Run: python bearing_optimize.py --part=1 [--quick]   (about two hours; --quick s
      python bearing_optimize.py --part=2 --stage=screen|confirm25|confirm125|report   (Part 2, see below)
      python bearing_optimize.py --part=2b --stage=rerate|rerate25|wall   (Part 2 redone on Paul's rules of 2026-10-21, and the cryostat wall)
      python bearing_optimize.py --part=3 --stage=lift|lift25|report3   (Part 3: lift tracks and the load winding, coil length)
+     python bearing_optimize.py --part=3b --stage=rerun|report   (Part 3b, Paul's decisions of 2026-10-23: the Design Case requirement,
+                                the full tape angle data, the 70 percent summary, the composite wall at 0.4 bar, the control plan)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
 Nothing here changes a default of final_bearing.py, bearing_mass.py or magnetostatic_2d.py; the present design is rebuilt
@@ -238,9 +240,37 @@ def field_at_points(g, xs, ys):
     return lerp(g.Bx), lerp(g.By)
 
 
+def read_robinson_angles(path=None):
+    """The full 70 K angle dependence of the Theva AP tape from the Robinson dataset (data/THEVA_Robinson_70K_angle_dependence.csv,
+    made by tools/extract_theva_robinson_angles.py): a dict field (T) -> (angles deg, Ic/w A/cm), angles 0 to 240 degrees."""
+    import csv
+    path = path or os.path.join(ring.DATA_DIR, "THEVA_Robinson_70K_angle_dependence.csv")
+    data = {}
+    with open(path, encoding="utf-8-sig") as f:
+        rd = csv.reader(f); next(rd)
+        for B, a, i in rd:
+            data.setdefault(float(B), []).append((float(a), float(i)))
+    return {B: (np.array([q[0] for q in sorted(v)]), np.array([q[1] for q in sorted(v)])) for B, v in data.items()}
+
+
+def ic_angle_full(rob, B, theta_deg, w_tape):
+    """Critical current (A) from the full Robinson angle data: at each measured field the Ic/w at the tape's angle, taking the
+    lower of theta and 180 - theta (the tape's turn in the bundle is not known, and this tape's Ic is not symmetric about
+    90 degrees: at 1 T it is lowest near 45 degrees and highest near 120); linear between the measured fields."""
+    Bs = np.array(sorted(rob)); th = np.abs(np.asarray(theta_deg, float)); th = np.where(th > 90.0, 180.0 - th, th)
+    B = np.asarray(B, float)
+    per_B = np.array([np.minimum(np.interp(th, *rob[b]), np.interp(180.0 - th, *rob[b])) for b in Bs])     # [fields, points]
+    Bc = np.clip(B, Bs[0], Bs[-1]); k = np.clip(np.searchsorted(Bs, Bc) - 1, 0, len(Bs) - 2)
+    t = (Bc - Bs[k]) / (Bs[k + 1] - Bs[k]); rows = np.arange(len(np.atleast_1d(th)))
+    return (per_B[k, rows] * (1 - t) + per_B[k + 1, rows] * t) * w_tape * 100.0
+
+
 def ic_angle(theva, B, theta_deg, w_tape):
     """Critical current (A) of a tape of width w_tape at field B at angle theta (degrees) between the field and the tape's
-    normal: 0 = through the face, 90 = along it.  THEVA curves at 0, 30, 90 and 120 (used for 60 by symmetry), linear in angle."""
+    normal: 0 = through the face, 90 = along it.  THEVA curves at 0, 30, 90 and 120 (used for 60 by symmetry), linear in angle.
+    When the table carries the full Robinson angle data under the key "full" (Part 3b), that data is used instead."""
+    if "full" in theva:
+        return ic_angle_full(theva["full"], B, theta_deg, w_tape)
     angles = [0.0, 30.0, 60.0, 90.0]
     curves = [theva[0], theva[30], theva[120], theva[90]]
     th = np.abs(np.asarray(theta_deg, float))
@@ -1424,6 +1454,271 @@ def part_3(stage):
             print(f"  (load winding at the combined field): tape {tape:.1f} kg/m, casing side {casing:.0f} kg/m, cable-equivalent {casing*9.65:,.0f} kg/m.  Book: 681 kg/m at the mean-field currents.")
 
 
+# =============================================================================
+# Part 3b (2026-10-23 and 24): Paul's decisions on sections 2b and 3, and the control plan
+#   1. rating share 70 percent;  2. the load winding's design state is the full-load state (support at its requirement plus
+#   the load share, 446 kN/m together), the both-at-full-ampere-turns case is the bound the control plan must rule out;
+#   3. coolant 0.4 bar absolute at the coil;  4. a non-conducting composite cryostat wall;  5. the requirement from the
+#   Design Case numbers (12,000 kg/m, 7.918 m/s2, 5,000 t on 100 m: 245.5 kN/m, not the 248.2 of the "on top" loop);
+#   7. the tape's critical current at the worst tape's own field angle from the full Robinson angle data.
+#   The rerun stage solves the chosen geometries again on that basis; the report stage prints everything from the caches.
+# =============================================================================
+F_REQ_DESIGN_CASE = ring.M_LOAD_M * ring.G_NET / 2 + fb.F_LOAD_TRACK     # 245.5 kN/m per support track
+SHARE_DESIGN = 0.7
+P_COOLANT = 0.4e5                                                        # Pa absolute at the coil (Paul: 70 K loops at about 0.4 atm, Chapter 6)
+# G-10CR glass-cloth epoxy, the usual non-conducting cryostat laminate: tensile strength warp 415 MPa and fill 257 MPa at
+# room temperature, 825 and 459 MPa at 76 K (Kasen et al. 1980 as quoted in a fusion design document found by web search;
+# the original table was not read) [UNVERIFIED]; the fill direction is the weaker and is used for the design.
+COMP_STRENGTH = dict(fill_RT=257e6, warp_RT=415e6, fill_76K=459e6, warp_76K=825e6)
+BEST_SUPPORT = dict(n=2, W=0.5, gc=0.0, shape="wide 150x67", allow=WALL_DESIGN)
+BEST_LIFT = dict(n=1, W=0.8, gc=0.0, shape="flat 200x50", allow=WALL_DESIGN)
+PRESENT_LIFT = dict(n=1, W=1.0, gc=0.0, shape="square 100", allow=0.0)
+# the sled passage, from the runs reported in Vol_III/sled_passage_spread_2026-10-10.md and final_bearing_2026-10-12.md
+SPREAD_T, REG_BW_HZ, PROT_TRIGGER, PROT_DELAY = 0.050, 270.0, 0.010, 0.001
+PASS_PULLS = ((1, 285, "load"), (3, 166, "load"), (5, 63, "load"), (10, 68, "lift"), (20, 251, "lift"), (30, 393, "lift"))   # km/s, kN/m on the pair
+
+
+def part3b_cache(h, kind):
+    return os.path.join(ring.out_dir(), f"bearing_optimize_part3b_{kind}_{h*1e3:g}mm.json")
+
+
+def pull_curve(r):
+    """(NI, F) of a cached record, sorted: the requirement, the tape-share points, and for a support track the load winding,
+    the 446 kN/m state and the both-at-full point; below the first point the pull is taken as NI squared (the linear region)."""
+    pts = [(r["NI_req"], r["F_req"])] + [tuple(v) for v in r["rate_tape"].values() if not math.isnan(v[0])]
+    if "NI_load" in r:
+        pts += [(r["NI_load"], F_LOAD), (r["NI_446"], r["F_446"]), (r["NI_req"] + r["NI_load"], r["F_comb"])]
+    pts = sorted(set((float(a), float(b)) for a, b in pts))
+    return np.array([p[0] for p in pts]), np.array([p[1] for p in pts])
+
+
+def F_of_NI(r, NI):
+    x, y = pull_curve(r)
+    if NI <= x[0]:
+        return y[0] * (NI / x[0])**2
+    return math.exp(float(np.interp(math.log(min(NI, x[-1])), np.log(x), np.log(y))))
+
+
+def NI_of_F(r, F):
+    x, y = pull_curve(r)
+    if F <= y[0]:
+        return x[0] * math.sqrt(F / y[0])
+    return math.exp(float(np.interp(math.log(min(F, y[-1])), np.log(y), np.log(x))))
+
+
+def worst_ic_at(r, theva, NI_total, key, ref_NI, w_tape):
+    """The worst tape's critical current when the bundles carry NI_total ampere-turns per leg in all: the stored worst-tape
+    fields (at ref_NI) scaled with the total ampere-turns, the angle unchanged."""
+    sc = NI_total / ref_NI; best = None
+    for d in r[key]:
+        for face in ("v", "h"):
+            ic = float(ic_angle(theva, np.array([d["B_" + face] * sc]), np.array([d["th_" + face]]), w_tape)[0])
+            if best is None or ic < best[0]:
+                best = (ic, d["B_" + face] * sc, d["th_" + face], face, d["x"])
+    return best
+
+
+def casing_side_3b(r_sup, r_lift):
+    tape = 2 * (r_sup["tape12"] + r_sup["tape3_446"]) + 2 * r_lift["tape3"]
+    return tape, tape * (1 + CRYO)
+
+
+def requirement_note(d):
+    g = ring.G_NET; w_half = ring.M_LOAD_M * g / 2; l_half = fb.F_LOAD_TRACK
+    print(f"  5. The requirement.  bearing_mass.py, final_bearing.py Part A and Parts 1 to 3 of this optimization used {d['F_s']/1e3:.1f} kN/m per")
+    print(f"     support track: design_NI iterates final_bearing's 'on top' loop, the casing {ring.M_LOAD_M:,.0f} kg/m plus the bearing's own casing side")
+    print(f"     ({d['m_casing']-ring.M_LOAD_M:.0f} kg/m at the mean-field currents), so {d['m_casing']:,.0f} x {g:.3f} / 2 = {d['m_casing']*g/2/1e3:.1f} plus the load share {l_half/1e3:.1f} = {d['F_s']/1e3:.1f} kN/m.")
+    print(f"     The Design Case numbers give {ring.M_LOAD_M:,.0f} x {g:.3f} / 2 = {w_half/1e3:.2f} kN/m (half the casing weight) plus 5,000,000 x {g:.3f} / 100 / 2 = {l_half/1e3:.2f} kN/m")
+    print(f"     (half the parked 5,000 t on 100 m) = {F_REQ_DESIGN_CASE/1e3:.1f} kN/m.  Chapter 8 and final_bearing's own decision (Part A: the bearing's casing side is")
+    print(f"     inside the 12,000 kg/m) put the bearing inside the casing budget, so the Design Case value is the requirement from here; the 'on top'")
+    print(f"     value with the Part 3 casing side (999 kg/m) would be {(ring.M_LOAD_M+999)*g/2/1e3+l_half/1e3:.1f} kN/m.  1.5 x the casing weight share ({1.5*ring.M_LOAD_M*g/1e3:.1f} kN/m")
+    print(f"     for the whole casing, {1.5*ring.M_LOAD_M*g/2/1e3:.1f} per track) is below it, so the parked load sets the requirement.")
+
+
+def angle_check(theva4, rob):
+    """Item 7: the tape's critical current at the worst tape's own field angle, from the full angle data."""
+    print("  7. The tape's worst field angle.  The optimization's limit used four measured curves (0, 30, 90 and 120 degrees between")
+    print("     the field and the tape's normal), linear in angle, with the 120 degree curve standing in for 60 degrees.  The full")
+    print("     Robinson dataset at 70 K (Pantoja and Strickland 2024, doi 10.6084/m9.figshare.25893079.v2, 5 degree steps, 0 to 8 T):")
+    for B in (1.0, 1.641, 2.0, 3.0):
+        Bs = np.array(sorted(rob)); k = int(np.argmin(np.abs(Bs - B))); a, i = rob[Bs[k]]
+        if abs(Bs[k] - B) < 1e-6:
+            kmin = int(i.argmin()); kmax = int(i.argmax())
+            print(f"     at {B:.3f} T: perpendicular (0 deg) {i[0]*1.2:.0f} A per 12 mm, along the face (90 deg) {float(np.interp(90, a, i))*1.2:.0f} A, "
+                  f"lowest {i[kmin]*1.2:.0f} A at {a[kmin]:.0f} deg, highest {i[kmax]*1.2:.0f} A at {a[kmax]:.0f} deg; at 30 deg {float(np.interp(30, a, i))*1.2:.0f} A, "
+                  f"at 60 deg {float(np.interp(60, a, i))*1.2:.0f} A, at 120 deg {float(np.interp(120, a, i))*1.2:.0f} A")
+        else:
+            th = np.arange(0, 181, 1.0)
+            ic = ic_angle_full(rob, np.full(len(th), B), th, 0.012)
+            ic4 = ic_angle(theva4, np.full(len(th), B), th, 0.012)
+            print(f"     at {B:.3f} T (between the 1.5 and 2 T sheets): lowest {ic.min():.0f} A at {th[ic.argmin()]:.0f} deg (folded), perpendicular {ic[0]:.0f} A, at 30 deg {ic[30]:.0f} A "
+                  f"(four-curve model: {ic4[30]:.0f} A), at 45 deg {ic[45]:.0f} A (four-curve {ic4[45]:.0f} A), at 60 deg {ic[60]:.0f} A (four-curve {ic4[60]:.0f} A)")
+    print("     The 120 degree curve is this tape's maximum, not its 60 degree value, so the four-curve model overrated every tape whose")
+    print("     field lies between 30 and 90 degrees from its normal.  The rerun below uses the full data, taking at each angle the")
+    print("     lower of theta and 180 - theta (which way the tape is turned in the bundle is not fixed by the design).")
+
+
+def wall_04(label, wb):
+    """Items 3 and 4: the cryostat wall at 0.4 bar absolute against vacuum, titanium and the composite."""
+    t = WALL_T
+    s_cl = P_COOLANT * wb**2 / (2 * t**2); s_ss = 3 * P_COOLANT * wb**2 / (4 * t**2)
+    print(f"  {label}: bundle {wb*1e3:.0f} mm wide, wall {t*1e3:.0f} mm spanning it, {P_COOLANT/1e5:.1f} bar absolute inside against vacuum outside.")
+    print(f"     bending stress: clamped edges {s_cl/1e6:.0f} MPa, simply supported {s_ss/1e6:.0f} MPa [UNVERIFIED: plate-strip formulas as in section 2b.5].")
+    print(f"     Ti-6Al-4V 2 mm (the comparison): margin on yield {YIELD_TI_RT/s_cl:.1f} clamped / {YIELD_TI_RT/s_ss:.1f} supported at room temperature, {YIELD_TI_77/s_cl:.1f} / {YIELD_TI_77/s_ss:.1f} at 77 K.")
+    for name, S in COMP_STRENGTH.items():
+        print(f"     G-10CR composite 2 mm, {name.replace('_', ' ')} strength {S/1e6:.0f} MPa [UNVERIFIED]: margin {S/s_cl:.1f} clamped / {S/s_ss:.1f} supported; "
+              f"thickness for a margin of 3: {wb*math.sqrt(3*P_COOLANT/(2*S))*1e3:.1f} mm clamped, {wb*math.sqrt(9*P_COOLANT/(4*S))*1e3:.1f} mm supported")
+    print(f"     Eddy heating of a composite wall during the driven-winding pulses: zero (no conducting path); the titanium rows of section 2b.5 stand as the comparison.")
+
+
+def control_plan(r, rl, theva):
+    """Part 3b: the operating points of the persistent support winding and the driven load winding on one support track,
+    the limiter that rules out the both-at-full bound, and the rise times."""
+    F_req = r["F_req"]; w_half = ring.M_LOAD_M * ring.G_NET / 2; w_full = 2 * w_half
+    NI_s_cap = r["NI_req"]; NI_l_own = r["NI_load"]; NI_446 = r["NI_446"]; F_446 = r["F_446"]
+    I12 = r["I12"]; I3 = r["I3_446"]
+    turns12 = NI_s_cap / I12                       # turns per leg (r["turns12"] counts all four bundles, for the tape mass)
+    turns3 = NI_l_own / I3                         # the load winding is wound to give its own 198 kN/m alone at the design-state current
+    x, y = pull_curve(r)
+    print(f"  Pull curve of the track (ampere-turns per leg -> pull): " + ", ".join(f"{a/1e3:.0f} kA {b/1e3:.0f} kN/m" for a, b in zip(x, y)) + "; NI squared below the first point.")
+    print(f"  Windings: persistent 12 mm support winding {turns12:,.0f} turns per leg at {I12:.1f} A = {NI_s_cap/1e3:.0f} kA, its cap, the requirement {F_req/1e3:.1f} kN/m;")
+    print(f"  driven 3 mm load winding {turns3:,.0f} turns per leg at {I3:.1f} A = {NI_l_own/1e3:.0f} kA, which gives its {F_LOAD/1e3:.0f} kN/m alone; {I3:.1f} A is 50 percent of the worst 3 mm tape's")
+    print(f"  limit in the design state ({NI_446/1e3:.0f} kA in all, support at its cap, {F_446/1e3:.0f} kN/m together), in which the load winding supplies {(NI_446-NI_s_cap)/1e3:.0f} kA at {(NI_446-NI_s_cap)/turns3:.1f} A per tape.")
+    print(f"  The limiter: the driven winding's supply current is capped so that NI_support (measured) + NI_load <= {NI_446/1e3:.0f} kA per leg, the design state, and")
+    print(f"  the winding's own cap is {NI_l_own/1e3:.0f} kA ({I3:.1f} A per tape); the both-at-full bound ({(NI_s_cap+NI_l_own)/1e3:.0f} kA, {r['F_comb']/1e3:.0f} kN/m, plate {r['sat_comb']*100:.0f} percent")
+    print(f"  saturated) can then not be commanded, by construction.")
+    print()
+    cases = [
+        ("normal, both tracks: half the casing weight", w_half, 0.0),
+        ("parked 5,000 t, both tracks, before the flux pumps move: support at its weight share, load winding the rest", w_half, F_req - w_half),
+        ("parked 5,000 t, both tracks, after the flux pumps: support at its cap, load winding off", F_req, 0.0),
+        ("launch at 1 km/s, both tracks: the load pair's 285 kN/m spread over 50 ms, half on this track", w_half, 285e3 / 2 - 0.0),
+        ("one track lost at rest: the other at its weight share, load winding catches the other half", w_half, w_half),
+        ("one track out for repair, after the flux pumps: support at the whole casing weight", w_full, 0.0),
+        ("one track out and a standing load: support at its cap, load winding to the limiter (the design state)", F_req, F_446 - F_req),
+        ("protection pulse at the full load rating with the support at its weight share", w_half, None),
+        ("the bound: support at its cap and the load winding at its own full ampere-turns", F_req, "bound"),
+    ]
+    print(f"  {'case':<110} {'NI_s kA':>8} {'NI_l kA':>8} {'total':>6} {'pull kN/m':>9} {'I12 A':>6} {'share':>6} {'I3 A':>6} {'share':>6} {'limiter':>8}")
+    for name, F_s, F_l in cases:
+        NI_s = NI_of_F(r, F_s)
+        if F_l == "bound":
+            NI_l = NI_l_own
+        elif F_l is None:
+            NI_l = min(NI_l_own, NI_446 - NI_s)
+        else:
+            NI_l = max(NI_of_F(r, F_s + F_l) - NI_s, 0.0)
+        tot = NI_s + NI_l; F = F_of_NI(r, tot)
+        ic12 = worst_ic_at(r, theva, tot, "lim12", r["NI_req"], 0.012)[0]
+        ic3 = worst_ic_at(r, theva, tot, "lim3_446", r["NI_446"], 0.003)[0]
+        i12 = NI_s / turns12; i3 = NI_l / turns3
+        ok = "ok" if tot <= NI_446 * 1.001 else "EXCEEDS"
+        print(f"  {name:<110} {NI_s/1e3:8.0f} {NI_l/1e3:8.0f} {tot/1e3:6.0f} {F/1e3:9.0f} {i12:6.1f} {i12/ic12:6.0%} {i3:6.1f} {i3/ic3:6.0%} {ok:>8}")
+    F_stand = F_446 - w_full
+    print(f"  (share = the tape's current over the worst tape's critical current at that total field: 12 mm tape {I12:.0f} A against {r['ic12']:.0f} A at the requirement;")
+    print(f"  3 mm tape {I3:.0f} A against {r['ic3_446']:.0f} A in the design state.  The design state carries {F_446/1e3:.0f} kN/m on one track, so with one track out the standing")
+    print(f"  load on that stretch may not exceed {F_stand/1e3:.0f} kN/m, {F_stand*100/ring.G_NET/1e3:,.0f} t on 100 m; a parked 5,000 t ({fb.F_LOAD_TRACK*2/1e3:.0f} kN/m) with one track out needs {(w_full+2*fb.F_LOAD_TRACK)/1e3:.0f} kN/m")
+    print(f"  and is outside the design: a track is not taken out under a parked spacecraft, and a spacecraft is not parked over a track that is out.)")
+    print()
+    print(f"  Rise times.  Driven windings: the planned {fb.RAMP*1e3:.0f} ms ramp and the {fb.TAU_HW*1e3:.0f} ms protection rise (final_bearing.py); the sled's load is spread over")
+    print(f"  {SPREAD_T*1e3:.0f} ms centred on the pass with the current regulated against the measured gap at {REG_BW_HZ:.0f} Hz, protection at {PROT_TRIGGER*1e3:.0f} mm of drift")
+    print(f"  with a {PROT_DELAY*1e3:.0f} ms sensor delay, per face and per side (sled_passage_spread and final_bearing reports).  Persistent winding: its flux pumps")
+    print(f"  change the current slowly; the rate is not in the repository or the chapter [QUESTION FOR AUTHOR: the flux pump's ramp rate, A per second per tape],")
+    print(f"  so the plan gives the driven winding every standing load until the pumps have taken it over, with no time limit (a driven superconducting")
+    print(f"  winding holds a steady current with no loss but its joints and supply).")
+    print()
+    print(f"  During a sled passage (the pair, kN/m): " + "; ".join(f"{u} km/s {F} {k}" for u, F, k in PASS_PULLS) + " (Table 8.5 of the chapter, final_bearing run).")
+    print(f"  Below 6,988 m/s the load windings on the support tracks pull with the sled's weight, half each; above it the lift tracks on the ceiling pull")
+    print(f"  the casing down, half each; the support winding does not move during a pass.  The two driven windings of a face never act together;")
+    print(f"  the opposite face's windings act only as protection, when the gap drifts {PROT_TRIGGER*1e3:.0f} mm, and then within their own limiter.  The lift track's")
+    print(f"  worst 3 mm tape runs at {rl['I3']:.0f} A against {rl['ic3']:.0f} A at its requirement ({rl['F_req']/1e3:.1f} kN/m, {rl['NI_req']/1e3:.0f} kA); it shares no bundle with a persistent winding,")
+    print(f"  so it has no combined state; its cap is its own rating.")
+
+
+def summary_tables(c_sup_new, c_lift_new, c_sup_old, c_lift_old, theva):
+    """The 70 percent summary tables on the new basis, the old basis beside."""
+    s = SHARE_DESIGN
+    print(f"  Support tracks, rated at the {s:.0%} share (the pull at which the worst 12 mm tape reaches {s:.0%} of its limit), the winding built at 50 percent:")
+    print(f"  {'design':<60} {'basis':<34} {'req':>6} {'NI kA':>6} {'rated':>6} {'x req':>5} {'Ic12':>5} {'I50':>5} {'tape12':>7} {'Ic3 own/446/both':>17} {'load tape own/446/both':>24} {'sat':>5} {'W kJ/m':>7}")
+    rows = []
+    for label, cache, basis in (("Design Case 245.5 kN/m, full angle data", c_sup_new, "new"), ("248.2 kN/m, four-curve angles", c_sup_old, "old")):
+        for g, name in ((BEST_SUPPORT, "best: 2 x 0.50 m touching, wide 150 x 67, wall 10 mm"), (present_geom(), "present loops and bundle, wall 0")):
+            r = cache.get(geom_key(g))
+            if not r or "rate_tape" not in r: continue
+            rated = rated_tape(r, s)
+            print(f"  {name:<60} {label:<34} {r['F_req']/1e3:6.1f} {r['NI_req']/1e3:6.0f} {rated/1e3:6.1f} {rated/r['F_req']:5.2f} {r['ic12']:5.0f} {r['I12']:5.0f} {r['tape12']:7.1f} "
+                  f"{r['ic3']:5.0f}/{r['ic3_446']:3.0f}/{r['ic3_comb']:3.0f} {r['tape3']:7.1f}/{r['tape3_446']:6.1f}/{r['tape3_comb']:6.1f} {r['sat']*100:4.1f}% {r['W_req']/1e3:7.1f}")
+    print()
+    print(f"  Lift tracks, rated at the {s:.0%} share:")
+    print(f"  {'design':<60} {'basis':<34} {'req':>6} {'NI kA':>6} {'rated':>6} {'x req':>5} {'Ic3':>5} {'I50':>5} {'tape3':>7} {'sat':>5} {'W kJ/m':>7} {'MJ/50 m coil':>12} {'MVA 2 ms':>8}")
+    for label, cache in (("Design Case, full angle data", c_lift_new), ("Part 3, four-curve angles", c_lift_old)):
+        for g, name in ((BEST_LIFT, "best: 1 x 0.80 m, flat 200 x 50, wall 10 mm"), (PRESENT_LIFT, "present: 1 x 1.0 m, square 100, wall 0")):
+            r = cache.get(geom_key(g))
+            if not r or "rate_tape" not in r: continue
+            rated = rated_tape(r, s)
+            print(f"  {name:<60} {label:<34} {r['F_req']/1e3:6.1f} {r['NI_req']/1e3:6.0f} {rated/1e3:6.1f} {rated/r['F_req']:5.2f} {r['ic3']:5.0f} {r['I3']:5.0f} {r['tape3']:7.1f} {r['sat']*100:4.1f}% {r['W_req']/1e3:7.1f} {r['E_coil']/1e6:12.3f} {r['VA']/1e6:8.0f}")
+    print()
+    for label, cs, cl in (("new basis", c_sup_new, c_lift_new), ("old basis", c_sup_old, c_lift_old)):
+        rs = cs.get(geom_key(BEST_SUPPORT)); rl = cl.get(geom_key(BEST_LIFT))
+        if rs and rl and "rate_tape" in rs and "rate_tape" in rl:
+            tape, casing = casing_side_3b(rs, rl)
+            tape_b = 2 * (rs["tape12"] + rs["tape3_comb"]) + 2 * rl["tape3"]
+            print(f"  Casing side, {label}: best support track ({rs['tape12']:.1f} support + {rs['tape3_446']:.1f} load tape at the design state) and best lift track ({rl['tape3']:.1f}), two of each,")
+            print(f"  formers, cryostat and supports at one tape mass: tape {tape:.1f} kg/m, casing side {casing:.0f} kg/m, cable-equivalent {casing*9.65:,.0f} kg/m; at the bound {tape_b:.1f} and {tape_b*(1+CRYO):.0f} kg/m.")
+
+
+def part_3b(stage):
+    global F_REQ
+    d = design_NI(); theva4 = d["theva"]; theva77 = read_theva_file(THEVA_77)
+    rob = read_robinson_angles(); theva = dict(theva4); theva["full"] = rob
+    F_REQ = F_REQ_DESIGN_CASE
+    hr(f"PART 3B: PAUL'S DECISIONS OF 2026-10-23 AND THE CONTROL PLAN ({stage})")
+    print(f"  Decisions: rating share {SHARE_DESIGN:.0%}; the load winding's design state is the full-load state (support at its requirement plus the load share),")
+    print(f"  the both-at-full case the bound; coolant {P_COOLANT/1e5:.1f} bar absolute; a non-conducting composite wall; the requirement from the Design Case numbers;")
+    print(f"  the tape's limit from the full Robinson angle data.  Requirement used here {F_REQ/1e3:.1f} kN/m per support track, lift {LIFT_REQ/1e3:.1f} kN/m per track.")
+    print()
+    requirement_note(d)
+    print()
+    angle_check(theva4, rob)
+    print()
+    h = 0.0025
+    if stage == "rerun":
+        for kind, geoms, F in (("support", [BEST_SUPPORT, present_geom()], F_REQ), ("lift", [BEST_LIFT, PRESENT_LIFT], LIFT_REQ)):
+            path = part3b_cache(h, kind); cache = load_json(path)
+            print(f"  3b.{kind}: {len(geoms)} geometries at {h*1e3:g} mm on the new basis:")
+            run_cases_rerate(geoms, h, theva, theva77, cache, path, kind=kind, F_req=F)
+            print()
+    c_sup_new = load_json(part3b_cache(h, "support")); c_lift_new = load_json(part3b_cache(h, "lift"))
+    c_sup_old = load_json(part3_cache(h, "support")); c_lift_old = load_json(part3_cache(h, "lift"))
+    hr("THE WORST TAPES ON THE NEW BASIS")
+    for kind, cache, g, key, ref in (("support, best", c_sup_new, BEST_SUPPORT, "lim12", "NI_req"), ("support, present", c_sup_new, present_geom(), "lim12", "NI_req"),
+                                     ("lift, best", c_lift_new, BEST_LIFT, "lim3", "NI_req"), ("lift, present", c_lift_new, PRESENT_LIFT, "lim3", "NI_req")):
+        r = cache.get(geom_key(g))
+        if not r or key not in r: continue
+        w = 0.012 if key == "lim12" else 0.003
+        ic, B, th, face, xpos = worst_ic_at(r, theva, r[ref], key, r[ref], w)
+        ic4 = worst_ic_at(r, theva4, r[ref], key, r[ref], w)[0]
+        print(f"  {kind}: worst {w*1e3:.0f} mm tape at x = {xpos:+.3f} m, {B:.3f} T at {th:.1f} degrees from the normal (faces {'vertical' if face == 'v' else 'horizontal'}): {ic:.1f} A (the four-curve model at the same tape {ic4:.1f} A)")
+        if key == "lim12":
+            ic3, B3, th3, f3, x3 = worst_ic_at(r, theva, r["NI_446"], "lim3_446", r["NI_446"], 0.003)
+            print(f"     3 mm load tape in the design state: {B3:.3f} T at {th3:.1f} degrees, {ic3:.1f} A; at the bound {worst_ic_at(r, theva, r['NI_req']+r['NI_load'], 'lim3_comb', r['NI_req']+r['NI_load'], 0.003)[0]:.1f} A")
+    print()
+    hr("SUMMARY AT THE 70 PERCENT SHARE")
+    summary_tables(c_sup_new, c_lift_new, c_sup_old, c_lift_old, theva)
+    print()
+    hr("THE CRYOSTAT WALL AT 0.4 BAR, COMPOSITE")
+    wall_04("best support track", shape_width(BEST_SUPPORT["shape"])); print()
+    wall_04("best lift track", shape_width(BEST_LIFT["shape"])); print()
+    wall_04("present 100 mm bundle", 0.10)
+    print()
+    hr("THE CONTROL PLAN (PART 3B)")
+    rs = c_sup_new.get(geom_key(BEST_SUPPORT)); rl = c_lift_new.get(geom_key(BEST_LIFT))
+    if rs and rl and "rate_tape" in rs and "rate_tape" in rl:
+        control_plan(rs, rl, theva)
+    else:
+        print("  (the new-basis caches are not complete: run --stage=rerun first)")
+
+
 def main():
     part = "1"; quick = False; stage = "screen"
     for arg in sys.argv[1:]:
@@ -1448,6 +1743,8 @@ def main():
         part_2b(stage)
     if part == "3":
         part_3(stage)
+    if part == "3b":
+        part_3b(stage)
     hr(f"DONE ({time.time()-t_all:.0f} s)")
 
 

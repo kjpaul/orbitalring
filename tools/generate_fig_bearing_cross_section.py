@@ -1,16 +1,22 @@
 """
-Draws Figure 8.1, the cross section of the levitation bearing (cable, the two casing support tracks below it, the two
+Draws Figure 8.3, the cross section of the levitation bearing (cable, the two casing support tracks below it, the two
 lift compensation tracks above it, the four plates), as an SVG; widths across the cable are to scale, heights are not.
-Book: The Orbital Ring, Volume IV: Chapter 8, Figure 8.1.
-Run: python tools/generate_fig_bearing_cross_section.py   (writes <output folder>/figures_ch08/fig10_bearing_cross_section.svg, and .png when cairosvg is installed)
+Book: The Orbital Ring, Volume IV: Chapter 8, Figure 8.3.  Redrawn 2026-10-24 to the Part 3b coil design (coil_optimization_2026-10-12.md).
+Run: python tools/generate_fig_bearing_cross_section.py   (writes <output folder>/figures_ch08/fig10_bearing_cross_section.svg, .png and .pdf through PyMuPDF or cairosvg)
 Environment: ORBITAL_RING_OUT (output folder, default runs)
 """
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import ring_altitude as ring
-# Figure 8.1 bearing cross section, 700 km design. Widths across the cable are in proportion
-# (204 px per meter, cable 8.24 m); gaps and heights are not to scale.
-PXM = 1680/8.24
+# Figure 8.3 bearing cross section, 700 km design. Widths across the cable are in proportion
+# (1680 px for the cable's side, 8.22 m from ring_altitude); gaps, heights and the bundles are not to scale.
+SIDE = ring.CABLE_SIDE
+V_CABLE = ring.V_CABLE
+PXM = 1680/SIDE
+# the Part 3b coil design: support tracks two 0.50 m loops with 150 x 67 mm bundles, the centre pair touching; lift tracks one 0.80 m loop with 200 x 50 mm bundles
+SUP_OFF = (-0.575, -0.075, 0.075, 0.575)
+LIFT_W = 0.80
+SUP_B, LIFT_B = (150, 67), (200, 50)   # mm
 CX0, CX1, CT, CB = 560, 2240, 640, 1940   # cable box
 def w(m): return round(m*PXM)
 out = []
@@ -53,10 +59,12 @@ C = 1400
 x_sup = [C - w(1.32), C + w(1.32)]
 x_lift = [C - w(3.17), C + w(3.17)]
 cable = f'<rect x="{CX0}" y="{CT}" width="{CX1-CX0}" height="{CB-CT}" rx="12" fill="#d4e6f1" stroke="#2471a3" stroke-width="4"/>'
-BS = 34   # drawn size of a coil bundle
-def bundles(xc, y, offsets, col, col2):
+BS = 34   # drawn height of the tallest bundle; the bundle rectangles keep their real proportions at 0.34 px per mm
+PXMM = 0.34
+def bundles(xc, y, offsets, col, col2, size):
+    bw, bh = size[0]*PXMM, size[1]*PXMM
     for o in offsets:
-        A(f'<rect x="{xc + w(o) - BS/2}" y="{y}" width="{BS}" height="{BS}" rx="4" fill="{col}" stroke="{col2}" stroke-width="2.5"/>')
+        A(f'<rect x="{xc + w(o) - bw/2}" y="{y + BS - bh}" width="{bw}" height="{bh}" rx="4" fill="{col}" stroke="{col2}" stroke-width="2.5"/>')
 def tag(xc, y, txt, col):
     A(f'<text x="{xc}" y="{y}" text-anchor="middle" font-size="32" fill="{col}" font-weight="bold">{txt}</text>')
 
@@ -64,7 +72,7 @@ def tag(xc, y, txt, col):
 A(f'<text x="{C}" y="392" text-anchor="middle" font-size="38" fill="{NAVY}" font-weight="bold">Lift Compensation Tracks (2, driven superconducting coils, attractive)</text>')
 coil_b = CT - 40 - GAP
 for x, lab in zip(x_lift, ("Lift L", "Lift R")):
-    bundles(x, coil_b - BS, (-0.5, 0.5), NAVY, NAVY2)
+    bundles(x, coil_b - BS, (-LIFT_W/2, LIFT_W/2), NAVY, NAVY2, LIFT_B)
     tag(x, coil_b - BS - 14, lab, NAVY)
 bracket(x_lift[0] + w(W_PLATE)/2 + 40, coil_b, CT - 40, NAVY, "100 mm gap")
 A(cable)
@@ -75,8 +83,8 @@ A(f'<text x="{C}" y="{CT+124}" text-anchor="middle" font-size="34" fill="{OLV}">
 
 # ---------- cable text ----------
 A(f'<text x="{C}" y="1160" text-anchor="middle" font-size="62" font-weight="bold" fill="#1a5276">CNT CABLE</text>')
-A(f'<text x="{C}" y="1235" text-anchor="middle" font-size="44" fill="#1a5276">8.24 m x 8.24 m cross section</text>')
-A(f'<text x="{C}" y="1285" text-anchor="middle" font-size="44" fill="#1a5276">Moving at 8,309 m/s (retrograde)</text>')
+A(f'<text x="{C}" y="1235" text-anchor="middle" font-size="44" fill="#1a5276">{SIDE:.2f} m x {SIDE:.2f} m cross section</text>')
+A(f'<text x="{C}" y="1285" text-anchor="middle" font-size="44" fill="#1a5276">Moving at {V_CABLE:,.0f} m/s (retrograde)</text>')
 A(f'<text x="{C}" y="1335" text-anchor="middle" font-size="44" fill="#1a5276">25 GPa CNT yarn, 12.5 GPa operating stress</text>')
 A(f'<text x="{C}" y="{CB-140}" text-anchor="middle" font-size="38" fill="{OLV}" font-weight="bold">Ferromagnetic Plates (2)</text>')
 A(f'<text x="{C}" y="{CB-100}" text-anchor="middle" font-size="34" fill="{OLV}">(sintered iron in non-conductive resin, 200 mm thick)</text>')
@@ -84,19 +92,19 @@ A(f'<text x="{C}" y="{CB-100}" text-anchor="middle" font-size="34" fill="{OLV}">
 # ---------- bottom ----------
 for x, lab in zip(x_sup, ("Support L", "Support R")):
     box(x - w(W_PLATE)/2, CB - 12, w(W_PLATE), 52, OLV, OLV2)
-    bundles(x, CB + 40 + GAP, (-0.5, 0.0, 0.5), RED, RED2)
+    bundles(x, CB + 40 + GAP, SUP_OFF, RED, RED2, SUP_B)
     tag(x, CB + 40 + GAP + BS + 40, lab, RED)
 bracket(C, CB + 40, CB + 40 + GAP, RED, "")
 A(f'<text x="{C}" y="{CB+40+GAP+44}" text-anchor="middle" font-size="32" fill="{RED}">100 mm gap</text>')
 y = CB + 40 + GAP + BS + 40
 A(f'<text x="{C}" y="{y+84}" text-anchor="middle" font-size="38" fill="{RED}" font-weight="bold">Casing Support Tracks (2, steady superconducting coils, attractive)</text>')
 A(f'<text x="{C}" y="{y+134}" text-anchor="middle" font-size="38" fill="{NAVY}" font-weight="bold">Each also carries a driven load compensation winding</text>')
-A(f'<text x="{C}" y="{y+180}" text-anchor="middle" font-size="34" fill="#555">Squares are coil bundles. There is no iron on the casing. All tracks act vertically only.</text>')
+A(f'<text x="{C}" y="{y+180}" text-anchor="middle" font-size="34" fill="#555">Rectangles are coil bundles (not to scale). There is no iron on the casing. All tracks act vertically only.</text>')
 yd = y + 240
 A(f'<line x1="{CX0}" y1="{yd}" x2="{CX1}" y2="{yd}" stroke="#1a5276" stroke-width="3"/>')
 for x in (CX0, CX1):
     A(f'<line x1="{x}" y1="{yd-15}" x2="{x}" y2="{yd+15}" stroke="#1a5276" stroke-width="3"/>')
-A(f'<text x="{C}" y="{yd+52}" text-anchor="middle" font-size="42" fill="#1a5276">8.24 m</text>')
+A(f'<text x="{C}" y="{yd+52}" text-anchor="middle" font-size="42" fill="#1a5276">{SIDE:.2f} m</text>')
 
 # ---------- LIM ----------
 for x in (CX0 - 36, CX1):
@@ -119,9 +127,9 @@ A('<text x="100" y="1700" text-anchor="middle" font-size="38" fill="#666">Toward
 # ---------- legend ----------
 LY = CASB + 70
 rows = [
- (RED, "Casing Support Tracks (2)", "Two loops of 12 mm HTS tape per track, 0.5 m wide each, in persistent mode. They carry the casing."),
+ (RED, "Casing Support Tracks (2)", "Two loops of 12 mm HTS tape per track, 0.5 m wide each, four 150 x 67 mm bundles, in persistent mode. They carry the casing."),
  (NAVY, "Load Compensation Windings (2)", "Driven 3 mm HTS tape on the support track loops. They add lift under a slow or parked sled."),
- (NAVY, "Lift Compensation Tracks (2)", "One driven loop 1 m wide per track, on the casing ceiling. They pull the casing down as a fast sled passes."),
+ (NAVY, "Lift Compensation Tracks (2)", "One driven loop 0.8 m wide per track, two 200 x 50 mm bundles, on the casing ceiling. They pull the casing down as a fast sled passes."),
  (NAVY, "Gap Protection", "The driven windings also guard the gap. If it closes on one face, the windings on the other face pull back."),
  (GRN, "LIM Stators", "Deployment thrust and lateral centering. Narrower than the reaction plates (edge effect)."),
  (ORG, "LIM Reaction Plates", "γ-TiAl alloy, 200 mm thick, 1.2 m wide, one on each side. Offset above center with the LIM stators."),
@@ -137,10 +145,34 @@ A('</svg>')
 OUT = ring.out_dir("figures_ch08")   # under ORBITAL_RING_OUT (default runs)
 SVG = _os.path.join(OUT, "fig10_bearing_cross_section.svg")
 open(SVG, "w", encoding="utf-8").write("\n".join(out) + "\n")
+PNG = _os.path.join(OUT, "fig10_bearing_cross_section.png"); PDF = _os.path.join(OUT, "fig10_bearing_cross_section.pdf")
 try:
     import cairosvg
-    cairosvg.svg2png(url=SVG, write_to=_os.path.join(OUT, "fig10_bearing_cross_section.png"), output_width=5600)
-    cairosvg.svg2png(url=SVG, write_to=_os.path.join(OUT, "preview.png"), output_width=1500)
-except ImportError:
-    print("cairosvg is not installed: the SVG was written, no PNG")
+    cairosvg.svg2png(url=SVG, write_to=PNG, output_width=5600)
+    cairosvg.svg2pdf(url=SVG, write_to=PDF)
+except (ImportError, OSError):
+    # without cairo: the PNG through a headless Edge or Chrome (keeps the Arial text), else PyMuPDF (substitutes a serif font);
+    # the PDF through svglib and reportlab (vector, Helvetica), else PyMuPDF
+    import shutil, subprocess
+    browser = next((p for p in (r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+                                shutil.which("msedge"), shutil.which("chrome"), shutil.which("google-chrome"), shutil.which("chromium")) if p and _os.path.exists(p)), None)
+    done_png = False
+    if browser:
+        r = subprocess.run([browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--window-size=2800,3200", "--force-device-scale-factor=2",
+                            f"--screenshot={_os.path.abspath(PNG)}", "file:///" + _os.path.abspath(SVG).replace("\\", "/")], capture_output=True)
+        done_png = _os.path.exists(PNG) and _os.path.getsize(PNG) > 0
+    try:
+        from svglib.svglib import svg2rlg
+        from reportlab.graphics import renderPDF
+        renderPDF.drawToFile(svg2rlg(SVG), PDF); done_pdf = True
+    except ImportError:
+        done_pdf = False
+    if not (done_png and done_pdf):
+        try:
+            import fitz                                   # PyMuPDF renders SVG directly
+            doc = fitz.open(SVG); page = doc[0]
+            if not done_png: page.get_pixmap(matrix=fitz.Matrix(2, 2)).save(PNG)      # 5600 px wide
+            if not done_pdf: open(PDF, "wb").write(doc.convert_to_pdf())
+        except ImportError:
+            print("no renderer found (cairosvg, a headless browser, svglib or PyMuPDF): the SVG was written, no PNG or PDF")
 print(LY+110+70*len(rows)+30, H)
