@@ -61,6 +61,10 @@ All scripts run from the `radiation/` folder and write there; see `radiation/REA
 | Table 5.10, dose limits and reference values | from the sources cited in the chapter, no script | |
 | Equation 5.1, the geomagnetic cutoff rigidity at 700 km | not in `tools/generate_equations_latex.py`; a hand-made image [UNVERIFIED] | |
 | Low-energy protons and atomic oxygen checks (Section 5.10) | `radiation/ch5_checks.py`, `radiation/lowE_protons.py` | printed to the console |
+| Figure 5.2, the sky seen from the room under the cable (shares of the sky from the sweet-spot logs) | `radiation/fig05_02_sky_under_cable.py` (reads `sweetspot_gcr.txt`, `sweetspot_trapped.txt`) | `fig05_02_sky_under_the_cable.svg` |
+| Figure 5.3, dose against shield thickness, trapped protons and cosmic rays | `radiation/fig05_03_dose_vs_shield.py` (reads `tables_trapped_igrf2026.txt`, `sweetspot_gcr.txt`) | `fig05_03_dose_vs_shield.svg` |
+| Figure 5.4, the anomaly sector on the equator as a strip map | `radiation/fig05_04_anomaly_sector_map.py` (reads `ap8_igrf2026_spectra.npz`; land from the Wikipedia "Equator" crossing table) | `fig05_04_anomaly_sector_map.svg` |
+| Solar particle event dose (Section 5.9): reference events, quiet and storm-time cutoff, dose per event behind 5, 20, 100 cm of water and under the cable | `radiation/spe_700.py` (King 1974 and Koldobskiy et al. 2021 spectra, Stormer cutoff of `sweetspot.py`, Geant4 proton responses) | `spe_700.txt` |
 
 ## Chapter 6: Core Superconducting Technologies
 
