@@ -99,6 +99,7 @@ The bearing has four tracks of air-core superconducting coils: two support track
 | `tools/ch4_numbers.py` | the numbers of the Chapter 4 tables, written to `runs/ch4_numbers.json` (log `ch4_numbers.txt`) | 4 (Tables 4.2 to 4.5) |
 | `tools/ch4_extra.py` | Chapter 4 numbers the tables do not carry | 4 (Table 4.1) |
 | `tools/ch4_figures.py` | Figures 4.1 to 4.6, as SVG and PNG in `runs/figures_ch04/` | 4 |
+| `tools/fig03_02_deployment_tension.py` | Figure 3.2, the cable tension and the bearing load through the deployment, from the time series `lim_simulation.py` writes | 3 (Figure 3.2) |
 | `tools/generate_equations_latex.py` | the worked equations with every number from `ring_altitude.py`, as LaTeX in `runs/equations/` (SVG when LaTeX is installed) | 1 to 4, 10 |
 | `tools/generate_fig_bearing_cross_section.py` | Figure 8.1, the bearing cross section, in `runs/figures_ch08/` | 8 |
 | `tools/ch10_numbers.py` (with `ORBITAL_RING_ARRAY_OFFSET_KM=0`), `tools/ch13_numbers.py` | the Chapter 10 power numbers and the Chapter 13 cable-direction rows | 10 (Table 10.1), 13 (Table 13.1) |

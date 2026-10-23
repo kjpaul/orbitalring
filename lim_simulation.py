@@ -69,6 +69,15 @@ data_radiator_width = []
 data_q_cryo_cold = []
 data_wall_temp = []
 data_warm_rad_width = []
+# Deployment tension (Chapter 3, 2026-10-23): time in days, speeds in the launch frame, tension, casing net weight,
+# cable excess force and cable stress, sampled with the other lists; the initial state is the first entry.
+data_time = []
+data_v_cable = []
+data_v_casing = []
+data_tension = []
+data_casing_weight = []
+data_cable_excess = []
+data_stress = []
 
 
 def clear_data():
@@ -79,6 +88,7 @@ def clear_data():
     global data_p_heat, data_p_lim, data_p_site, data_temp_plate
     global data_E_site, data_E_total, data_cable_temp, data_radiator_width, data_q_cryo_cold
     global data_wall_temp, data_warm_rad_width
+    global data_time, data_v_cable, data_v_casing, data_tension, data_casing_weight, data_cable_excess, data_stress
     
     data_current = []
     data_voltage = []
@@ -105,6 +115,7 @@ def clear_data():
     data_q_cryo_cold = []
     data_wall_temp = []
     data_warm_rad_width = []
+    data_time = []; data_v_cable = []; data_v_casing = []; data_tension = []; data_casing_weight = []; data_cable_excess = []; data_stress = []
 
 
 # =============================================================================
@@ -125,6 +136,25 @@ def make_month_ticks(data_list, total_time):
 # =============================================================================
 # MAIN SIMULATION LOOP
 # =============================================================================
+
+def deployment_tension(v_cable, v_casing):
+    """Cable tension, casing net weight, cable excess force and cable stress from the two speeds (launch frame, m/s):
+    radial force balance per meter with both bodies at the ring radius (Chapter 3, Equation 3.2 with the casing at its
+    current speed): T = m_rotor (v_c^2 - v_o^2) - m_load (g r - v_L^2).  Returns N/m-of-ring-tension (N), N/m, N/m, Pa."""
+    g, r, v_o = ring.G_LOCAL, ring.R_ORBIT, cfg.V_ORBIT
+    T = cfg.M_CABLE_M * (v_cable**2 - v_o**2) - cfg.M_LOAD_M * (g * r - v_casing**2)
+    W = cfg.M_LOAD_M * (g - v_casing**2 / r)
+    F = cfg.M_CABLE_M * (v_cable**2 / r - g)
+    stress = T / (cfg.M_CABLE_STRUCTURAL / ring.RHO_CNT)
+    return T, W, F, stress
+
+
+def deployment_tension_closed_form(v_casing):
+    """The closed form T = m_load (1 + k) x^2, x = v_o - v_L the casing's slowdown, k = m_load / m_rotor (section 2 of the
+    2026-10-23 task file); equal to deployment_tension() when momentum is conserved."""
+    x = cfg.V_ORBIT - v_casing
+    return cfg.M_LOAD_M * (1.0 + cfg.M_LOAD_M / cfg.M_CABLE_M) * x * x
+
 
 def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0):
     """Run the deployment simulation.
@@ -243,6 +273,16 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     # Energy accumulators
     E_site = 0.0
     E_total = 0.0
+
+    # Deployment tension tracking (Chapter 3): the initial state, then every step
+    T0, W0, F0, S0 = deployment_tension(v_cable, v_casing)
+    data_time.append(0.0); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
+    data_tension.append(T0); data_casing_weight.append(W0); data_cable_excess.append(F0); data_stress.append(S0)
+    T_prev, W_prev = T0, W0
+    dT_max = (0.0, 0.0); dW_max = (0.0, 0.0)              # peak rise rates (per second) and when
+    T_diff_rel_max = 0.0; T_diff_abs_max = 0.0            # simulated against the closed form
+    t_zero = None; t_stress = None                        # casing through zero speed; stress first at SIGMA_CABLE
+    T_marks = {}                                          # tension and casing weight after 1, 10, 30, 100 days
 
     # Tracking
     sample_time = 0
@@ -437,6 +477,25 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         v_cable = phys.calc_cable_velocity(v_cable, thrust, dt, cfg.LIM_SITES, cfg.M_CABLE_TOTAL)
         v_casing = phys.calc_casing_velocity(v_casing, thrust, dt, cfg.LIM_SITES, cfg.M_LOAD_TOTAL)
 
+        # Deployment tension at this step (Chapter 3, 2026-10-23)
+        T_sim, W_casing, F_excess, stress_c = deployment_tension(v_cable, v_casing)
+        T_cf = deployment_tension_closed_form(v_casing)
+        T_diff_abs_max = max(T_diff_abs_max, abs(T_sim - T_cf))
+        if T_cf > 1e6:
+            T_diff_rel_max = max(T_diff_rel_max, abs(T_sim - T_cf) / T_cf)
+        if (T_sim - T_prev) / dt > dT_max[0]:
+            dT_max = ((T_sim - T_prev) / dt, time + dt)
+        if (W_casing - W_prev) / dt > dW_max[0]:
+            dW_max = ((W_casing - W_prev) / dt, time + dt)
+        T_prev, W_prev = T_sim, W_casing
+        if t_zero is None and v_casing <= 0.0:
+            t_zero = time + dt
+        if t_stress is None and stress_c >= cfg.SIGMA_CABLE:
+            t_stress = time + dt
+        for d_mark in (1, 10, 30, 100):
+            if d_mark not in T_marks and time + dt >= d_mark * cfg.DAY:
+                T_marks[d_mark] = (T_sim, W_casing, v_casing)
+
         # Accumulate energy
         E_site += p_thrust * cfg.LIMS_PER_SITE * dt
         E_total += p_thrust * cfg.LIM_SITES * cfg.LIMS_PER_SITE * dt
@@ -484,6 +543,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             data_radiator_width.append(radiator_width)
             data_q_cryo_cold.append(q_cryo_cold)
             data_wall_temp.append(wall_temp)
+            data_time.append((time + dt) / cfg.DAY); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
+            data_tension.append(T_sim); data_casing_weight.append(W_casing); data_cable_excess.append(F_excess); data_stress.append(stress_c)
             # Warm-loop heat load per meter (two-node model)
             if cfg.WARM_THERMAL_MODEL == "two_node" and eddy_to_cable:
                 p_eddy_total_ring = p_eddy * cfg.LIMS_PER_SITE * cfg.LIM_SITES
@@ -654,6 +715,56 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     print("-" * 70)
     print(f"Cable: M_CABLE_M={cfg.M_CABLE_STRUCTURAL/1000:.2f} tonne/m and M_CABLE_M={cfg.M_CABLE_M/1000:.2f} tonne/m with M_LOAD_M={cfg.M_LOAD_M/1000:.2f} tonne/m")
     print("-" * 70)
+
+    # Deployment tension (Chapter 3, task of 2026-10-23): the final state joins the sampled series, then the report
+    T_end, W_end, F_end, S_end = deployment_tension(v_cable, v_casing)
+    data_time.append(time / cfg.DAY); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
+    data_tension.append(T_end); data_casing_weight.append(W_end); data_cable_excess.append(F_end); data_stress.append(S_end)
+    import numpy as _np
+    import csv as _csv
+    import os as _os
+    xs = _np.array([cfg.V_ORBIT - v for v in data_v_casing])         # the casing's slowdown, rising through the run
+    A_cable = cfg.M_CABLE_STRUCTURAL / ring.RHO_CNT
+    print("\n" + "=" * 70)
+    print("DEPLOYMENT TENSION (Chapter 3): radial force balance with both bodies at the ring radius")
+    print("=" * 70)
+    print(f"T = m_rotor (v_c^2 - v_o^2) - m_load (g r - v_L^2), speeds in the launch frame; m_rotor {cfg.M_CABLE_M:,.0f} kg/m (cable with hardware),")
+    print(f"m_load {cfg.M_LOAD_M:,.0f} kg/m, v_o {cfg.V_ORBIT:,.1f} m/s, g {ring.G_LOCAL:.3f} m/s^2, r {ring.R_ORBIT:,.0f} m, cable area {A_cable:.2f} m^2; cable {'retrograde' if ring.RETROGRADE else 'prograde'}.")
+    print(f"Casing net weight m_load (g - v_L^2 / r); cable excess force m_rotor (v_c^2 / r - g); their difference is T / r.")
+    print(f"{'casing slowdown x':>18} {'casing speed v_L':>17} {'cable speed v_c':>16} {'tension':>10} {'closed form':>12} {'casing weight':>14} {'cable excess':>13} {'stress':>8} {'time':>10}")
+    marks = [0.0, 1000.0, 3000.0, 5000.0, cfg.V_ORBIT, cfg.V_ORBIT - cfg.V_GROUND_STATIONARY]
+    for xm in marks:
+        if xm > xs[-1] + 0.5:                                   # a prograde casing never reaches zero speed: skip that mark
+            continue
+        xm = min(xm, xs[-1])
+        vL = cfg.V_ORBIT - xm
+        vc = float(_np.interp(xm, xs, data_v_cable)); T = float(_np.interp(xm, xs, data_tension)); W = float(_np.interp(xm, xs, data_casing_weight))
+        F = float(_np.interp(xm, xs, data_cable_excess)); St = float(_np.interp(xm, xs, data_stress)); td = float(_np.interp(xm, xs, data_time))
+        direction = "westward" if (vL > 0) == ring.RETROGRADE else "eastward"
+        if abs(vL) < 0.5:
+            direction = ""
+        print(f"{xm:14,.0f} m/s {abs(vL):9,.0f} m/s {direction:>8} {vc:12,.0f} m/s {T/1e9:8.1f} GN {deployment_tension_closed_form(vL)/1e9:9.1f} GN {W/1e3:10.1f} kN/m {F/1e3:9.1f} kN/m {St/1e9:5.2f} GPa {td:7.1f} d")
+    print(f"Closed form T = m_load (1 + k) x^2 against the simulated tension at every step: largest relative difference {T_diff_rel_max:.2e} (where T > 1 MN),")
+    print(f"largest absolute difference {T_diff_abs_max:.3e} N; momentum is conserved in the code, so they agree to round-off.")
+    if t_zero is not None:
+        print(f"Casing through zero speed at {t_zero/cfg.DAY:.1f} days ({t_zero/time*100:.1f} % of the deployment time); tension there {float(_np.interp(cfg.V_ORBIT, xs, data_tension))/1e9:.1f} GN.")
+    else:
+        print("The casing does not pass through zero speed (prograde cable: it slows from orbital speed to the ground-synchronous speed in the same direction).")
+    print(f"Stress reaches {cfg.SIGMA_CABLE/1e9:.1f} GPa at {(t_stress or time)/cfg.DAY:.1f} days" + (" (the final step; the loop ends when the casing reaches the ground-synchronous speed)." if t_stress is None or t_stress >= time - 2 * dt else f", before the end at {time/cfg.DAY:.1f} days.") + f"  Final stress {S_end/1e9:.3f} GPa, final tension {T_end/1e9:.1f} GN.")
+    print(f"Peak rise of the tension {dT_max[0]*cfg.DAY/1e9:.2f} GN per day at {dT_max[1]/cfg.DAY:.1f} days; peak rise of the casing's net weight {dW_max[0]*cfg.DAY/1e3:.3f} kN/m per day at {dW_max[1]/cfg.DAY:.1f} days.")
+    for d_mark in sorted(T_marks):
+        Tm, Wm, vm = T_marks[d_mark]
+        print(f"  after {d_mark:3d} day(s): tension {Tm/1e9:7.2f} GN, casing net weight {Wm/1e3:6.2f} kN/m, casing slowdown {cfg.V_ORBIT - vm:8.1f} m/s")
+    csv_path = _os.path.join(ring.out_dir(), "lim_deployment_tension.csv")
+    with open(csv_path, "w", newline="") as fh:
+        wr = _csv.writer(fh)
+        wr.writerow(["time_days", "v_cable_m_s", "v_casing_m_s", "tension_GN", "casing_net_weight_kN_m", "cable_excess_kN_m", "stress_GPa"])
+        stride = max(1, len(data_time) // 4000)                   # about 4,000 rows: every stride-th sample, the first and the last
+        rows = list(zip(data_time, data_v_cable, data_v_casing, data_tension, data_casing_weight, data_cable_excess, data_stress))
+        for row in rows[::stride] + ([rows[-1]] if (len(rows) - 1) % stride else []):
+            wr.writerow([f"{row[0]:.5f}", f"{row[1]:.3f}", f"{row[2]:.3f}", f"{row[3]/1e9:.6f}", f"{row[4]/1e3:.5f}", f"{row[5]/1e3:.5f}", f"{row[6]/1e9:.6f}"])
+    print(f"Time series ({len(data_time)} points computed; every {stride}th written with the initial and final states) in {_os.path.basename(csv_path)} in the output folder.")
+    print("=" * 70)
     """
         cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, m_hw=cfg.M_HARDWARE)
         cfg.M_LOAD_M = m_load

@@ -30,6 +30,7 @@
 | Equations 3.1 to 3.5 (momentum conservation, tension, stress, the sizing quadratic) | symbolic, no script; the quadratic is `ring_altitude.cable_mass_structural` | |
 | Section 3.4, deployment time and energy (599.7 days at 8 MW per site, 461.0 at 16 MW, 18.8 EJ) | `lim_simulation.py`; `ring_altitude.py` for the energy | `lim_simulation.txt`, `lim_simulation_16MW.txt`, `ring_altitude_700.txt` |
 | Figure 3.1, hoop tension force cancellation | drawn | |
+| Figure 3.2, cable tension, stress, casing net weight and cable excess force through the deployment; the deployment tension table of Section 3.4 (0, 13.1, 118.3, 328.6, 740.3, 845.6 GN at casing slowdowns of 0 to 8,020 m/s) | `lim_simulation.py` (the "DEPLOYMENT TENSION" section and `lim_deployment_tension.csv`), drawn by `tools/fig03_02_deployment_tension.py`; `ORBITAL_RING_CABLE=prograde` for the prograde curve | `lim_simulation.txt`, `figures_ch03/fig03_02_deployment_tension_700.svg` |
 
 ## Chapter 4: Why 700 Kilometers? Catastrophic Failure and the Design Altitude
 
