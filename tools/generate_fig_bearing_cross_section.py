@@ -1,15 +1,18 @@
 """
-Draws Figure 8.3, the cross section of the levitation bearing (cable, the two casing support tracks below it, the two
-lift compensation tracks above it, the four plates), as an SVG; widths across the cable are to scale, heights are not.
-Book: The Orbital Ring, Volume IV: Chapter 8, Figure 8.3.  Redrawn 2026-10-24 to the Part 3b coil design (coil_optimization_2026-10-12.md).
-Run: python tools/generate_fig_bearing_cross_section.py   (writes <output folder>/figures_ch08/fig10_bearing_cross_section.svg, .png and .pdf through PyMuPDF or cairosvg)
+Draws Figure 8.4, the cross section of the suspension bearing (cable, the two casing support tracks below it, the two
+lift compensation tracks above it, the four plates), as an SVG; widths across the cable are to scale, heights are not,
+and the cable is drawn as a wide low rectangle so that the labels have room (Paul, 2026-10-24).
+Book: The Orbital Ring, Volume IV: Chapter 8, Figure 8.4 (file name fig10_bearing_cross_section).  Redrawn 2026-10-24 to the
+Part 3b coil design (coil_optimization_2026-10-12.md), text enlarged for print and EML renamed EMS on 2026-10-25.
+Run: python tools/generate_fig_bearing_cross_section.py   (writes <output folder>/figures_ch08/fig10_bearing_cross_section.svg,
+     .png and .pdf: cairosvg if it has a cairo library, else the PNG through a headless Edge or Chrome and the PDF through svglib)
 Environment: ORBITAL_RING_OUT (output folder, default runs)
 """
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import ring_altitude as ring
-# Figure 8.3 bearing cross section, 700 km design. Widths across the cable are in proportion
-# (1680 px for the cable's side, 8.22 m from ring_altitude); gaps, heights and the bundles are not to scale.
+# Widths across the cable are in proportion (1680 px for the cable's side, 8.22 m from ring_altitude); gaps, heights and the
+# bundles are not to scale, and the cable's height is drawn far below its width.
 SIDE = ring.CABLE_SIDE
 V_CABLE = ring.V_CABLE
 PXM = 1680/SIDE
@@ -17,115 +20,113 @@ PXM = 1680/SIDE
 SUP_OFF = (-0.575, -0.075, 0.075, 0.575)
 LIFT_W = 0.80
 SUP_B, LIFT_B = (150, 67), (200, 50)   # mm
-CX0, CX1, CT, CB = 560, 2240, 640, 1940   # cable box
+CX0, CX1, CT, CB = 560, 2240, 760, 1480   # cable box: 1680 px wide, 720 px tall (not to scale)
+WIDTH = 2800
 def w(m): return round(m*PXM)
 out = []
 A = out.append
 RED, RED2 = "#c0392b", "#922b21"
 NAVY, NAVY2 = "#1f3a93", "#152a6b"
-PUR, PUR2 = "#8e44ad", "#6c3483"
 OLV, OLV2 = "#7d6608", "#5b4a06"
-TEAL, TEAL2 = "#0e6655", "#0b5345"
 GRN, GRN2 = "#27ae60", "#1e8449"
 ORG, ORG2 = "#f39c12", "#d68910"
-H = 3200
-A(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2800 {H}" font-family="Arial, sans-serif">')
-A('<title>Orbital Ring Bearing Cross Section</title>')
-A(f'<rect width="2800" height="{H}" fill="white"/>')
-A('<text x="1400" y="75" text-anchor="middle" font-size="58" font-weight="bold">Orbital Ring Bearing Cross Section (Not to Scale)</text>')
-A('<text x="1400" y="130" text-anchor="middle" font-size="42" fill="#555">Cable moves perpendicular to page. Casing is stationary relative to the ground.</text>')
-CASB = 2460
-A(f'<rect x="200" y="185" width="2400" height="{CASB-185}" rx="20" fill="#f5f5f5" stroke="#333" stroke-width="5"/>')
-A('<text x="1400" y="252" text-anchor="middle" font-size="46" font-weight="bold" fill="#333">CASING (stationary relative to the ground, 12,000 kg/m)</text>')
-A(f'<text x="1400" y="304" text-anchor="middle" font-size="38" fill="#555">Four air-core EML tracks hold the casing to the cable across a 100 mm gap</text>')
+# font sizes (px): raised about half from the 2026-10-24 figure so that the figure reads at 5 inches wide in print
+F_TITLE, F_SUB, F_HEAD, F_TEXT, F_TAG, F_SMALL, F_CABLE = 72, 52, 50, 48, 46, 44, 72
 
-def box(x, y, ww, hh, fill, stroke, label=None, fs=32):
+def text(x, y, s, fs, fill="#333", anchor="middle", bold=False, extra=""):
+    A(f'<text x="{x}" y="{y}" text-anchor="{anchor}" font-size="{fs}" fill="{fill}"{" font-weight=\"bold\"" if bold else ""}{extra}>{s}</text>')
+def box(x, y, ww, hh, fill, stroke):
     A(f'<rect x="{x}" y="{y}" width="{ww}" height="{hh}" rx="3" fill="{fill}" stroke="{stroke}" stroke-width="2.5"/>')
-    if label:
-        A(f'<text x="{x+ww/2}" y="{y+hh/2+fs*0.35}" text-anchor="middle" font-size="{fs}" fill="white" font-weight="bold">{label}</text>')
-def arrow(x, y0, y1, col):
-    d = 1 if y1 > y0 else -1
-    A(f'<line x1="{x}" y1="{y0}" x2="{x}" y2="{y1}" stroke="{col}" stroke-width="4"/>')
-    A(f'<polygon points="{x},{y1} {x-9},{y1-18*d} {x+9},{y1-18*d}" fill="{col}"/>')
-def bracket(x, y0, y1, col, txt):
-    A(f'<line x1="{x}" y1="{y0}" x2="{x}" y2="{y1}" stroke="{col}" stroke-width="2"/>')
+def bracket(x, y0, y1, col, txt, fs=F_TAG):
+    A(f'<line x1="{x}" y1="{y0}" x2="{x}" y2="{y1}" stroke="{col}" stroke-width="2.5"/>')
     for y in (y0, y1):
-        A(f'<line x1="{x-16}" y1="{y}" x2="{x+16}" y2="{y}" stroke="{col}" stroke-width="2"/>')
-    A(f'<text x="{x+24}" y="{(y0+y1)/2+12}" font-size="34" fill="{col}">{txt}</text>')
+        A(f'<line x1="{x-18}" y1="{y}" x2="{x+18}" y2="{y}" stroke="{col}" stroke-width="2.5"/>')
+    if txt:
+        text(x+28, (y0+y1)/2+fs*0.35, txt, fs, col, "start")
+PXMM = 0.5   # bundle rectangles keep their real proportions at 0.5 px per mm (150 x 67 mm -> 75 x 34 px)
+BS = round(SUP_B[1]*PXMM)
+def bundles(xc, y_bottom, offsets, col, col2, size):
+    bw, bh = size[0]*PXMM, size[1]*PXMM
+    for o in offsets:
+        A(f'<rect x="{xc + w(o) - bw/2}" y="{y_bottom - bh}" width="{bw}" height="{bh}" rx="4" fill="{col}" stroke="{col2}" stroke-width="2.5"/>')
 
 GAP = 100
 W_PLATE = 1.4
 C = 1400
 x_sup = [C - w(1.32), C + w(1.32)]
 x_lift = [C - w(3.17), C + w(3.17)]
-cable = f'<rect x="{CX0}" y="{CT}" width="{CX1-CX0}" height="{CB-CT}" rx="12" fill="#d4e6f1" stroke="#2471a3" stroke-width="4"/>'
-BS = 34   # drawn height of the tallest bundle; the bundle rectangles keep their real proportions at 0.34 px per mm
-PXMM = 0.34
-def bundles(xc, y, offsets, col, col2, size):
-    bw, bh = size[0]*PXMM, size[1]*PXMM
-    for o in offsets:
-        A(f'<rect x="{xc + w(o) - bw/2}" y="{y + BS - bh}" width="{bw}" height="{bh}" rx="4" fill="{col}" stroke="{col2}" stroke-width="2.5"/>')
-def tag(xc, y, txt, col):
-    A(f'<text x="{xc}" y="{y}" text-anchor="middle" font-size="32" fill="{col}" font-weight="bold">{txt}</text>')
 
-# ---------- top ----------
-A(f'<text x="{C}" y="392" text-anchor="middle" font-size="38" fill="{NAVY}" font-weight="bold">Lift Compensation Tracks (2, driven superconducting coils, attractive)</text>')
-coil_b = CT - 40 - GAP
+# ---------- header and casing ----------
+body = []
+B = body.append
+text(C, 84, "Orbital Ring Bearing Cross Section (Not to Scale)", F_TITLE, "#000", bold=True)
+text(C, 150, "Cable moves perpendicular to page. Casing is stationary relative to the ground.", F_SUB, "#555")
+CAS_TOP = 200
+text(C, 282, "CASING (stationary relative to the ground, 12,000 kg/m)", 56, "#333", bold=True)
+text(C, 342, "Four air-core EMS tracks hold the casing to the cable across a 100 mm gap", F_TEXT, "#555")
+
+# ---------- top: lift compensation tracks ----------
+text(C, 430, "Lift Compensation Tracks (2, driven superconducting coils, attractive)", F_HEAD, NAVY, bold=True)
+coil_b = CT - 40 - GAP                      # the bundles' bottom face, one gap above the plate
 for x, lab in zip(x_lift, ("Lift L", "Lift R")):
-    bundles(x, coil_b - BS, (-LIFT_W/2, LIFT_W/2), NAVY, NAVY2, LIFT_B)
-    tag(x, coil_b - BS - 14, lab, NAVY)
-bracket(x_lift[0] + w(W_PLATE)/2 + 40, coil_b, CT - 40, NAVY, "100 mm gap")
-A(cable)
+    bundles(x, coil_b, (-LIFT_W/2, LIFT_W/2), NAVY, NAVY2, LIFT_B)
+    text(x, coil_b - LIFT_B[1]*PXMM - 18, lab, F_TAG, NAVY, bold=True)
+bracket(x_lift[0] + w(W_PLATE)/2 + 44, coil_b, CT - 40, NAVY, "100 mm gap")
+A(f'<rect x="{CX0}" y="{CT}" width="{CX1-CX0}" height="{CB-CT}" rx="12" fill="#d4e6f1" stroke="#2471a3" stroke-width="4"/>')
 for x in x_lift:
     box(x - w(W_PLATE)/2, CT - 40, w(W_PLATE), 52, OLV, OLV2)
-A(f'<text x="{C}" y="{CT+84}" text-anchor="middle" font-size="38" fill="{OLV}" font-weight="bold">Ferromagnetic Plates (2)</text>')
-A(f'<text x="{C}" y="{CT+124}" text-anchor="middle" font-size="34" fill="{OLV}">(sintered iron in non-conductive resin, 200 mm thick)</text>')
+text(C, CT + 96, "Ferromagnetic Plates (2)", F_TEXT, OLV, bold=True)
+text(C, CT + 146, "(sintered iron in non-conductive resin, 200 mm thick)", F_SMALL, OLV)
 
 # ---------- cable text ----------
-A(f'<text x="{C}" y="1160" text-anchor="middle" font-size="62" font-weight="bold" fill="#1a5276">CNT CABLE</text>')
-A(f'<text x="{C}" y="1235" text-anchor="middle" font-size="44" fill="#1a5276">{SIDE:.2f} m x {SIDE:.2f} m cross section</text>')
-A(f'<text x="{C}" y="1285" text-anchor="middle" font-size="44" fill="#1a5276">Moving at {V_CABLE:,.0f} m/s (retrograde)</text>')
-A(f'<text x="{C}" y="1335" text-anchor="middle" font-size="44" fill="#1a5276">25 GPa CNT yarn, 12.5 GPa operating stress</text>')
-A(f'<text x="{C}" y="{CB-140}" text-anchor="middle" font-size="38" fill="{OLV}" font-weight="bold">Ferromagnetic Plates (2)</text>')
-A(f'<text x="{C}" y="{CB-100}" text-anchor="middle" font-size="34" fill="{OLV}">(sintered iron in non-conductive resin, 200 mm thick)</text>')
+yc = (CT + CB)/2
+text(C, yc - 50, "CNT CABLE", F_CABLE, "#1a5276", bold=True)
+text(C, yc + 18, f"{SIDE:.2f} m x {SIDE:.2f} m cross section", F_HEAD, "#1a5276")
+text(C, yc + 76, f"Moving at {V_CABLE:,.0f} m/s (retrograde)", F_HEAD, "#1a5276")
+text(C, yc + 134, "25 GPa CNT yarn, 12.5 GPa operating stress", F_HEAD, "#1a5276")
+text(C, CB - 108, "Ferromagnetic Plates (2)", F_TEXT, OLV, bold=True)
+text(C, CB - 58, "(sintered iron in non-conductive resin, 200 mm thick)", F_SMALL, OLV)
 
-# ---------- bottom ----------
+# ---------- bottom: casing support tracks ----------
+coil_t = CB + 40 + GAP                      # the bundles' top face, one gap below the plate
 for x, lab in zip(x_sup, ("Support L", "Support R")):
     box(x - w(W_PLATE)/2, CB - 12, w(W_PLATE), 52, OLV, OLV2)
-    bundles(x, CB + 40 + GAP, SUP_OFF, RED, RED2, SUP_B)
-    tag(x, CB + 40 + GAP + BS + 40, lab, RED)
-bracket(C, CB + 40, CB + 40 + GAP, RED, "")
-A(f'<text x="{C}" y="{CB+40+GAP+44}" text-anchor="middle" font-size="32" fill="{RED}">100 mm gap</text>')
-y = CB + 40 + GAP + BS + 40
-A(f'<text x="{C}" y="{y+84}" text-anchor="middle" font-size="38" fill="{RED}" font-weight="bold">Casing Support Tracks (2, steady superconducting coils, attractive)</text>')
-A(f'<text x="{C}" y="{y+134}" text-anchor="middle" font-size="38" fill="{NAVY}" font-weight="bold">Each also carries a driven load compensation winding</text>')
-A(f'<text x="{C}" y="{y+180}" text-anchor="middle" font-size="34" fill="#555">Rectangles are coil bundles (not to scale). There is no iron on the casing. All tracks act vertically only.</text>')
-yd = y + 240
+    bundles(x, coil_t + BS, SUP_OFF, RED, RED2, SUP_B)
+    text(x, coil_t + BS + 56, lab, F_TAG, RED, bold=True)
+bracket(C, CB + 40, CB + 40 + GAP, RED, "100 mm gap")
+y = coil_t + BS + 56
+text(C, y + 100, "Casing Support Tracks (2, steady superconducting coils, attractive)", F_HEAD, RED, bold=True)
+text(C, y + 160, "Each also carries a driven load compensation winding", F_HEAD, NAVY, bold=True)
+text(C, y + 216, "Rectangles are coil bundles (not to scale). There is no iron on the casing. All tracks act vertically only.", F_SMALL, "#555")
+yd = y + 290
 A(f'<line x1="{CX0}" y1="{yd}" x2="{CX1}" y2="{yd}" stroke="#1a5276" stroke-width="3"/>')
 for x in (CX0, CX1):
-    A(f'<line x1="{x}" y1="{yd-15}" x2="{x}" y2="{yd+15}" stroke="#1a5276" stroke-width="3"/>')
-A(f'<text x="{C}" y="{yd+52}" text-anchor="middle" font-size="42" fill="#1a5276">{SIDE:.2f} m</text>')
+    A(f'<line x1="{x}" y1="{yd-16}" x2="{x}" y2="{yd+16}" stroke="#1a5276" stroke-width="3"/>')
+text(C, yd + 62, f"{SIDE:.2f} m", F_HEAD, "#1a5276")
+CASB = yd + 110
 
 # ---------- LIM ----------
-for x in (CX0 - 36, CX1):
-    A(f'<rect x="{x}" y="840" width="36" height="640" rx="3" fill="{ORG}" stroke="{ORG2}" stroke-width="2.5"/>')
-for x in (248, 2492):
-    A(f'<rect x="{x}" y="900" width="60" height="520" rx="4" fill="{GRN}" stroke="{GRN2}" stroke-width="2.5"/>')
-    A(f'<text x="{x+30}" y="876" text-anchor="middle" font-size="42" fill="{GRN2}" font-weight="bold">LIM</text>')
-A(f'<line x1="308" y1="1240" x2="524" y2="1240" stroke="{GRN}" stroke-width="2" stroke-dasharray="6,4"/>')
-A(f'<text x="416" y="1130" text-anchor="middle" font-size="36" fill="{GRN}" font-weight="bold" transform="rotate(-90, 416, 1130)">200 mm gap</text>')
-for yy in (1000, 1300):
-    A(f'<line x1="248" y1="{yy}" x2="416" y2="{yy}" stroke="{GRN}" stroke-width="5"/><polygon points="416,{yy} 396,{yy-10} 396,{yy+10}" fill="{GRN}"/>')
-    A(f'<line x1="2552" y1="{yy}" x2="2384" y2="{yy}" stroke="{GRN}" stroke-width="5"/><polygon points="2384,{yy} 2404,{yy-10} 2404,{yy+10}" fill="{GRN}"/>')
-A(f'<text x="464" y="1160" text-anchor="middle" font-size="36" fill="{ORG2}" font-weight="bold" transform="rotate(-90, 464, 1160)">TiAl Reaction Plate (1.2 m)</text>')
-A(f'<text x="2336" y="1160" text-anchor="middle" font-size="36" fill="{ORG2}" font-weight="bold" transform="rotate(90, 2336, 1160)">TiAl Reaction Plate (1.2 m)</text>')
+PT, PB = CT + 40, CB - 40                   # the reaction plates and stators span the cable's drawn height less a margin
+for x in (CX0 - 44, CX1):
+    A(f'<rect x="{x}" y="{PT}" width="44" height="{PB-PT}" rx="3" fill="{ORG}" stroke="{ORG2}" stroke-width="2.5"/>')
+for x in (240, 2500):
+    A(f'<rect x="{x}" y="{PT}" width="60" height="{PB-PT}" rx="4" fill="{GRN}" stroke="{GRN2}" stroke-width="2.5"/>')
+    text(x + 30, PT - 22, "LIM", 52, GRN2, bold=True)
+# the gap arrows near the top and bottom of the stator, the rotated labels between them
+F_ROT = 40
+for yy in (yc - 305, yc + 305):
+    A(f'<line x1="300" y1="{yy}" x2="{CX0-44}" y2="{yy}" stroke="{GRN}" stroke-width="5"/><polygon points="{CX0-44},{yy} {CX0-64},{yy-10} {CX0-64},{yy+10}" fill="{GRN}"/>')
+    A(f'<line x1="2500" y1="{yy}" x2="{CX1+44}" y2="{yy}" stroke="{GRN}" stroke-width="5"/><polygon points="{CX1+44},{yy} {CX1+64},{yy-10} {CX1+64},{yy+10}" fill="{GRN}"/>')
+text(386, yc, "200 mm gap", F_ROT, GRN, bold=True, extra=f' transform="rotate(-90, 386, {yc})"')
+text(2414, yc, "200 mm gap", F_ROT, GRN, bold=True, extra=f' transform="rotate(90, 2414, {yc})"')
+text(CX0 - 70, yc, "TiAl Reaction Plate (1.2 m)", F_ROT, ORG2, bold=True, extra=f' transform="rotate(-90, {CX0-70}, {yc})"')
+text(CX1 + 70, yc, "TiAl Reaction Plate (1.2 m)", F_ROT, ORG2, bold=True, extra=f' transform="rotate(90, {CX1+70}, {yc})"')
 for i, t in enumerate(("Offset above", "center for", "lateral shear")):
-    A(f'<text x="406" y="{1540+42*i}" text-anchor="middle" font-size="36" fill="{GRN2}">{t}</text>')
-A('<line x1="100" y1="1180" x2="100" y2="1640" stroke="#666" stroke-width="4"/><polygon points="100,1640 88,1612 112,1612" fill="#666"/>')
-A('<text x="100" y="1700" text-anchor="middle" font-size="38" fill="#666">Toward</text><text x="100" y="1744" text-anchor="middle" font-size="38" fill="#666">Earth</text>')
+    text(270, PB + 70 + 52*i, t, F_SMALL, GRN2, anchor="start")
+A(f'<line x1="100" y1="{yc-230}" x2="100" y2="{yc+230}" stroke="#666" stroke-width="4"/><polygon points="100,{yc+230} 86,{yc+200} 114,{yc+200}" fill="#666"/>')
+text(100, yc + 300, "Toward", F_TAG, "#666"); text(100, yc + 352, "Earth", F_TAG, "#666")
 
 # ---------- legend ----------
-LY = CASB + 70
 rows = [
  (RED, "Casing Support Tracks (2)", "Two loops of 12 mm HTS tape per track, 0.5 m wide each, four 150 x 67 mm bundles, in persistent mode. They carry the casing."),
  (NAVY, "Load Compensation Windings (2)", "Driven 3 mm HTS tape on the support track loops. They add lift under a slow or parked sled."),
@@ -135,20 +136,45 @@ rows = [
  (ORG, "LIM Reaction Plates", "γ-TiAl alloy, 200 mm thick, 1.2 m wide, one on each side. Offset above center with the LIM stators."),
  (OLV, "Ferromagnetic Plates (4)", "Sintered iron in non-conductive resin, 1.4 m wide and 200 mm thick. One for each track."),
 ]
-A(f'<rect x="140" y="{LY}" width="2520" height="{110+70*len(rows)+30}" rx="10" fill="#f8f9f9" stroke="#bbb" stroke-width="2"/>')
-A(f'<text x="1400" y="{LY+70}" text-anchor="middle" font-size="44" font-weight="bold">Component Summary</text>')
-for i, (col, name, desc) in enumerate(rows):
-    yy = LY + 126 + 70*i
-    A(f'<rect x="200" y="{yy-24}" width="44" height="30" fill="{col}"/>')
-    A(f'<text x="266" y="{yy}" font-size="31" fill="#333"><tspan font-weight="bold" fill="{col}">{name}:</tspan> {desc}</text>')
+F_LEG, LINE, ROW_GAP, MAXC = 44, 54, 26, 100     # legend font, line pitch, gap between rows, characters per line
+def wrap(name, desc):
+    words = (name + ": " + desc).split(); lines = []; cur = ""
+    for wd in words:
+        if cur and len(cur) + 1 + len(wd) > MAXC:
+            lines.append(cur); cur = wd
+        else:
+            cur = (cur + " " + wd).strip()
+    lines.append(cur); return lines
+LY = CASB + 60
+wrapped = [(col, name, wrap(name, desc)) for col, name, desc in rows]
+leg_h = 110 + sum(LINE*len(ls) + ROW_GAP for _, _, ls in wrapped) + 10
+H = LY + leg_h + 40
+A(f'<rect x="140" y="{LY}" width="2520" height="{leg_h}" rx="10" fill="#f8f9f9" stroke="#bbb" stroke-width="2"/>')
+text(C, LY + 76, "Component Summary", 56, "#000", bold=True)
+yy = LY + 150
+for col, name, lines in wrapped:
+    A(f'<rect x="200" y="{yy-30}" width="46" height="32" fill="{col}"/>')
+    first = lines[0][len(name)+1:]           # the name goes in bold, the rest of the first line after it
+    A(f'<text x="272" y="{yy}" font-size="{F_LEG}" fill="#333"><tspan font-weight="bold" fill="{col}">{name}:</tspan>{first}</text>')
+    for ln in lines[1:]:
+        yy += LINE
+        A(f'<text x="272" y="{yy}" font-size="{F_LEG}" fill="#333">{ln}</text>')
+    yy += LINE + ROW_GAP
 A('</svg>')
+
+# the header, the casing box and the white background go first; they need the heights computed above
+head = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {H}" font-family="Arial, sans-serif">',
+        '<title>Orbital Ring Bearing Cross Section</title>',
+        f'<rect width="{WIDTH}" height="{H}" fill="white"/>',
+        f'<rect x="200" y="{CAS_TOP}" width="2400" height="{CASB-CAS_TOP}" rx="20" fill="#f5f5f5" stroke="#333" stroke-width="5"/>']
+out = head + out
 OUT = ring.out_dir("figures_ch08")   # under ORBITAL_RING_OUT (default runs)
 SVG = _os.path.join(OUT, "fig10_bearing_cross_section.svg")
 open(SVG, "w", encoding="utf-8").write("\n".join(out) + "\n")
 PNG = _os.path.join(OUT, "fig10_bearing_cross_section.png"); PDF = _os.path.join(OUT, "fig10_bearing_cross_section.pdf")
 try:
     import cairosvg
-    cairosvg.svg2png(url=SVG, write_to=PNG, output_width=5600)
+    cairosvg.svg2png(url=SVG, write_to=PNG, output_width=2*WIDTH)
     cairosvg.svg2pdf(url=SVG, write_to=PDF)
 except (ImportError, OSError):
     # without cairo: the PNG through a headless Edge or Chrome (keeps the Arial text), else PyMuPDF (substitutes a serif font);
@@ -158,7 +184,7 @@ except (ImportError, OSError):
                                 shutil.which("msedge"), shutil.which("chrome"), shutil.which("google-chrome"), shutil.which("chromium")) if p and _os.path.exists(p)), None)
     done_png = False
     if browser:
-        r = subprocess.run([browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--window-size=2800,3200", "--force-device-scale-factor=2",
+        r = subprocess.run([browser, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--window-size={WIDTH},{H}", "--force-device-scale-factor=2",
                             f"--screenshot={_os.path.abspath(PNG)}", "file:///" + _os.path.abspath(SVG).replace("\\", "/")], capture_output=True)
         done_png = _os.path.exists(PNG) and _os.path.getsize(PNG) > 0
     try:
@@ -171,8 +197,8 @@ except (ImportError, OSError):
         try:
             import fitz                                   # PyMuPDF renders SVG directly
             doc = fitz.open(SVG); page = doc[0]
-            if not done_png: page.get_pixmap(matrix=fitz.Matrix(2, 2)).save(PNG)      # 5600 px wide
+            if not done_png: page.get_pixmap(matrix=fitz.Matrix(2, 2)).save(PNG)
             if not done_pdf: open(PDF, "wb").write(doc.convert_to_pdf())
         except ImportError:
             print("no renderer found (cairosvg, a headless browser, svglib or PyMuPDF): the SVG was written, no PNG or PDF")
-print(LY+110+70*len(rows)+30, H)
+print(f"canvas {WIDTH} x {H}, casing box to {CASB}, legend {leg_h} tall; wrote {SVG}")
