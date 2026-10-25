@@ -67,14 +67,14 @@ text(C, 342, "Four air-core EMS tracks hold the casing to the cable across a 100
 
 # ---------- top: lift compensation tracks ----------
 text(C, 430, "Lift Compensation Tracks (2, driven superconducting coils, attractive)", F_HEAD, NAVY, bold=True)
-coil_b = CT - 40 - GAP                      # the bundles' bottom face, one gap above the plate
+coil_b = CT - w(0.2) - GAP                  # the bundles' bottom face, one gap above the plate
 for x, lab in zip(x_lift, ("Lift L", "Lift R")):
     bundles(x, coil_b, (-LIFT_W/2, LIFT_W/2), NAVY, NAVY2, LIFT_B)
     text(x, coil_b - LIFT_B[1]*PXMM - 18, lab, F_TAG, NAVY, bold=True)
-bracket(x_lift[0] + w(W_PLATE)/2 + 44, coil_b, CT - 40, NAVY, "100 mm gap")
+bracket(x_lift[0] + w(W_PLATE)/2 + 44, coil_b, CT - w(0.2), NAVY, "100 mm gap")
 A(f'<rect x="{CX0}" y="{CT}" width="{CX1-CX0}" height="{CB-CT}" rx="12" fill="#d4e6f1" stroke="#2471a3" stroke-width="4"/>')
 for x in x_lift:
-    box(x - w(W_PLATE)/2, CT - 40, w(W_PLATE), 52, OLV, OLV2)
+    box(x - w(W_PLATE)/2, CT - w(0.2), w(W_PLATE), w(0.2), OLV, OLV2)
 text(C, CT + 96, "Ferromagnetic Plates (2)", F_TEXT, OLV, bold=True)
 text(C, CT + 146, "(sintered iron in non-conductive resin, 200 mm thick)", F_SMALL, OLV)
 
@@ -88,12 +88,12 @@ text(C, CB - 108, "Ferromagnetic Plates (2)", F_TEXT, OLV, bold=True)
 text(C, CB - 58, "(sintered iron in non-conductive resin, 200 mm thick)", F_SMALL, OLV)
 
 # ---------- bottom: casing support tracks ----------
-coil_t = CB + 40 + GAP                      # the bundles' top face, one gap below the plate
+coil_t = CB - 12 + w(0.2) + GAP             # the bundles' top face, one gap below the plate
 for x, lab in zip(x_sup, ("Support L", "Support R")):
-    box(x - w(W_PLATE)/2, CB - 12, w(W_PLATE), 52, OLV, OLV2)
+    box(x - w(W_PLATE)/2, CB - 12, w(W_PLATE), w(0.2), OLV, OLV2)
     bundles(x, coil_t + BS, SUP_OFF, RED, RED2, SUP_B)
     text(x, coil_t + BS + 56, lab, F_TAG, RED, bold=True)
-bracket(C, CB + 40, CB + 40 + GAP, RED, "100 mm gap")
+bracket(C, CB - 12 + w(0.2), coil_t, RED, "100 mm gap")
 y = coil_t + BS + 56
 text(C, y + 100, "Casing Support Tracks (2, steady superconducting coils, attractive)", F_HEAD, RED, bold=True)
 text(C, y + 160, "Each also carries a driven load compensation winding", F_HEAD, NAVY, bold=True)
@@ -106,23 +106,32 @@ text(C, yd + 62, f"{SIDE:.2f} m", F_HEAD, "#1a5276")
 CASB = yd + 110
 
 # ---------- LIM ----------
-PT, PB = CT + 40, CB - 40                   # the reaction plates and stators span the cable's drawn height less a margin
-for x in (CX0 - 44, CX1):
-    A(f'<rect x="{x}" y="{PT}" width="44" height="{PB-PT}" rx="3" fill="{ORG}" stroke="{ORG2}" stroke-width="2.5"/>')
-for x in (240, 2500):
-    A(f'<rect x="{x}" y="{PT}" width="60" height="{PB-PT}" rx="4" fill="{GRN}" stroke="{GRN2}" stroke-width="2.5"/>')
-    text(x + 30, PT - 22, "LIM", 52, GRN2, bold=True)
-# the gap arrows near the top and bottom of the stator, the rotated labels between them
-F_ROT = 40
-for yy in (yc - 305, yc + 305):
-    A(f'<line x1="300" y1="{yy}" x2="{CX0-44}" y2="{yy}" stroke="{GRN}" stroke-width="5"/><polygon points="{CX0-44},{yy} {CX0-64},{yy-10} {CX0-64},{yy+10}" fill="{GRN}"/>')
-    A(f'<line x1="2500" y1="{yy}" x2="{CX1+44}" y2="{yy}" stroke="{GRN}" stroke-width="5"/><polygon points="{CX1+44},{yy} {CX1+64},{yy-10} {CX1+64},{yy+10}" fill="{GRN}"/>')
-text(386, yc, "200 mm gap", F_ROT, GRN, bold=True, extra=f' transform="rotate(-90, 386, {yc})"')
-text(2414, yc, "200 mm gap", F_ROT, GRN, bold=True, extra=f' transform="rotate(90, 2414, {yc})"')
-text(CX0 - 70, yc, "TiAl Reaction Plate (1.2 m)", F_ROT, ORG2, bold=True, extra=f' transform="rotate(-90, {CX0-70}, {yc})"')
-text(CX1 + 70, yc, "TiAl Reaction Plate (1.2 m)", F_ROT, ORG2, bold=True, extra=f' transform="rotate(90, {CX1+70}, {yc})"')
-for i, t in enumerate(("Offset above", "center for", "lateral shear")):
-    text(270, PB + 70 + 52*i, t, F_SMALL, GRN2, anchor="start")
+# The LIM reaction plates (1.2 m tall, 200 mm thick), the LIM stators and the EMS plates (1.4 m wide, 200 mm thick) share one
+# scale, the figure's width scale PXM (204 px per metre), whatever the cable rectangle's own compression (Paul, 2026-10-25).
+# The stator is drawn 1.0 m tall (the book says only that it is narrower than the reaction plate) and 0.3 m thick [UNVERIFIED].
+T_PLATE = w(0.2); H_RPLATE = w(1.2); H_STATOR = w(1.0); T_STATOR = w(0.3); GAP_LIM = w(0.2)
+PT, PB = round(yc - H_RPLATE/2), round(yc + H_RPLATE/2)        # the reaction plates, centred on the drawn cable
+ST, SB = round(yc - H_STATOR/2), round(yc + H_STATOR/2)
+xL_plate, xR_plate = CX0 - T_PLATE, CX1                           # reaction plates on the cable's faces
+xL_stat, xR_stat = xL_plate - GAP_LIM - T_STATOR, xR_plate + T_PLATE + GAP_LIM
+for x in (xL_plate, xR_plate):
+    A(f'<rect x="{x}" y="{PT}" width="{T_PLATE}" height="{PB-PT}" rx="3" fill="{ORG}" stroke="{ORG2}" stroke-width="2.5"/>')
+for x in (xL_stat, xR_stat):
+    A(f'<rect x="{x}" y="{ST}" width="{T_STATOR}" height="{SB-ST}" rx="4" fill="{GRN}" stroke="{GRN2}" stroke-width="2.5"/>')
+    text(x + T_STATOR/2, ST - 26, "LIM", 52, GRN2, bold=True)
+# the 200 mm gap: a dimension line across it under the parts, the labels in a block at the lower left with colour swatches
+yg = PB + 36
+for xa, xb in ((xL_stat + T_STATOR, xL_plate), (xR_plate + T_PLATE, xR_stat)):
+    A(f'<line x1="{xa}" y1="{yg}" x2="{xb}" y2="{yg}" stroke="{GRN}" stroke-width="3"/>')
+    for x in (xa, xb):
+        A(f'<line x1="{x}" y1="{yg-12}" x2="{x}" y2="{yg+12}" stroke="{GRN}" stroke-width="3"/>')
+LX, LY0 = 230, CB + 76
+lab = [("LIM stator", GRN2, (xL_stat + T_STATOR/2, SB)), ("200 mm gap", GRN, ((xL_stat + T_STATOR + xL_plate)/2, yg)),
+       ("TiAl reaction plate, 1.2 m", ORG2, (xL_plate + T_PLATE/2, PB)), ("offset above center for lateral shear", GRN2, None)]
+for i, (t, col, pt) in enumerate(lab):            # the parts are small at this scale: a colour swatch before each label instead of leader lines
+    yy = LY0 + 54*i
+    A(f'<rect x="{LX}" y="{yy-28}" width="34" height="28" fill="{col}"/>')
+    text(LX + 48, yy, t, 40, col, anchor="start")
 A(f'<line x1="100" y1="{yc-230}" x2="100" y2="{yc+230}" stroke="#666" stroke-width="4"/><polygon points="100,{yc+230} 86,{yc+200} 114,{yc+200}" fill="#666"/>')
 text(100, yc + 300, "Toward", F_TAG, "#666"); text(100, yc + 352, "Earth", F_TAG, "#666")
 
