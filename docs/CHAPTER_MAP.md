@@ -28,7 +28,7 @@
 | Table 3.1, prograde against retrograde cable at 700 km | `ring_altitude.py` (`ORBITAL_RING_CABLE=prograde` for the second column) | `ring_altitude_700.txt`, `ring_altitude_700_prograde.txt` |
 | Equations 3.6 to 3.10 (delta-v, cable velocity, tension, second moment of area, bending length) | `tools/generate_equations_latex.py` | `equations/eq09_dv_retro_eq.tex`, `eq15_vcable_retro_eq.tex`, `eq16_tension_retro_eq.tex`, `eq17_second_moment.tex`, `eq18_Lchar.tex` |
 | Equations 3.1 to 3.5 (momentum conservation, tension, stress, the sizing quadratic) | symbolic, no script; the quadratic is `ring_altitude.cable_mass_structural` | |
-| Section 3.4, deployment time and energy (599.7 days at 8 MW per site, 461.0 at 16 MW, 18.8 EJ) | `lim_simulation.py`; `ring_altitude.py` for the energy | `lim_simulation.txt`, `lim_simulation_16MW.txt`, `ring_altitude_700.txt` |
+| Section 3.4, deployment time and energy (597.8 days at 8 MW per site, 424.6 at 16 MW, 18.8 EJ on the measured tape limit of 2026-10-26; 599.7 and 461.0 on the old 163 A cap) | `lim_simulation.py`; `ring_altitude.py` for the energy | `lim_simulation.txt`, `lim_simulation_16MW.txt` (the same runs as `lim_simulation_tapelimit.txt`, `..._16MW.txt`), `ring_altitude_700.txt` |
 | Figure 3.1, hoop tension force cancellation | drawn | |
 | Figure 3.2, cable tension, stress, casing net weight and cable excess force through the deployment; the deployment tension table of Section 3.4 (0, 13.1, 118.3, 328.6, 740.3, 845.6 GN at casing slowdowns of 0 to 8,020 m/s) | `lim_simulation.py` (the "DEPLOYMENT TENSION" section and `lim_deployment_tension.csv`), drawn by `tools/fig03_02_deployment_tension.py`; `ORBITAL_RING_CABLE=prograde` for the prograde curve | `lim_simulation.txt`, `figures_ch03/fig03_02_deployment_tension_700.svg` |
 
@@ -119,7 +119,8 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 |---|---|---|
 | Table 11.1, choosing between a LIM and an LSM | the comparison draws on the three motor runs below; no single script | `lim_simulation.txt`, `lsm_simulation.txt`, `md_simulation.txt` |
 | Table 11.2, LIM parameters for deployment | `lim_simulation.py` (parameters in `lim_config.py`, physics in `lim_physics.py`); the 16 MW column from the second run | `lim_simulation.txt`, `lim_simulation_16MW.txt` |
-| Table 11.2, the tape current rows (layers of 3 mm tape) | `tools/lim_tape_current_check.py` (the THEVA data of `data/` through `bearing_design.read_theva`); a 2-D solver check is a later task | printed to the console |
+| Table 11.2, the tape current rows (layers of 3 mm tape, the limit in the winding's field, the coil current limit) | `tools/lim_tape_limit.py` (the field at every tape of the coil's own winding, the Robinson 70 K angle data of `data/`; the first check `tools/lim_tape_current_check.py` is superseded) | `lim_tape_limit.txt` |
+| Table 11.3, deployment results on the measured tape limit (8 and 16 MW per site); Section 11.7, the turns trade (100, 150, 208, 300 turns) | `lim_simulation.py` with `lim_config.TAPE_LIMIT_MODE = "measured"` (the default since 2026-10-26); `run_700_lim_tapelimit.sh`; `tools/lim_tape_limit.py --tables` for the table forms | `lim_simulation_tapelimit.txt`, `lim_simulation_tapelimit_16MW.txt`, `lim_simulation_tapelimit_N100_8MW.txt` to `..._N300_16MW.txt`; report `lim_tape_limit_report_2026-10-26.md` |
 | Table 11.3, mass driver LSM parameters | `lsm_simulation.py` (parameters in `lsm_config.py`); `tools/lsm_chapter_metrics.py` for the energies and cryogenic loads | `lsm_simulation.txt`, `lsm_chapter_metrics.txt` |
 | Figure 11.1, how three phases make a traveling wave; Figure 11.2, the load angle of a linear synchronous motor | `tools/fig11_01_traveling_wave.py`, `tools/fig11_01_load_angle.py` (no ring numbers in them) | `figures_ch11/fig11_01_traveling_wave.png`, `figures_ch11/fig11_02_load_angle.png` (and .svg) |
 | Equations 11.1 to 11.3, slip frequency, LSM thrust, back EMF (symbolic) | `tools/generate_equations_latex.py` | `equations/eq11_01_slip_frequency.tex` to `eq11_03_back_emf.tex` |
@@ -129,7 +130,7 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 | Item | Script | Log or file |
 |---|---|---|
 | The deployment at 8 MW and 16 MW per site: time, current, slip, plate heating, the voltage limit (Sections 12.1 to 12.5) | `lim_simulation.py`, the scripts the chapter names (`lim_config.py`, `lim_physics.py`); manual in `docs/LIM_README.md` | `lim_simulation.txt`, `lim_simulation_16MW.txt` |
-| The tape current | `tools/lim_tape_current_check.py`, as Table 11.2 above; the 2-D solver check waits for the motor tape current task | printed to the console |
+| The tape current | `tools/lim_tape_limit.py`, as Table 11.2 above (the 2-D field of the winding and the measured angle data) | `lim_tape_limit.txt` |
 | Equations `eq26_V_lim` and `eq27_V_N2` (the LIM voltage) | images kept from the first edition, not in the generator | |
 
 ## Chapter 13: The Retrograde Cable Question
@@ -140,6 +141,12 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 | The inclined-ring consequences of the cable direction | `j2_simulation.py --cable=prograde` | `j2_prograde_i5.txt` to `j2_prograde_i30.txt` |
 | The deployment with a prograde cable | `ORBITAL_RING_CABLE=prograde python lim_simulation.py` (not in the run set; run on demand) | |
 
+## Chapter 18: Cryogenics
+
+| Item | Script | Log or file |
+|---|---|---|
+| Table 18.2, the cold loop at one LIM site (hysteresis in the two LIMs, the cryostat leak, the levitation coils, the compressor power and the radiator) | from the deployment run's peak and its months 12 to 15 with the constants of `lim_config.py` and `lim_physics.py`; `tools/lim_tape_limit.py --tables` prints the table's form from the logs | `lim_simulation_tapelimit.txt` (and the old-basis `lim_simulation.txt`) |
+
 ## Chapters 14 onward
 
-Not yet revised for the 700 km design, so not mapped. The scripts that will serve them are listed in the README under "Launch and power" (Chapters 14, 16, 17), "Tools" and "Not yet mapped to a revised chapter". The lunar mass driver in `lunar/` belongs to Chapter 22, Rings at Other Worlds and the Portable Ring.
+Not yet revised for the 700 km design, so not mapped (Chapter 18's Table 18.2 above is the exception). The scripts that will serve them are listed in the README under "Launch and power" (Chapters 14, 16, 17), "Tools" and "Not yet mapped to a revised chapter". The lunar mass driver in `lunar/` belongs to Chapter 22, Rings at Other Worlds and the Portable Ring.

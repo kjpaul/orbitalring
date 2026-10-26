@@ -169,14 +169,18 @@ All parameters are configured by editing `lim_config.py`. The most frequently-mo
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `HTS_TAPE_WIDTH_MM` | 3 | Tape width (3, 4, 6, or 12 mm) |
-| `HTS_TAPE_LAYERS` | 1 | Parallel tape layers (1–3) |
-| `IC_PER_MM_PER_LAYER` | 66.7 | Critical current density (A/mm/layer) |
-| `DE_RATING_FACTOR` | 0.9 | Multilayer self-inductance compensation |
-| `NORRIS_HYSTERESIS` | False | Use Norris formula for hysteresis loss |
+| `TAPE_LIMIT_MODE` | "measured" | "measured": the coil current limit from the measured critical current of the worst-placed tape at its own field and angle at 70 K (2026-10-26); "legacy": the old 66.7 A/mm x layers rule. Environment `ORBITAL_RING_TAPE_LIMIT` overrides. |
+| `HTS_TAPE_LAYERS_MEASURED` | 3 | Layers of 3 mm tape soldered per turn on the measured basis (the pancake winding of the turn budget below) |
+| `I_TAPE_LIMIT_MEASURED` | 123.0 | A, the worst tape's measured limit at the coil limit (0.269 T at 25.7 degrees from its normal) |
+| `I_COIL_LIMIT_MEASURED` | 184.6 | A, the coil current cap: that tape at 50 percent of its limit |
+| `HTS_TAPE_LAYERS_LEGACY` | 1 | Legacy rule only: parallel tape layers (1–3) |
+| `IC_PER_MM_PER_LAYER` | 66.7 | Legacy rule only: critical current density (A/mm/layer), no field around the tape |
+| `DE_RATING_FACTOR` | 0.9 | Legacy rule only: multilayer self-inductance compensation |
+| `NORRIS_HYSTERESIS` | False | Use Norris formula for hysteresis loss (per tape, with the layers, on the measured basis) |
 
-With 3 mm tape and 1 layer, I_c = 200 A, giving I_target ≈ 163 A.
+On the measured basis the coil cap `I_TARGET` is 184.6 A with 3 layers (`HTS_TAPE_LAYERS` is derived from the mode); the legacy rule with 3 mm tape and 1 layer gave I_c = 200 A and I_target ≈ 163 A. `tools/lim_tape_limit.py` computes the measured basis (the field at every tape of the coil's own winding, the Robinson angle data) and `lim_config.configure(...)` sets parameters and recomputes the derived ones for a run that varies them.
 
-**Trade-off:** More layers → higher current capacity → more thrust, but more hysteresis losses and diminishing returns due to de-rating.
+**Trade-off:** More layers → higher current capacity → more thrust, but more tape, a wider cryostat, and hysteresis that depends on the loss model (the book's loss factor does not change with the layers; the Norris loss falls with them).
 
 ### LIM Geometry
 

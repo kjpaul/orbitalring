@@ -58,7 +58,7 @@ Run each script from the repository root. Chapters are chapters of Volume IV; "l
 | `ring_altitude.py` | the design point: radius, speeds, cable mass and tension, ring mass, deployment energy (log `ring_altitude_700.txt`; the prograde, 250 km and 800 km tables through the environment variables) | 1, 3, 8 (Table 8.1), and every chapter's ring numbers |
 | `j2_simulation.py --inclination=20` | J2 precession of an inclined ring and the torque the anchor lines hold (logs `j2_retrograde_i*.txt`, `j2_prograde_i*.txt`) | 2 |
 | `anchor_line_analysis.py --inclination=20` | anchor lines of an inclined ring: lateral force, line angle, length, stress, taper, number of lines per station (logs `anchor_700_i*.txt`) | 2 (Table 2.1), 15 |
-| `lim_simulation.py` | deployment of the ring by linear induction motors: months of decelerating the cable, power, current and thermal limits (logs `lim_simulation.txt`, `lim_simulation_16MW.txt`; manual in `docs/LIM_README.md`) | 3 (deployment time and energy), 10, 12, 13 |
+| `lim_simulation.py` | deployment of the ring by linear induction motors: months of decelerating the cable, power, current and thermal limits (logs `lim_simulation.txt`, `lim_simulation_16MW.txt`, on the measured tape limit since 2026-10-26; `run_700_lim_tapelimit.sh` for the turns trade; manual in `docs/LIM_README.md`) | 3 (deployment time and energy), 10, 12, 13 |
 | `debris_simulation.py` | where the released cable and the falling casing go after a break; drag lifetimes; minimum safe altitude (log `debris_simulation.txt`) | 4, 19 |
 | `debris_orbits.py` | orbits of the released cable: apogee for each recoil case, the two halves (log `debris_orbits.txt`) | 4 |
 | `altitude_trade.py` | released-cable orbits and drag lifetimes at several ring altitudes (log `altitude_trade.txt`) | 4, 19 |
@@ -103,7 +103,8 @@ The bearing has four tracks of air-core superconducting coils: two support track
 | `tools/generate_equations_latex.py` | the worked equations with every number from `ring_altitude.py`, as LaTeX in `runs/equations/` (SVG when LaTeX is installed) | 1 to 4, 10 |
 | `tools/generate_fig_bearing_cross_section.py` | Figure 8.1, the bearing cross section, in `runs/figures_ch08/` | 8 |
 | `tools/ch10_numbers.py` (with `ORBITAL_RING_ARRAY_OFFSET_KM=0`), `tools/ch13_numbers.py` | the Chapter 10 power numbers and the Chapter 13 cable-direction rows | 10 (Table 10.1), 13 (Table 13.1) |
-| `tools/lim_tape_current_check.py` | the tape current of the deployment LIM coil against the THEVA limit, by winding layout and layers | 11 (Table 11.2), 12 |
+| `tools/lim_tape_current_check.py` | the first check of the tape current of the deployment LIM coil against the THEVA limit, by winding layout and layers (superseded by the next row) | 11 (Table 11.2), 12 |
+| `tools/lim_tape_limit.py` | the deployment LIM coil on the measured tape limit: the field at every tape of its own winding, the worst tape's critical current at its own field and angle (Robinson 70 K data), the layers, the coil current limit, the hysteresis by layer and width, the turns trade; `--tables` reads the deployment logs into the forms of Tables 11.3 and 18.2 (log `lim_tape_limit.txt`) | 11 (Table 11.2, Sections 11.5 to 11.7), 18 (Table 18.2) |
 | `tools/fig11_01_traveling_wave.py`, `tools/fig11_01_load_angle.py` | Figures 11.1 and 11.2, in `runs/figures_ch11/` | 11 |
 | `tools/numbers_700_hand.py` | hand calculations that check quoted numbers (Table 2.1, horizon, array shading) | 2, 3, 4, 15, 16 |
 | `tools/number_sheet_hw10686.py` | the number sheet of the cable hardware change, from two folders of logs | the renumbering pass |

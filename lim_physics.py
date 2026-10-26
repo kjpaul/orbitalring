@@ -356,9 +356,12 @@ def q_hysteresis_norris(i_now, i_c):
 
 
 def calc_hysteresis_power(f_supply, i_peak, params, norris=False):
-    """Total hysteresis power loss per LIM."""
+    """Total hysteresis power loss per LIM.  With the Norris formula the loss is per tape: each of the `layers` tapes of a
+    turn carries i_peak / layers against its own critical current params['i_c'] (the measured worst-tape limit on the
+    2026-10-26 basis; the legacy rule passes layers = 1 and its coil-level figure, as before)."""
     if norris:
-        q = q_hysteresis_norris(i_peak, params['i_c'])
+        layers = params.get('layers', 1)
+        q = layers * q_hysteresis_norris(i_peak / layers, params['i_c'])
     else:
         q = q_hts_loss_factor(i_peak, params['n_turns'], params['w_coil'], 
                               params['w_tape'], params['alpha_tape'])
