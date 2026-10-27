@@ -28,26 +28,32 @@ HTS_TAPE_WIDTH_MM = 3       # Standard widths: 12, 6, 4, or 3 mm
 HTS_TAPE_LAYERS_LEGACY = 1  # Legacy rule: layers of tape in parallel: 1, 2, or 3 (the measured basis below sets its own count; HTS_TAPE_LAYERS is derived)
 IC_PER_MM_PER_LAYER = 66.7  # Legacy rule: critical current density ~66.7 A/mm per layer, with no field around the tape
 DE_RATING_FACTOR = 1 - math.sin(math.radians(20)) # Legacy rule: compensates for self-inductance in multilayer HTS configurations.
-NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss
+NORRIS_HYSTERESIS = False   # Use Norris Formula for hysteresis loss (the old switch; HYSTERESIS_MODEL below takes precedence when set)
+HYSTERESIS_MODEL = "brandt" # "brandt": the Brandt-Indenbom perpendicular-field strip loss of every tape of the winding at its own field and
+                            # measured limit plus Norris's transport loss as a bound (lim_hysteresis.py; the default since 2026-10-27);
+                            # "book": the loss factor B_coil x I x w x sin(20 deg) the book used; "norris": the self-field transport loss alone
 
-# The coil current limit on the measured tape limit (2026-10-26, tools/lim_tape_limit.py, report
-# Vol_III/runs_700km_hw10686_2026-10-12/lim_tape_limit_report_2026-10-26.md).  The current a tape carries falls with the field
-# around it and with the field's angle to the tape, and the winding makes its own field; the limit here is the measured critical
-# current of the worst-placed tape at its own field and angle at 70 K (Robinson dataset, data/THEVA_Robinson_70K_angle_dependence.csv,
-# Pantoja and Strickland 2024, doi 10.6084/m9.figshare.25893079.v2), and the winding runs that tape at 50 percent, the bearing rule.
-# Winding: the pancake of this file's own turn budget (COIL_WINDING_WIDTH: 1 mm Kapton, 0.06 mm adhesive, 0.12 mm per layer per turn),
-# 208 turns on edge, 3 layers of 3 mm tape soldered per turn, bundle 3 x 295 mm.  Worst tape: at a stack end, where the field of
-# the other conductors is 0.269 T at 25.7 degrees from the tape's normal at the limit and its measured critical current is 123.0 A;
-# at 50 percent, 61.5 A per tape and 184.6 A in the coil.  The flat winding (tapes flat, edge to edge, 2 layers) gives 183.1 A with
-# less tape but a cryostat three times wider; the compact pancake of the first check (0.05 mm insulation, 4 layers) 184.9 A.
+# The coil current limit on the measured tape limit (2026-10-26, corrected and re-chosen 2026-10-27; tools/lim_tape_limit.py,
+# lim_hysteresis.py, reports Vol_III/runs_700km_hw10686_2026-10-12/lim_tape_limit_report_2026-10-26.md and
+# lim_hysteresis_model_report_2026-10-27.md).  The current a tape carries falls with the field around it and with the field's angle
+# to the tape, and the winding makes its own field; the limit here is the measured critical current of the worst-placed tape at its
+# own field and angle at 70 K (Robinson dataset, data/THEVA_Robinson_70K_angle_dependence.csv, Pantoja and Strickland 2024,
+# doi 10.6084/m9.figshare.25893079.v2), and the winding runs that tape at 50 percent, the bearing rule.
+# Winding: flat, the tapes lying flat, edge to edge, one turn beside the next across the coil's surface (a sheet 208 x (3 + 1.06) mm
+# = 844 mm wide, 2 layers of 3 mm tape soldered per turn, 0.16 mm thick).  The field of the sheet runs along the tape faces, so only
+# the end turns see it through the face; the worst tape is an end tape with 0.072 T at 7.6 degrees from its normal at the limit,
+# measured critical current 183.1 A; at 50 percent, 91.5 A per tape and 183.1 A in the coil.  The pancake (tapes on edge, face to
+# face, the band of this file's turn budget, 3 layers) has a cap of 219.6 A but twenty to thirty times the hysteresis on the
+# Brandt-Indenbom model, which is why the flat winding is the default from 2026-10-27 (the 2026-10-26 pancake figures were for a
+# tape turned 90 degrees from where it is and are superseded).
 # TAPE_LIMIT_MODE = "legacy" restores the 66.7 A/mm x layers rule (environment ORBITAL_RING_TAPE_LIMIT=legacy).
 TAPE_LIMIT_MODE = os.environ.get("ORBITAL_RING_TAPE_LIMIT", "measured")
-WINDING_LAYOUT_MEASURED = "pancake"
-HTS_TAPE_LAYERS_MEASURED = 3
-I_TAPE_LIMIT_MEASURED = 123.0        # A per 3 mm tape, the worst tape at the coil limit's field and angle
-B_TAPE_WORST_MEASURED = 0.269        # T at that tape, from the other conductors of the winding
-THETA_TAPE_WORST_MEASURED = 25.7     # degrees between that field and the tape's normal
-I_COIL_LIMIT_MEASURED = 184.6        # A, the coil current at which the worst tape reaches 50 percent of its limit
+WINDING_LAYOUT_MEASURED = "flat"
+HTS_TAPE_LAYERS_MEASURED = 2
+I_TAPE_LIMIT_MEASURED = 183.1        # A per 3 mm tape, the worst tape at the coil limit's field and angle
+B_TAPE_WORST_MEASURED = 0.072        # T at that tape, from the other conductors of the winding
+THETA_TAPE_WORST_MEASURED = 7.6      # degrees between that field and the tape's normal
+I_COIL_LIMIT_MEASURED = 183.1        # A, the coil current at which the worst tape reaches 50 percent of its limit
 
 # -----------------------------------------------------------------------------
 # 1.2 LIM Geometry
@@ -304,7 +310,7 @@ def get_material_properties(material):
 
 def _derive():
     """The derived parameters of Section 4, from the user parameters of Section 1; configure() reruns it."""
-    global W_TAPE, eff_hts_tape_layers, I_C, I_PEAK, I_TARGET, I_MIN, LIMS_PER_SITE, L_ACTIVE, A_LIM, A_COIL, L_HTS_COIL, L_HTS_LIM, LIM_PHASES, LIM_SITES, ALPHA_TAPE, MATERIAL_PROPS, PLATE_DENSITY, PLATE_RHO_293K, PLATE_ALPHA, PLATE_CP, PLATE_K, PLATE_EM, M_LIM_PLATE, M_LEV_PLATE, M_HARDWARE, M_CABLE_M, M_CABLE_TOTAL, M_LOAD_TOTAL, CASING_WIDTH, Q_ABSORBED_PER_M, Q_ABSORBED_PER_SITE, MAX_HEATSINK_AREA, HEATSINK_LENGTH, V_REL_MIN_FUDGE, Q_COIL_ENVIRONMENT, LEV_COIL_AREA_PER_SITE, INV_EFF, LIM_EFF, SLIP_MIN, CURRENT_UPRATE, POWER_HEADROOM, COIL_WINDING_WIDTH, COIL_SURFACE_AREA_PER_COIL, COIL_SURFACE_AREA_PER_SITE, HTS_TAPE_LAYERS, I_TAPE_LIMIT, WINDING_LAYOUT
+    global HYST_Q_TABLE, W_TAPE, eff_hts_tape_layers, I_C, I_PEAK, I_TARGET, I_MIN, LIMS_PER_SITE, L_ACTIVE, A_LIM, A_COIL, L_HTS_COIL, L_HTS_LIM, LIM_PHASES, LIM_SITES, ALPHA_TAPE, MATERIAL_PROPS, PLATE_DENSITY, PLATE_RHO_293K, PLATE_ALPHA, PLATE_CP, PLATE_K, PLATE_EM, M_LIM_PLATE, M_LEV_PLATE, M_HARDWARE, M_CABLE_M, M_CABLE_TOTAL, M_LOAD_TOTAL, CASING_WIDTH, Q_ABSORBED_PER_M, Q_ABSORBED_PER_SITE, MAX_HEATSINK_AREA, HEATSINK_LENGTH, V_REL_MIN_FUDGE, Q_COIL_ENVIRONMENT, LEV_COIL_AREA_PER_SITE, INV_EFF, LIM_EFF, SLIP_MIN, CURRENT_UPRATE, POWER_HEADROOM, COIL_WINDING_WIDTH, COIL_SURFACE_AREA_PER_COIL, COIL_SURFACE_AREA_PER_SITE, HTS_TAPE_LAYERS, I_TAPE_LIMIT, WINDING_LAYOUT
     # HTS current ratings
     W_TAPE = HTS_TAPE_WIDTH_MM / 1000
 
@@ -330,8 +336,12 @@ def _derive():
         I_TARGET = 0.8125 * I_C
     I_MIN = 10.0
 
-    # LIM coil cryostat (thermal): Kapton tape + adhesive + HTS thickness per turn, times the turns (m); the pancake's stack height
-    COIL_WINDING_WIDTH = (1 + 0.06 + 0.12*HTS_TAPE_LAYERS)*N_TURNS/1000
+    # LIM coil cryostat (thermal): Kapton tape + adhesive + HTS thickness per turn, times the turns (m); the pancake's stack height,
+    # or the flat sheet's width (tapes flat, edge to edge, w + 1.06 mm per turn) when the measured winding is flat
+    if WINDING_LAYOUT == "flat":
+        COIL_WINDING_WIDTH = (HTS_TAPE_WIDTH_MM + 1.06) * N_TURNS / 1000
+    else:
+        COIL_WINDING_WIDTH = (1 + 0.06 + 0.12*HTS_TAPE_LAYERS)*N_TURNS/1000
     COIL_SURFACE_AREA_PER_COIL = 2 * (TAU_P + W_COIL) * COIL_WINDING_WIDTH   # Approximate LIM coil cryostat surface area (m²)
     COIL_SURFACE_AREA_PER_SITE = COIL_SURFACE_AREA_PER_COIL * 3 * PITCH_COUNT * 2 * N_PLATES_PER_SIDE  # area per coil * phases * pitches * sides * LIMs per side (m²)
 
@@ -390,6 +400,14 @@ def _derive():
     CURRENT_UPRATE = 1.01
     POWER_HEADROOM = 0.98
 
+    # the Brandt-Indenbom loss table of the winding in use (built once here, about a second; lim_physics interpolates it)
+    if HYSTERESIS_MODEL == "brandt":
+        import lim_hysteresis as _lh
+        _kind = WINDING_LAYOUT if WINDING_LAYOUT in ("flat", "pancake", "compact") else "pancake"
+        HYST_Q_TABLE = _lh.loss_table(_kind, N_TURNS, int(HTS_TAPE_LAYERS), W_TAPE, 1.05 * max(I_TARGET, I_PEAK))
+    else:
+        HYST_Q_TABLE = None
+
 
 
 
@@ -438,6 +456,7 @@ def get_physics_params():
         'alpha_tape': ALPHA_TAPE,
         'i_c': I_TAPE_LIMIT if TAPE_LIMIT_MODE == "measured" else I_C,   # per tape (measured) or the legacy coil-level figure
         'layers': HTS_TAPE_LAYERS if TAPE_LIMIT_MODE == "measured" else 1,
+        'q_table': HYST_Q_TABLE,
     }
 
 

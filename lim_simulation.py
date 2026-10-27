@@ -355,7 +355,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             volts = phys.calc_coil_voltage(i_peak, f_supply, b_coil, cfg.A_COIL, cfg.N_TURNS)
 
             p_eddy = phys.calc_eddy_loss_from_thrust(v_slip, thrust)
-            p_hyst = phys.calc_hysteresis_power(f_supply, i_peak, params, cfg.NORRIS_HYSTERESIS)
+            p_hyst = phys.calc_hysteresis_power(f_supply, i_peak, params, cfg.NORRIS_HYSTERESIS, getattr(cfg, "HYSTERESIS_MODEL", None))
             p_heat = p_eddy + p_hyst
 
             # Temperature calculations depend on thermal mode
@@ -1005,6 +1005,7 @@ def print_parameters():
         "MAX_SITE_POWER     MW": cfg.MAX_SITE_POWER / 1e6,
         "T_PLATE            mm": cfg.T_PLATE * 1000,
         "NORRIS_HYSTERESIS    ": cfg.NORRIS_HYSTERESIS,
+        "HYSTERESIS_MODEL     ": getattr(cfg, "HYSTERESIS_MODEL", "book"),
         "EDDY_HEAT_TO_CABLE   ": cfg.EDDY_HEAT_TO_CABLE,
         "WARM_THERMAL_MODEL    ": cfg.WARM_THERMAL_MODEL,
         "M_CABLE_STRUCT   kg/m": cfg.M_CABLE_STRUCTURAL,

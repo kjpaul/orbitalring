@@ -355,15 +355,25 @@ def q_hysteresis_norris(i_now, i_c):
     return (MU0 * i_c**2 / math.pi) * ((1 - ii) * math.log(1 - ii) + (1 + ii) * math.log(1 + ii) - ii**2)
 
 
-def calc_hysteresis_power(f_supply, i_peak, params, norris=False):
-    """Total hysteresis power loss per LIM.  With the Norris formula the loss is per tape: each of the `layers` tapes of a
-    turn carries i_peak / layers against its own critical current params['i_c'] (the measured worst-tape limit on the
-    2026-10-26 basis; the legacy rule passes layers = 1 and its coil-level figure, as before)."""
-    if norris:
+def calc_hysteresis_power(f_supply, i_peak, params, norris=False, model=None):
+    """Total hysteresis power loss per LIM, on one of three models (lim_config.HYSTERESIS_MODEL):
+    "book"   the book's loss factor B_coil x I x w x sin(20 deg) per metre of turn per cycle (the default);
+    "norris" Norris's self-field transport loss per tape: each of the `layers` tapes of a turn carries i_peak / layers
+             against its own critical current params['i_c'] (the measured worst-tape limit on the 2026-10-26 basis; the
+             legacy rule passes layers = 1 and its coil-level figure, as before);
+    "brandt" the Brandt-Indenbom perpendicular-field strip loss of every tape of the winding at its own field and measured
+             critical current, plus Norris's transport loss per tape as an upper bound, from the table params['q_table']
+             that lim_hysteresis.loss_table builds once per configuration (2026-10-27).
+    `norris=True` is the old spelling of model="norris"."""
+    model = model or ("norris" if norris else "book")
+    if model == "brandt":
+        import lim_hysteresis as lh
+        q = lh.q_from_table(params['q_table'], i_peak)
+    elif model == "norris":
         layers = params.get('layers', 1)
         q = layers * q_hysteresis_norris(i_peak / layers, params['i_c'])
     else:
-        q = q_hts_loss_factor(i_peak, params['n_turns'], params['w_coil'], 
+        q = q_hts_loss_factor(i_peak, params['n_turns'], params['w_coil'],
                               params['w_tape'], params['alpha_tape'])
     p_coil = q * params['l_hts_coil'] * f_supply
     return p_coil * params['lim_phases'] * params['pitch_count']

@@ -170,17 +170,19 @@ All parameters are configured by editing `lim_config.py`. The most frequently-mo
 |-----------|---------|-------------|
 | `HTS_TAPE_WIDTH_MM` | 3 | Tape width (3, 4, 6, or 12 mm) |
 | `TAPE_LIMIT_MODE` | "measured" | "measured": the coil current limit from the measured critical current of the worst-placed tape at its own field and angle at 70 K (2026-10-26); "legacy": the old 66.7 A/mm x layers rule. Environment `ORBITAL_RING_TAPE_LIMIT` overrides. |
-| `HTS_TAPE_LAYERS_MEASURED` | 3 | Layers of 3 mm tape soldered per turn on the measured basis (the pancake winding of the turn budget below) |
-| `I_TAPE_LIMIT_MEASURED` | 123.0 | A, the worst tape's measured limit at the coil limit (0.269 T at 25.7 degrees from its normal) |
-| `I_COIL_LIMIT_MEASURED` | 184.6 | A, the coil current cap: that tape at 50 percent of its limit |
+| `WINDING_LAYOUT_MEASURED` | "flat" | The winding the measured basis describes: "flat" (tapes flat, edge to edge, one turn beside the next; the default since 2026-10-27) or "pancake" (tapes on edge, face to face) |
+| `HTS_TAPE_LAYERS_MEASURED` | 2 | Layers of 3 mm tape soldered per turn on the measured basis |
+| `I_TAPE_LIMIT_MEASURED` | 183.1 | A, the worst tape's measured limit at the coil limit (an end tape, 0.072 T at 7.6 degrees from its normal) |
+| `I_COIL_LIMIT_MEASURED` | 183.1 | A, the coil current cap: that tape at 50 percent of its limit |
+| `HYSTERESIS_MODEL` | "brandt" | "brandt": the Brandt-Indenbom strip loss of every tape at its own field plus Norris's transport loss (`lim_hysteresis.py`); "book": the loss factor the book used; "norris": the transport loss alone |
 | `HTS_TAPE_LAYERS_LEGACY` | 1 | Legacy rule only: parallel tape layers (1–3) |
 | `IC_PER_MM_PER_LAYER` | 66.7 | Legacy rule only: critical current density (A/mm/layer), no field around the tape |
 | `DE_RATING_FACTOR` | 0.9 | Legacy rule only: multilayer self-inductance compensation |
 | `NORRIS_HYSTERESIS` | False | Use Norris formula for hysteresis loss (per tape, with the layers, on the measured basis) |
 
-On the measured basis the coil cap `I_TARGET` is 184.6 A with 3 layers (`HTS_TAPE_LAYERS` is derived from the mode); the legacy rule with 3 mm tape and 1 layer gave I_c = 200 A and I_target ≈ 163 A. `tools/lim_tape_limit.py` computes the measured basis (the field at every tape of the coil's own winding, the Robinson angle data) and `lim_config.configure(...)` sets parameters and recomputes the derived ones for a run that varies them.
+On the measured basis the coil cap `I_TARGET` is 183.1 A with 2 layers on the flat winding (`HTS_TAPE_LAYERS` is derived from the mode); the legacy rule with 3 mm tape and 1 layer gave I_c = 200 A and I_target ≈ 163 A. `tools/lim_tape_limit.py` computes the measured basis (the field at every tape of the coil's own winding, the Robinson angle data) and `lim_config.configure(...)` sets parameters and recomputes the derived ones for a run that varies them.
 
-**Trade-off:** More layers → higher current capacity → more thrust, but more tape, a wider cryostat, and hysteresis that depends on the loss model (the book's loss factor does not change with the layers; the Norris loss falls with them).
+**Trade-off:** More layers → higher current capacity → more thrust, but more tape and a wider cryostat. On the Brandt model the winding layout decides the hysteresis: the flat winding, whose tapes have the sheet's field along their faces, loses twenty to thirty times less than the pancake, whose faces meet it (`tools/lim_hysteresis_model.py`).
 
 ### LIM Geometry
 

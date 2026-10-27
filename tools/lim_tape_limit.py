@@ -9,11 +9,14 @@ Run: python tools/lim_tape_limit.py            (the field model and the tables; 
      python tools/lim_tape_limit.py --tables   (Tables 11.3 and 18.2 from the deployment logs in Vol_III/runs_700km_hw10686_2026-10-12/)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT
 
+Corrected 2026-10-27: the pancake's tapes are on edge, face to face along the coil's surface, one turn beside the next (the
+run of 2026-10-26 had them laid the other way with the wrong normal; its pancake figures are superseded, lim_hysteresis.py).
+
 The winding.  lim_config.py gives the coil 208 turns, 2 m wide, of 3 mm tape, and budgets each turn at 1 mm of Kapton,
 0.06 mm of adhesive and 0.12 mm per layer of tape (COIL_WINDING_WIDTH).  Two layouts are modelled with that budget:
   flat      the tapes lie flat, edge to edge, one turn beside the next across the coil's surface: a sheet N x (w + 1.06 mm)
             wide and 0.08 mm x layers thick (the conductor; the 0.12 mm budget per layer leaves room for the solder);
-  pancake   the tapes stand face to face, one turn on the next: a stack w wide and N x (1.06 + 0.12 x layers) mm high.
+  pancake   the tapes stand on edge, face to face, one turn beside the next: a band N x (1.06 + 0.12 x layers) mm wide and w tall.
 A third, the compact pancake of tools/lim_tape_current_check.py (0.05 mm of insulation per turn, the book's 109 A figure),
 is carried for comparison only.  The field is the 2-D field of the straight bundle with uniform current density in each
 turn, by the closed-form field of a rectangle (exact for 2-D magnetostatics with no iron; a magnetostatic_2d grid solve
@@ -32,96 +35,17 @@ import numpy as np
 import ring_altitude as ring
 import lim_config as cfg
 import lim_physics as phys
-from bearing_optimize import read_robinson_angles, ic_angle_full, TAPE_T, TAPE_RHO
+from lim_hysteresis import ic_tape, robinson, TAPE_T, TAPE_RHO, KAPTON, ADHESIVE, T_LAYER_BUDGET
+T_COND = TAPE_T
 
 MU0 = 4e-7 * math.pi
-ROB = read_robinson_angles()
-KAPTON, ADHESIVE, T_LAYER_BUDGET, T_COND = 1.0e-3, 0.06e-3, 0.12e-3, TAPE_T     # lim_config's per-turn budget; conductor 0.08 mm per layer
-T_INS_COMPACT = 0.05e-3
 I_BOOK = 163.0            # A, the peak coil current of Table 11.2
 SHARE = 0.5               # the bearing rule: the worst tape at or below 50 percent of its measured limit
 LOGDIR = os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "..", "..", "Vol_III", "runs_700km_hw10686_2026-10-12")
 
 
-# ---------------------------------------------------------------- the field of a rectangle of uniform current density
-def _G(u, v):
-    """antiderivative of v / (u^2 + v^2) over u and v"""
-    r2 = u * u + v * v
-    vv = np.where(v == 0, 1e-300, v)                       # the principal arctan keeps the antiderivative continuous inside the rectangle
-    return 0.5 * u * np.log(np.maximum(r2, 1e-30)) - u + v * np.arctan(u / vv)
-
-
-def rect_field(x, y, x1, x2, y1, y2, I):
-    """Bx, By (T) at points x, y of a rectangle x1..x2, y1..y2 carrying current I (A) uniformly, straight along z."""
-    J = I / ((x2 - x1) * (y2 - y1))
-    def S(F):
-        return F(x - x1, y - y1) - F(x - x2, y - y1) - F(x - x1, y - y2) + F(x - x2, y - y2)
-    Bx = -MU0 * J / (2 * math.pi) * S(_G)
-    By = MU0 * J / (2 * math.pi) * S(lambda u, v: _G(v, u))
-    return Bx, By
-
-
-def layout(kind, N, L, w):
-    """conductor rectangles (x1, x2, y1, y2) of the N turns and the tape normal direction ('x' or 'y')"""
-    tc = L * T_COND
-    if kind == "flat":                      # tapes flat, edge to edge along x; the stack of L layers along y
-        pitch = w + KAPTON + ADHESIVE
-        return [(k * pitch, k * pitch + w, 0.0, tc) for k in range(N)], "y", pitch * N, tc
-    if kind == "pancake":                   # tapes on edge, face to face along y (one turn on the next); width w along x
-        pitch = KAPTON + ADHESIVE + L * T_LAYER_BUDGET
-        return [(0.0, w, k * pitch, k * pitch + tc) for k in range(N)], "x", w, pitch * N
-    pitch = L * T_COND + T_INS_COMPACT      # compact pancake, the old check's geometry
-    return [(0.0, w, k * pitch, k * pitch + tc) for k in range(N)], "x", w, pitch * N
-
-
-def worst_tape(kind, N, L, w, I_coil):
-    """the lowest critical current (A) over every tape of the winding at coil current I_coil, with its field and angle.
-    Each layer of each turn is its own 0.08 mm conductor; the field at a tape is that of every other conductor (the other
-    layers of its turn and all other turns), not its own: the Robinson measurement is of a single tape carrying its own
-    current, so the tape's self-field is already inside the measured limit.  Samples: the tape's mid-plane at both edges
-    and the centre of its width."""
-    rects, normal, bw, bh = layout(kind, N, L, w)
-    I_tape = I_coil / L
-    tapes = []                                              # one rectangle per layer
-    for (x1, x2, y1, y2) in rects:
-        for j in range(L):
-            if normal == "y":
-                tapes.append((x1, x2, y1 + j * T_COND, y1 + (j + 1) * T_COND))
-            else:
-                tapes.append((x1 + j * T_COND, x1 + (j + 1) * T_COND, y1, y2))
-    tapes = np.array(tapes)
-    # sample points of every tape, three per tape
-    if normal == "y":
-        px = np.concatenate([tapes[:, 0], 0.5 * (tapes[:, 0] + tapes[:, 1]), tapes[:, 1]])
-        py = np.tile(0.5 * (tapes[:, 2] + tapes[:, 3]), 3)
-    else:
-        px = np.tile(0.5 * (tapes[:, 0] + tapes[:, 1]), 3)
-        py = np.concatenate([tapes[:, 2], 0.5 * (tapes[:, 2] + tapes[:, 3]), tapes[:, 3]])
-    own = np.tile(np.arange(len(tapes)), 3)
-    Bx = np.zeros(len(px)); By = np.zeros(len(px))
-    for k, (x1, x2, y1, y2) in enumerate(tapes):
-        bx, by = rect_field(px, py, x1, x2, y1, y2, I_tape)
-        m = own != k
-        Bx[m] += bx[m]; By[m] += by[m]
-    B = np.hypot(Bx, By)
-    Bn, Bt = (np.abs(By), np.abs(Bx)) if normal == "y" else (np.abs(Bx), np.abs(By))
-    theta = np.degrees(np.arctan2(Bt, Bn))              # 0 = field through the tape face, 90 = along it
-    ic = ic_angle_full(ROB, B, theta, w)
-    k = int(ic.argmin())
-    return dict(ic=float(ic[k]), B=float(B[k]), theta=float(theta[k]), Bmax=float(B.max()), x=float(px[k]), y=float(py[k]),
-                width=bw, height=bh, n_samples=len(px), ic_perp=float(ic_angle_full(ROB, np.array([B[k]]), np.array([0.0]), w)[0]))
-
-
-def coil_limit(kind, N, L, w, share=SHARE):
-    """the coil current at which the worst tape reaches `share` of its measured limit (the field grows with the current)"""
-    I = I_BOOK
-    for _ in range(60):
-        wt = worst_tape(kind, N, L, w, I)
-        I_new = share * wt["ic"] * L
-        if abs(I_new - I) < 1e-3:
-            break
-        I = 0.5 * (I + I_new)
-    return I, worst_tape(kind, N, L, w, I)
+# the field model, the tape data and the limits live in lim_hysteresis.py since 2026-10-27 (shared with the loss model)
+from lim_hysteresis import layout, rect_field, worst_tape, coil_limit, winding_width, ROBINSON_CSV
 
 
 def tape_mass(N, L, w):
@@ -135,7 +59,7 @@ def grid_check(N, L, w, I_coil, h=1.0e-3):
     """the pancake solved on a magnetostatic_2d grid (linear, A = 0 on a far boundary): the largest field over the bundle"""
     import magnetostatic_2d as ms
     rects, normal, bw, bh = layout("pancake", N, L, w)
-    Lx, Ly = 16 * bw + 0.4, 2.2 * bh + 0.4
+    Lx, Ly = 2.2 * bw + 0.4, 16 * bh + 0.4
     g = ms.Grid(Lx, Ly, h, x0=-Lx / 2 + bw / 2, y0=-Ly / 2 + bh / 2)
     for (x1, x2, y1, y2) in rects:
         g.add_current(x1, x2, y1, y2, I_coil)
@@ -159,7 +83,7 @@ def field_model():
     print("THE LIM COIL ON THE MEASURED TAPE LIMIT (2026-10-26)")
     print(f"  Coil: {N} turns, {cfg.W_COIL:.0f} m wide, pole pitch {cfg.TAU_P:.0f} m, {w*1e3:.0f} mm Theva AP tape at 70 K; the book's peak coil current {I_BOOK:.0f} A.")
     print(f"  Per-turn budget from lim_config.COIL_WINDING_WIDTH: {KAPTON*1e3:.2f} mm Kapton + {ADHESIVE*1e3:.2f} mm adhesive + {T_LAYER_BUDGET*1e3:.2f} mm per layer; conductor {T_COND*1e3:.2f} mm per layer.")
-    ic0 = float(ic_angle_full(ROB, np.array([0.0]), np.array([0.0]), w)[0])
+    ic0 = float(ic_tape(np.array([0.0]), np.array([0.0]), w)[0])
     print(f"  Tape with no field: {ic0:.0f} A per {w*1e3:.0f} mm at 70 K (Robinson); lim_config's legacy rule {cfg.IC_PER_MM_PER_LAYER:.1f} A/mm x {w*1e3:.0f} mm = {cfg.IC_PER_MM_PER_LAYER*w*1e3:.0f} A per layer.")
     print(f"  Far parts neglected: the other coil side {cfg.TAU_P:.0f} m away adds {MU0*N*I_BOOK/(2*math.pi*cfg.TAU_P)*1e3:.3f} mT, the nearest other phase belt {cfg.TAU_P/3:.0f} m away {MU0*N*I_BOOK/(2*math.pi*cfg.TAU_P/3)*1e3:.2f} mT.")
     print()
@@ -187,8 +111,8 @@ def field_model():
     f, ncell = grid_check(N, cp["L"], w, I_BOOK)
     wt = worst_tape("pancake", N, cp["L"], w, I_BOOK)
     print(f"  Grid check (magnetostatic_2d, {ncell:,} cells of 1 mm, pancake with {cp['L']} layers at 163 A): largest cell-averaged field over the bundle {f['B_max']:.4f} T,")
-    print(f"  mean |Bx| {f['Bx_mean']:.4f} T; the closed form's largest field at a tape {wt['Bmax']:.4f} T (a 1 mm cell cannot resolve the {cp['L']*T_COND*1e3:.2f} mm stacks, so the grid gives the")
-    print(f"  bundle's smoothed field and the closed form the field each tape sees from its neighbours; the sheet limit mu0 N I / (2 h) is {MU0*N*I_BOOK/(2*wt['height'])*1e3:.1f} mT)")
+    print(f"  mean |Bx| {f['Bx_mean']:.4f} T; the closed form's largest field at a tape {wt['Bmax']:.4f} T (a 1 mm cell cannot resolve the {cp['L']*T_COND*1e3:.2f} mm tapes, so the grid gives the")
+    print(f"  bundle's smoothed field and the closed form the field each tape sees from its neighbours; the sheet limit mu0 N I / (2 width) is {MU0*N*I_BOOK/(2*wt['width'])*1e3:.1f} mT)")
     print()
     print("4.  Hysteresis on this basis (loss per LIM per hertz of supply frequency, at the 163 A coil current; the run's peak follows from its frequency)")
     print(f"  {'tape width':>10} {'layout':<9} {'layers':>6} {'worst limit':>11} {'per tape':>8} {'share':>6} {'book factor W/Hz':>16} {'Norris W/Hz':>12} {'tape kg/LIM':>11} {'coil limit':>10}")
