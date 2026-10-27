@@ -30,7 +30,7 @@
 | Equations 3.1 to 3.5 (momentum conservation, tension, stress, the sizing quadratic) | symbolic, no script; the quadratic is `ring_altitude.cable_mass_structural` | |
 | Section 3.4, deployment time and energy (499.7 days at 8 MW per site, 427.3 at 16 MW, 18.8 EJ, on the flat winding at the measured tape limit with the Brandt-Indenbom hysteresis, the default since 2026-10-27; 597.8 and 424.6 on the 2026-10-26 pancake with the book's loss factor; 599.7 and 461.0 on the old 163 A cap) | `lim_simulation.py`; `ring_altitude.py` for the energy | `lim_simulation.txt`, `lim_simulation_16MW.txt` (the same runs as `lim_simulation_brandt_flat3mm_N208_8MW.txt`, `..._16MW.txt`), `ring_altitude_700.txt` |
 | Figure 3.1, hoop tension force cancellation | drawn | |
-| Figure 3.2, cable tension, stress, casing net weight and cable excess force through the deployment; the deployment tension table of Section 3.4 (0, 13.1, 118.3, 328.6, 740.3, 845.6 GN at casing slowdowns of 0 to 8,020 m/s) | `lim_simulation.py` (the "DEPLOYMENT TENSION" section and `lim_deployment_tension.csv`), drawn by `tools/fig03_02_deployment_tension.py`; `ORBITAL_RING_CABLE=prograde` for the prograde curve | `lim_simulation.txt`, `figures_ch03/fig03_02_deployment_tension_700.svg` |
+| Figure 3.2, cable tension, stress, casing net weight and cable excess force through the deployment; the deployment tension table of Section 3.4 (0, 13.1, 118.3, 328.6, 740.3, 845.6 GN at casing slowdowns of 0 to 8,020 m/s) | `lim_simulation.py` (the "DEPLOYMENT TENSION" section and `lim_deployment_tension.csv`), drawn by `tools/fig03_02_deployment_tension.py` from the default run's series (since 2026-10-27 the flat winding on the Brandt model, `deployment_tension_700_brandt_flat.csv`, 499.7 days, the casing at rest on day 433); `ORBITAL_RING_CABLE=prograde` for the prograde curve | `lim_simulation.txt`, `figures_ch03/fig03_02_deployment_tension_700.svg` |
 
 ## Chapter 4: Why 700 Kilometers? Catastrophic Failure and the Design Altitude
 
@@ -146,6 +146,7 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 
 | Item | Script | Log or file |
 |---|---|---|
+| Figures 18.1 (cable and wall temperature) and 18.2 (cold-side load and radiator width) through the deployment; Table 18.1's eddy loss per site | `tools/ch18_thermal_series.py` (reruns the default deployment and writes the thermal series), `tools/fig18_figures.py` (the two figures and the values the chapter quotes) | `ch18_thermal_series.csv`, `ch18_thermal_series_run.txt`, `fig18_values.txt` |
 | Table 18.2, the cold loop at one LIM site (hysteresis in the two LIMs, the cryostat leak, the levitation coils, the compressor power and the radiator) | from the deployment run's peak and its months 12 to 15 with the constants of `lim_config.py` and `lim_physics.py`; `tools/lim_hysteresis_model.py --tables` prints the table's form from the Brandt-model logs (`tools/lim_tape_limit.py --tables` from the 2026-10-26 ones) | `lim_simulation_brandt_flat3mm_N208_8MW.txt` (the default run), `lim_hysteresis_model_tables.txt` |
 
 ## Chapters 14 onward
