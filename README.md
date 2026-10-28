@@ -90,6 +90,7 @@ The bearing has four tracks of air-core superconducting coils: two support track
 | `md_trade_study.py` | the induction driver's payload against length, plate and thermal margin, with figures (log `md_trade_study.txt`) | 14 |
 | `power_simulation.py` | solar generation on the ring and the suspended array, HVDC distribution, deployment and operations demand (logs `power_*.txt`) | 10, 16 |
 | `tether_stress.py`, `freefall_trajectory.py`, `climber_descent.py`, `atmospheric_loading.py`, `rendezvous_analysis.py` | the ground-anchored tether: taper, free fall from release, descent from GEO, wind loading, rendezvous speeds (logs `tether_stress.txt`, `freefall.txt`, `climber_descent.txt`, `atmospheric_loading.txt`, `rendezvous.txt`; `tether_run_all.py` runs the five) | 17 |
+| `elevator_system.py`, `radiation/elevator_dose_rates.py` | the elevator as one system: pods of 25 to 400 seats, their water shield from the dose along the tether, the descent with a 1.5 g stop, the graded CNT brake track, the Halbach magnets, the heat into the water, the tether with the pods and the track as loads, free fall after a loss of the tether, cargo drop pods (logs `elevator_system.txt`, `elevator_dose_rates.txt`; the dose script needs `aep8` and writes `elevator_dose_rates.npz` to the output folder, which the system script reads) | 17 |
 | `lunar/` | a mass driver on the Moon (its own configuration, physics and simulation; unchanged since the first edition). The Moon is covered in Volumes I and IV of *The Orbital Ring*. | 22 |
 
 ### Tools (reproduce a table or figure)

@@ -152,3 +152,5 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 ## Chapters 14 onward
 
 Not yet revised for the 700 km design, so not mapped (Chapter 18's Table 18.2 above is the exception). The scripts that will serve them are listed in the README under "Launch and power" (Chapters 14, 16, 17), "Tools" and "Not yet mapped to a revised chapter". The lunar mass driver in `lunar/` belongs to Chapter 22, Rings at Other Worlds and the Portable Ring.
+
+Chapter 17's pod, shield, brake track, magnets and tether as one system (the 2026-10-28 review, not yet in the chapter): `elevator_system.py` with `radiation/elevator_dose_rates.py` (logs `elevator_system.txt` and `elevator_dose_rates.txt`, report `elevator_system_report_2026-10-28.md` in the Vol_III runs folder). It reproduces Table 17.3 (396 kN, 5.2 mm, 36,735 t, upper tether to 81,840 km) and Table 17.6 as checks before sizing the new system.
