@@ -147,6 +147,7 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 | Item | Script | Log or file |
 |---|---|---|
 | Figures 18.1 (cable and wall temperature) and 18.2 (cold-side load and radiator width) through the deployment; Table 18.1's eddy loss per site | `tools/ch18_thermal_series.py` (reruns the default deployment and writes the thermal series), `tools/fig18_figures.py` (the two figures and the values the chapter quotes) | `ch18_thermal_series.csv`, `ch18_thermal_series_run.txt`, `fig18_values.txt` |
+| Figures 17.2 (speed and brake power of the 100-seat pod at 4,000 m/s) and 17.3 (elevator per passenger per day against passengers per day, the pod spacing as the points) | `tools/fig17_figures.py` (sizes the pod with `elevator_system2.py`'s facing-pair magnets and 2 mSv shield, reads `elevator_system2/throughput.csv`, prints the caption values) | `fig17_values_2026-10-28.txt`, `fig17_report_2026-10-28.md` |
 | Table 18.2, the cold loop at one LIM site (hysteresis in the two LIMs, the cryostat leak, the levitation coils, the compressor power and the radiator) | from the deployment run's peak and its months 12 to 15 with the constants of `lim_config.py` and `lim_physics.py`; `tools/lim_hysteresis_model.py --tables` prints the table's form from the Brandt-model logs (`tools/lim_tape_limit.py --tables` from the 2026-10-26 ones) | `lim_simulation_brandt_flat3mm_N208_8MW.txt` (the default run), `lim_hysteresis_model_tables.txt` |
 
 ## Chapters 14 onward
