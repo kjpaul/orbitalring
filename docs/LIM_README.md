@@ -568,7 +568,7 @@ The controller iterates up to 10 times per time step to achieve self-consistency
 
 ## Related Resources
 
-- *The Orbital Ring*, in four volumes: Volume I, *The Economic Case for Space Mass Transit*; Volume II, *First Principles: Orbital Mechanics, Materials Science, and Electrical Engineering*; Volume III, *Mass Transit Launch Technologies: Levitation, Linear Motors, Mass Drivers, and Space Elevators*; Volume IV, *Space Mass Transit Complete Design Review*
+- *Orbital Ring Engineering*, in four volumes: Volume I, *Space Mass Transit Complete Design Review* (the design review this repository serves); Volume II, *First Principles: Orbital Mechanics, Materials Science, and Electrical Systems*; Volume III, *Mass Transit Launch Technologies: Levitation, Linear Motors, Mass Drivers, and Space Elevators*; Volume IV, *The Economic Case for Space Mass Transit*
 - *Megawatt-Class Ion Propulsion: The THOR Drive Architecture*, in two volumes (the second technical work)
 - Orbital Ring Engineering website: https://www.orbitalring.space/coding-hub/
 
@@ -584,4 +584,4 @@ MIT License — see LICENSE file for details.
 
 If you use this code in academic work, please cite:
 
-> de Jong, P.G. (2025). *Orbital Ring Engineering: Mechanics and Material Science for Space Launch Mass Transit Systems, Volume I*. Astronomy's Shocking Twist Series.
+> de Jong, P.G. (2025). *Orbital Ring Engineering: Mechanics and Material Science for Space Launch Mass Transit Systems*. Astronomy's Shocking Twist Series. The first edition, which the four volumes of *Orbital Ring Engineering* replace.
