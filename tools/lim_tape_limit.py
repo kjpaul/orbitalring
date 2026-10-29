@@ -4,9 +4,9 @@ The deployment LIM coil on the measured tape limit: the field at every tape of t
 critical current at its own field and angle at 70 K from the Robinson dataset, the layers of 3 mm tape per turn that keep
 every tape at or below 50 percent of its limit, the coil current limit that follows, the hysteresis loss on that basis,
 and the same for the number-of-turns trade (Claude_Code_instructions_lim_tape_limit_2026-10-26.md, items 1 to 4 and 6).
-Book: The Orbital Ring, Volume IV: Chapter 11 (Table 11.2, Sections 11.5 to 11.7), Chapter 18 (Table 18.2).
+Book: Orbital Ring Engineering, Volume I: Chapter 9 (Table 9.2, Sections 9.5 to 9.7), Chapter 14 (Table 14.2).
 Run: python tools/lim_tape_limit.py            (the field model and the tables; about a minute)
-     python tools/lim_tape_limit.py --tables   (Tables 11.3 and 18.2 from the deployment logs in Vol_III/runs_700km_hw10686_2026-10-12/)
+     python tools/lim_tape_limit.py --tables   (Tables 9.3 and 14.2 from the deployment logs in Vol_III/runs_700km_hw10686_2026-10-12/)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT
 
 Corrected 2026-10-27: the pancake's tapes are on edge, face to face along the coil's surface, one turn beside the next (the
@@ -39,7 +39,7 @@ from lim_hysteresis import ic_tape, robinson, TAPE_T, TAPE_RHO, KAPTON, ADHESIVE
 T_COND = TAPE_T
 
 MU0 = 4e-7 * math.pi
-I_BOOK = 163.0            # A, the peak coil current of Table 11.2
+I_BOOK = 163.0            # A, the peak coil current of Table 9.2
 SHARE = 0.5               # the bearing rule: the worst tape at or below 50 percent of its measured limit
 LOGDIR = os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))), "..", "..", "Vol_III", "runs_700km_hw10686_2026-10-12")
 
@@ -185,7 +185,7 @@ def table_11_3(logs):
 
 
 def table_18_2(label, d):
-    """the cold loop at one site in the form of Table 18.2: the peak from the run's own peak (hysteresis 2 x p_hyst_max, the leak of
+    """the cold loop at one site in the form of Table 14.2: the peak from the run's own peak (hysteresis 2 x p_hyst_max, the leak of
     that run's winding, the levitation coils as the remainder of the run's peak cold-side load), the steady state from the run's
     radiator width in months 12 to 15 as the chapter does, and after deployment the leak and the levitation coils alone"""
     cop = phys.calc_cryo_cop(cfg.T_LN2_SUPPLY, cfg.T_RADIATOR_HOT, cfg.CRYO_EFF)

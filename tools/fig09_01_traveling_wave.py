@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Draws Figure 11.1: three pulsating phase fields add up to one traveling wave.
-Book: The Orbital Ring, Volume IV: Chapter 11, Figure 11.1.
-Run: python tools/fig11_01_traveling_wave.py [output name without extension]   (default <output folder>/figures_ch11/fig11_01_traveling_wave, as .png and .svg)
+Draws Figure 9.1: three pulsating phase fields add up to one traveling wave.
+Book: Orbital Ring Engineering, Volume I: Chapter 9, Figure 9.1.
+Run: python tools/fig09_01_traveling_wave.py [output name without extension]   (default <output folder>/figures_ch09/fig09_01_traveling_wave, as .png and .svg)
 Environment: ORBITAL_RING_OUT (output folder, default runs)
 
-Figure 11.1: three pulsating phase fields add up to one traveling wave.
+Figure 9.1: three pulsating phase fields add up to one traveling wave.
 Phase k: b_k(x,t) = cos(wt - 2 pi k/3) * cos(pi x/tau - 2 pi k/3).  Sum = 1.5 cos(wt - pi x/tau)."""
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
@@ -44,5 +44,5 @@ fig.suptitle("Three pulsating fields add up to one wave that travels", fontsize=
 fig.legend(loc="upper center", bbox_to_anchor=(0.5, 0.955), ncol=4, frameon=False, fontsize=10)
 plt.tight_layout(rect=(0, 0, 1, 0.95))
 import ring_altitude as ring
-out = sys.argv[1] if len(sys.argv) > 1 else _os.path.join(ring.out_dir("figures_ch11"), "fig11_01_traveling_wave")   # under ORBITAL_RING_OUT (default runs)
+out = sys.argv[1] if len(sys.argv) > 1 else _os.path.join(ring.out_dir("figures_ch09"), "fig09_01_traveling_wave")   # under ORBITAL_RING_OUT (default runs)
 fig.savefig(out + ".png", dpi=300, facecolor="white"); fig.savefig(out + ".svg", facecolor="white"); print("saved")

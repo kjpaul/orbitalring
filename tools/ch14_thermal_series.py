@@ -1,12 +1,12 @@
 """
 Runs the LIM deployment simulation at its defaults (8 MW per site, the cable warm, the winding and loss model of lim_config.py)
-and writes the thermal time series Figures 18.1 and 18.2 are drawn from: cable and wall temperature, the cold-side load and the
+and writes the thermal time series Figures 14.1 and 14.2 are drawn from: cable and wall temperature, the cold-side load and the
 radiator width, the compressor power, the hysteresis and eddy loss of the two LIMs of a site, the warm-loop load, the coil current
 and the slip frequency, one row per SKIP steps.
-Book: The Orbital Ring, Volume IV: Chapter 18 (Figures 18.1 and 18.2, Table 18.1).
-Run: python tools/ch18_thermal_series.py <out.csv>     (about ten minutes, the same run as lim_simulation.py)
+Book: Orbital Ring Engineering, Volume I: Chapter 14 (Figures 14.1 and 14.2, Table 14.1).
+Run: python tools/ch14_thermal_series.py <out.csv>     (about ten minutes, the same run as lim_simulation.py)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT
-Copied from Vol_III/renumber_scripts_2026-10-12/ch18_thermal_series.py on 2026-10-27.
+Copied from Vol_III/renumber_scripts_2026-10-12/ch18_thermal_series.py (written under the old numbering) on 2026-10-27.
 """
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below

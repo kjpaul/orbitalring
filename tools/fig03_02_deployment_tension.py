@@ -2,7 +2,7 @@
 """
 Draws Figure 3.2: the cable tension and stress, the casing's net weight and the cable's excess centrifugal force through
 the deployment, from the time series lim_simulation.py writes (lim_deployment_tension.csv in the output folder).
-Book: The Orbital Ring, Volume IV: Chapter 3, Figure 3.2 (and the deployment tension table of Section 3.4).
+Book: Orbital Ring Engineering, Volume I: Chapter 3, Figure 3.2 (and the deployment tension table of Section 3.2).
 Run: python tools/fig03_02_deployment_tension.py [retrograde.csv] [prograde.csv] [--out=FOLDER]
      (defaults: <output folder>/lim_deployment_tension.csv, no prograde curve, figures to <output folder>/figures_ch03)
 Environment: ORBITAL_RING_OUT (output folder, default runs)
@@ -12,7 +12,7 @@ right axis, the casing speed on an upper axis, and the three marks: prograde dep
 rest (7,504 m/s), retrograde deployment complete (8,020 m/s).  Middle panel: what the cable's excess force is spent on:
 the casing's net weight (the bearing load) and the cable's excess force against the casing speed, their difference
 (the tension over the orbital radius) shaded and drawn.  Bottom panel: tension and net weight against time in days.
-Style as fig17_figures.py (DejaVu Sans, 11 pt, the house blue and red).  Revised 2026-10-23 after Paul's review.
+Style as fig13_figures.py (DejaVu Sans, 11 pt, the house blue and red).  Revised 2026-10-23 after Paul's review.
 """
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below

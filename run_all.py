@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run every simulation behind The Orbital Ring, Volume IV, at the design point of ring_altitude.py, and keep one
+Run every simulation behind Orbital Ring Engineering, Volume I, at the design point of ring_altitude.py, and keep one
 log per run.  This is the same list as run_700.sh and run_700_lim.sh, for any platform (no bash needed).
 
 Usage:
@@ -20,7 +20,7 @@ ORBITAL_RING_HW_KGM, ORBITAL_RING_ARRAY_OFFSET_KM pass through to every script (
 The runs that set their own environment (the prograde, 250 km and 800 km reference tables, the ring-mounted
 power cases) do so on top of what is passed in.
 
-Reference: "The Orbital Ring, Volume IV: Space Mass Transit Complete Design Review" by Paul G. de Jong
+Reference: "Orbital Ring Engineering, Volume I" (the design review of the orbital ring) by Paul G. de Jong
 """
 import os
 import subprocess

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-The ring with a 6,000 kg/m casing, for Chapter 20's Table 20.2 (2026-10-28): the Chapter 3 quadratic for three hardware cases,
+The ring with a 6,000 kg/m casing, for Chapter 16's Table 16.2 (2026-10-28): the Chapter 3 quadratic for three hardware cases,
 the levitation plates and the bearing tape sized for the halved casing weight with the field solver of bearing_optimize.py,
-the LIM reaction plate judged from the deployment runs, the anchor attachments of Chapter 15 and the standing cryogenic load
-of Chapter 18, and Table 20.2 assembled from the deployment logs of run_700_casing_6000.sh.
-Book: The Orbital Ring, Volume IV: Chapter 20 (Section 20.6, Table 20.2); Chapters 3, 8, 11, 15 and 18 for the rules.
+the LIM reaction plate judged from the deployment runs, the anchor attachments of Chapter 11 and the standing cryogenic load
+of Chapter 14, and Table 16.2 assembled from the deployment logs of run_700_casing_6000.sh.
+Book: Orbital Ring Engineering, Volume I: Chapter 16 (Section 16.6, Table 16.2); Chapters 3, 7, 9, 11 and 14 for the rules.
 Run: python casing_6000.py --bearing            (the plate and tape sweep, about fifteen minutes; writes runs/casing_6000/bearing_sweep.json)
-     python casing_6000.py --table <log folder>  (the ring cases, the LIM plate, the rest, and Table 20.2 from the deployment logs)
+     python casing_6000.py --table <log folder>  (the ring cases, the LIM plate, the rest, and Table 16.2 from the deployment logs)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 """
 import os, sys, re, json, math, time
@@ -26,10 +26,10 @@ SAT_LIMIT = 0.12                      # bearing_optimize Part 2: the plate may n
 RATE_MARGIN = 1.13                    # bearing_optimize: the rating at the 70 percent share must be at least 1.13 x the requirement
 SHARE = 0.7
 CRYO_FACTOR = 1.0                     # formers, cryostat and supports at one tape mass (bearing_mass.py) [UNVERIFIED]
-# Chapter 15's attachments: a 30 m attachment may add a tenth of the casing weight at any one place; the trolley line pulls
-# 2.24 MN at the ring (four branches at 0.56 MN) and the spreader arm 23 MN (Chapter 15, Section 15.4)
+# Chapter 11's attachments: a 30 m attachment may add a tenth of the casing weight at any one place; the trolley line pulls
+# 2.24 MN at the ring (four branches at 0.56 MN) and the spreader arm 23 MN (Chapter 11, Section 11.4)
 L_ATTACH, F_TROLLEY, F_ARM = 30.0, 2.24e6, 23e6
-# Chapter 18: 5 W per square metre of levitation coil facing the cable, 4 m of coil width, 500 m per site
+# Chapter 14: 5 W per square metre of levitation coil facing the cable, 4 m of coil width, 500 m per site
 Q_COIL_PER_M2, LEV_COIL_WIDTH, SITE_SPACING = 5.0, 4.0, 500.0
 
 
@@ -198,7 +198,7 @@ def table(logdir):
           (f", (c) {dc['kept']['m_struct']/d0['m_struct']*100:.1f} % with the standing load kept and {dc['halved']['m_struct']/d0['m_struct']*100:.1f} % halved." if dc else "."))
     print("  Heavier hardware lowers the cable velocity a little (more rotor mass carries the casing's momentum at less speed) and adds its own mass to the ring;")
     print("  the deployment energy, which is the casing's momentum deficit, hardly moves.  The hardware's cost is its own mass in the ring total and the LIM plate's")
-    print("  thickness in the deployment (section 3), not structural cable.  [QUESTION FOR AUTHOR: Section 20.6 says the cable falls by much less than half when the")
+    print("  thickness in the deployment (section 3), not structural cable.  [QUESTION FOR AUTHOR: Section 16.6 says the cable falls by much less than half when the")
     print("  hardware stays at 10,686 kg/m; the Chapter 3 model does not say that.]")
     print()
 
@@ -260,8 +260,8 @@ def table(logdir):
     for m in (M_CASING_DESIGN, M_CASING_NEW):
         w = m * ring.G_NET; f_att = 0.1 * w * L_ATTACH
         print(f"  Casing {m:,.0f} kg/m weighs {w/1e3:.1f} kN/m; a tenth over a {L_ATTACH:.0f} m attachment is {f_att/1e6:.3f} MN; trolley line {F_TROLLEY/1e6:.2f} MN at the ring -> {F_TROLLEY/f_att:.1f}, so {math.ceil(F_TROLLEY/f_att)} "
-              f"attachments (branches) per line; spreader arm {F_ARM/1e6:.0f} MN -> {F_ARM/f_att:.0f} attachments (Chapter 15: 8 or more and about 80 at 12,000 kg/m).")
-    print(f"  Standing cryogenic load: Chapter 18 takes {Q_COIL_PER_M2:.0f} W/m2 of levitation coil facing the cable over {LEV_COIL_WIDTH:.0f} m of coil width, {Q_COIL_PER_M2*LEV_COIL_WIDTH*SITE_SPACING/1e3:.0f} kW per {SITE_SPACING:.0f} m site.")
+              f"attachments (branches) per line; spreader arm {F_ARM/1e6:.0f} MN -> {F_ARM/f_att:.0f} attachments (Chapter 11: 8 or more and about 80 at 12,000 kg/m).")
+    print(f"  Standing cryogenic load: Chapter 14 takes {Q_COIL_PER_M2:.0f} W/m2 of levitation coil facing the cable over {LEV_COIL_WIDTH:.0f} m of coil width, {Q_COIL_PER_M2*LEV_COIL_WIDTH*SITE_SPACING/1e3:.0f} kW per {SITE_SPACING:.0f} m site.")
     print(f"  The sized bearing keeps the optimization's track geometries (two 0.5 m loops per support track, one 0.8 m loop per lift track), so the coil area and the 10 kW")
     print(f"  do not change; only the ampere-turns and the tape fall.  The eddy heat of the LIMs onto the coils and the compressor power are in the deployment rows above.")
     print()

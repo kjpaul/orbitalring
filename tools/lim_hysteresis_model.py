@@ -2,9 +2,9 @@
 """
 The LIM stator hysteresis on the Brandt-Indenbom strip model, compared with the book's factor and Norris, and the width,
 winding and turns trade on it (Claude_Code_instructions_lim_hysteresis_model_2026-10-27.md, items 2 to 4).
-Book: The Orbital Ring, Volume IV: Chapter 11 (Sections 11.5 to 11.7), Chapter 18 (Table 18.2).
+Book: Orbital Ring Engineering, Volume I: Chapter 9 (Sections 9.5 to 9.7), Chapter 14 (Table 14.2).
 Run: python tools/lim_hysteresis_model.py            (the checks, the comparison at the design point, the trade table; a few minutes)
-     python tools/lim_hysteresis_model.py --tables   (Tables 11.3 and 18.2 from the deployment logs of the candidates)
+     python tools/lim_hysteresis_model.py --tables   (Tables 9.3 and 14.2 from the deployment logs of the candidates)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT
 
 Reference operating conditions, from the 208-turn deployment on the measured tape limit (lim_simulation_tapelimit.txt): the

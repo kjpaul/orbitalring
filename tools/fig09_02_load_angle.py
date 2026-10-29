@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Draws the load angle figure of a linear synchronous motor (Figure 11.2 in the chapter; the file keeps the name it was written under): stator wave poles and sled magnets lagging by 60 degrees, and thrust against load angle.
-Book: The Orbital Ring, Volume IV: Chapter 11, Figure 11.2.
-Run: python tools/fig11_01_load_angle.py [output name without extension]   (default <output folder>/figures_ch11/fig11_02_load_angle, as .png and .svg)
+Draws the load angle figure of a linear synchronous motor (Figure 9.2 in the chapter; the file keeps the name it was written under): stator wave poles and sled magnets lagging by 60 degrees, and thrust against load angle.
+Book: Orbital Ring Engineering, Volume I: Chapter 9, Figure 9.2.
+Run: python tools/fig09_02_load_angle.py [output name without extension]   (default <output folder>/figures_ch09/fig09_02_load_angle, as .png and .svg)
 Environment: ORBITAL_RING_OUT (output folder, default runs)
 
-Figure 11.1: the load angle of a linear synchronous motor.
+Figure 9.2: the load angle of a linear synchronous motor.
 Top: stator wave poles and sled magnets, sled lagging by a load angle of 60 degrees.
 Bottom: thrust as a fraction of the pull-out thrust, sin(delta)."""
 import os as _os, sys as _sys
@@ -77,6 +77,6 @@ for s in ("top", "right"): ax2.spines[s].set_visible(False)
 plt.tight_layout()
 import sys
 import ring_altitude as ring
-out = sys.argv[1] if len(sys.argv) > 1 else _os.path.join(ring.out_dir("figures_ch11"), "fig11_02_load_angle")   # under ORBITAL_RING_OUT (default runs)
+out = sys.argv[1] if len(sys.argv) > 1 else _os.path.join(ring.out_dir("figures_ch09"), "fig09_02_load_angle")   # under ORBITAL_RING_OUT (default runs)
 fig.savefig(out + ".png", dpi=300, facecolor="white"); fig.savefig(out + ".svg", facecolor="white")
 print("saved", out)

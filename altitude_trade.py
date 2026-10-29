@@ -1,6 +1,6 @@
 """
 Ring altitude trade, debris side: released-cable orbits and drag lifetimes at several ring altitudes (NRLMSIS atmosphere through pymsis).
-Book: The Orbital Ring, Volume IV: Chapter 4 (lifetime table), Chapter 19.
+Book: Orbital Ring Engineering, Volume I: Chapter 4 (lifetime table), Chapter 15.
 Run: python altitude_trade.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 

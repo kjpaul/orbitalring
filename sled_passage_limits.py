@@ -2,7 +2,7 @@
 """
 Design history: the limits study of the sled passage work that led to the adopted bearing in `final_bearing.py`.
 What the three levers (coil length, truss depth, control) buy against the sled passage, and the rejected limiters.
-Book: The Orbital Ring, Volume IV: Chapter 8 (the limits that led to the compensation tracks).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (the limits that led to the compensation tracks).
 Run: python sled_passage_limits.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
@@ -20,7 +20,7 @@ Three limits are mapped:
   1. EML track width.  The EML pulls only, so it matters at low speed, where
      the spacecraft's weight must be carried.  Required force is closed form:
      F = casing weight + (525 + M/L_sc) * a_down(u).  Width scales the force
-     at fixed current and field (Chapter 8: two 1 m tracks give 218 kN/m at
+     at fixed current and field (Chapter 7: two 1 m tracks give 218 kN/m at
      400 A, 871 kN/m at 800 A, 1,146 kN/m at plate saturation).
 
   2. Bottom limiter strength and reach.  Strength is the ampere-turns per
@@ -67,7 +67,7 @@ M_SLED_M = sp.M_SLED_M
 M_SC0 = sp.M_SC
 PALETTE = sp.PALETTE
 
-# EML scaling per meter of total track width (two tracks of 1 m give the Chapter 8 values)
+# EML scaling per meter of total track width (two tracks of 1 m give the Chapter 7 values)
 EML_WIDTH0 = 2.0 * lc.EML_COIL_WIDTH            # m of track, present design
 EML_PER_M_400 = sp.F_EML_OP / EML_WIDTH0        # N/m per meter of track at 400 A
 EML_PER_M_800 = sp.F_EML_MAX / EML_WIDTH0       # at 800 A (stated maximum)

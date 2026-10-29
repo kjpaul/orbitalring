@@ -1,6 +1,6 @@
 """
 Cosmic ray dose behind shielding and under the cable, with the ISS and atmosphere checks (runs the sweet spot cases).
-Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Book: Orbital Ring Engineering, Volume I: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
 Run from the radiation folder: python sweetspot_run.py (see README_radiation.md for the order and the packages)
 Environment: none; reads and writes files in the radiation folder.
 """

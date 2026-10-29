@@ -1,6 +1,6 @@
 """
 Figure 5.3: dose against shield thickness, trapped protons and cosmic rays, at 700 km.
-Book: The Orbital Ring, Volume IV: Chapter 5, Sections 5.3 and 5.6 (Figure 5.3).
+Book: Orbital Ring Engineering, Volume I: Chapter 5, Sections 5.3 and 5.6 (Figure 5.3).
 Run from the radiation folder: python fig05_03_dose_vs_shield.py [--out=FOLDER] [--h=1.0]   (--h: which under-the-cable row, 1.0 or 2.0 m)
 Environment: none; reads tables_trapped_igrf2026.txt (the log of tables_trapped.py: the trapped-proton dose at the worst
 longitude, spectrum continued above 300 MeV, the block Table 5.6 of the chapter is taken from) and sweetspot_gcr.txt (the

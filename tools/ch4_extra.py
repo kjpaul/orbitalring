@@ -1,6 +1,6 @@
 """
 Chapter 4 numbers the chapter text needs and ch4_numbers.py does not print.
-Book: The Orbital Ring, Volume IV: Chapter 4 Table 4.1 and text.
+Book: Orbital Ring Engineering, Volume I: Chapter 4 Table 4.1 and text.
 Run: python tools/ch4_extra.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 

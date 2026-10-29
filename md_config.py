@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Parameters of the induction mass driver.
-Book: The Orbital Ring, Volume IV: Chapter 14 (imported by md_simulation.py).
+Book: Orbital Ring Engineering, Volume I: Chapter 10 (imported by md_simulation.py).
 Run: imported; not run by itself
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

@@ -2,7 +2,7 @@
 Extracts the 70 K critical-current angle dependence of the Theva TPL4622-AP tape from the Robinson Research Institute
 dataset (Pantoja and Strickland 2024, doi 10.6084/m9.figshare.25893079.v2; sample THV202, measured April and May 2024)
 into data/THEVA_Robinson_70K_angle_dependence.csv, which bearing_optimize.py reads when ORBITAL_RING_TAPE_ANGLE=full.
-Book: The Orbital Ring, Volume IV: Chapter 6 (Table 6.2) and Chapter 8 (the tape's worst field angle, coil optimization Part 3b).
+Book: Orbital Ring Engineering, Volume I: Chapter 6 (Table 6.2) and Chapter 7 (the tape's worst field angle, coil optimization Part 3b).
 Run: python tools/extract_theva_robinson_angles.py <folder with "70K angle dependences.xlsx">
      (the folder is not in the repository; the CSV it writes is)
 Environment: none.

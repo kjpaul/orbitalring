@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Climber descent from GEO: time, speed and power.
-Book: The Orbital Ring, Volume IV: Chapter 17 (32.2 hours).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 (32.2 hours).
 Run: python climber_descent.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-The Chapter 13 numbers for one cable direction: masses, speeds, tension, the static wave speed and the Mach number of the cable past the casing, deployment energy, LIM frequency, the launch speed window.
-Book: The Orbital Ring, Volume IV: Chapter 13 (Table 13.1).
-Run: python tools/ch13_numbers.py, then ORBITAL_RING_CABLE=prograde python tools/ch13_numbers.py   (one column each)
+The Chapter 3 numbers for one cable direction: masses, speeds, tension, the static wave speed and the Mach number of the cable past the casing, deployment energy, LIM frequency, the launch speed window.
+Book: Orbital Ring Engineering, Volume I: Chapter 3 (Table 3.1).
+Run: python tools/ch03_direction_numbers.py, then ORBITAL_RING_CABLE=prograde python tools/ch03_direction_numbers.py   (one column each)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
-Chapter 13 numbers: retrograde against prograde cable at 700 km.  Run once with
+Chapter 3 numbers: retrograde against prograde cable at 700 km.  Run once with
 ORBITAL_RING_CABLE unset (retrograde) and once with ORBITAL_RING_CABLE=prograde."""
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below

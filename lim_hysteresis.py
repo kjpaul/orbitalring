@@ -3,7 +3,7 @@
 The deployment LIM coil's winding as a set of tapes: the 2-D field each tape sees from the rest of the winding, the
 measured critical current of each tape at its own field and angle (Robinson 70 K data), and the hysteresis loss of the
 winding on the Brandt and Indenbom thin-strip model (the "brandt" option of lim_physics.calc_hysteresis_power).
-Book: The Orbital Ring, Volume IV: Chapter 11 (Table 11.2, Sections 11.5 to 11.7), Chapter 18 (Table 18.2).
+Book: Orbital Ring Engineering, Volume I: Chapter 9 (Table 9.2, Sections 9.5 to 9.7), Chapter 14 (Table 14.2).
 Run: imported by lim_config.py (when HYSTERESIS_MODEL = "brandt"), lim_physics.py and tools/lim_tape_limit.py; run alone for the checks:
      python lim_hysteresis.py
 Environment: none (the Robinson data is data/THEVA_Robinson_70K_angle_dependence.csv)

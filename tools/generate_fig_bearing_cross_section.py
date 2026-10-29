@@ -1,10 +1,10 @@
 """
-Draws Figure 8.4, the cross section of the suspension bearing (cable, the two casing support tracks below it, the two
+Draws Figure 7.4, the cross section of the suspension bearing (cable, the two casing support tracks below it, the two
 lift compensation tracks above it, the four plates), as an SVG; widths across the cable are to scale, heights are not,
 and the cable is drawn as a wide low rectangle so that the labels have room (Paul, 2026-10-24).
-Book: The Orbital Ring, Volume IV: Chapter 8, Figure 8.4 (file name fig10_bearing_cross_section).  Redrawn 2026-10-24 to the
+Book: Orbital Ring Engineering, Volume I: Chapter 7, Figure 7.4 (file name fig07_04_bearing_cross_section).  Redrawn 2026-10-24 to the
 Part 3b coil design (coil_optimization_2026-10-12.md), text enlarged for print and EML renamed EMS on 2026-10-25.
-Run: python tools/generate_fig_bearing_cross_section.py   (writes <output folder>/figures_ch08/fig10_bearing_cross_section.svg,
+Run: python tools/generate_fig_bearing_cross_section.py   (writes <output folder>/figures_ch07/fig07_04_bearing_cross_section.svg,
      .png and .pdf: cairosvg if it has a cairo library, else the PNG through a headless Edge or Chrome and the PDF through svglib)
 Environment: ORBITAL_RING_OUT (output folder, default runs)
 """
@@ -177,10 +177,10 @@ head = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {H}" font
         f'<rect width="{WIDTH}" height="{H}" fill="white"/>',
         f'<rect x="200" y="{CAS_TOP}" width="2400" height="{CASB-CAS_TOP}" rx="20" fill="#f5f5f5" stroke="#333" stroke-width="5"/>']
 out = head + out
-OUT = ring.out_dir("figures_ch08")   # under ORBITAL_RING_OUT (default runs)
-SVG = _os.path.join(OUT, "fig10_bearing_cross_section.svg")
+OUT = ring.out_dir("figures_ch07")   # under ORBITAL_RING_OUT (default runs)
+SVG = _os.path.join(OUT, "fig07_04_bearing_cross_section.svg")
 open(SVG, "w", encoding="utf-8").write("\n".join(out) + "\n")
-PNG = _os.path.join(OUT, "fig10_bearing_cross_section.png"); PDF = _os.path.join(OUT, "fig10_bearing_cross_section.pdf")
+PNG = _os.path.join(OUT, "fig07_04_bearing_cross_section.png"); PDF = _os.path.join(OUT, "fig07_04_bearing_cross_section.pdf")
 try:
     import cairosvg
     cairosvg.svg2png(url=SVG, write_to=PNG, output_width=2*WIDTH)

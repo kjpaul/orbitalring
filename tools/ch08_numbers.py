@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-The Chapter 10 numbers: ring-mounted panel width for 8 and 16 MW per site, noon output, power flow and conductor mass around the ring, the expanded 400 m case, section buses; from power_config.py and power_physics.py.
-Book: The Orbital Ring, Volume IV: Chapter 10 (Table 10.1 and the text).
-Run: ORBITAL_RING_ARRAY_OFFSET_KM=0 python tools/ch10_numbers.py   (the panels on the ring, as the chapter assumes)
+The Chapter 8 numbers: ring-mounted panel width for 8 and 16 MW per site, noon output, power flow and conductor mass around the ring, the expanded 400 m case, section buses; from power_config.py and power_physics.py.
+Book: Orbital Ring Engineering, Volume I: Chapter 8 (Table 8.1 and the text).
+Run: ORBITAL_RING_ARRAY_OFFSET_KM=0 python tools/ch08_numbers.py   (the panels on the ring, as the chapter assumes)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (must be 0 for the chapter's numbers)
 
-Chapter 10 numbers for the 700 km ring (ring-mounted panels, array offset 0).
+Chapter 8 numbers for the 700 km ring (ring-mounted panels, array offset 0).
 Uses power_config.py and power_physics.py unchanged."""
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Checks the 2-D magnetostatic solver against known answers and against scikit-fem, with grid and box convergence.
-Book: The Orbital Ring, Volume IV: Chapter 8 (the sentence that the solver was checked).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (the sentence that the solver was checked).
 Run: python bearing_fem_check.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 

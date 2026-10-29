@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Parameters of the tether scripts.
-Book: The Orbital Ring, Volume IV: Chapter 17 (imported by the tether scripts).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 (imported by the tether scripts).
 Run: imported; not run by itself
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

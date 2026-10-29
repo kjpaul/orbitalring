@@ -2,7 +2,7 @@
 """
 Design history: the spread-pull step of the sled passage work that led to the adopted bearing in `final_bearing.py`.
 The spread pull (the sled's load spread over 50 ms) as the design case for the bearing dynamics.
-Book: The Orbital Ring, Volume IV: Chapter 8 (the 50 ms spread pull).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (the 50 ms spread pull).
 Run: python sled_passage_spread.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

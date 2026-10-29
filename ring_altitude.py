@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 The design point of the ring (altitude, cable direction, masses per meter, speeds, tension, deployment energy) and the output and data folders every other script uses.
-Book: The Orbital Ring, Volume IV: Chapter 1 tables, Chapter 3 (the cable), Table 8.1 and every chapter's ring numbers; named in Chapter 3.
+Book: Orbital Ring Engineering, Volume I: Chapter 1 tables, Chapter 3 (the cable), Table 7.1 and every chapter's ring numbers; named in Chapter 3.
 Run: python ring_altitude.py (prints the reference table)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 

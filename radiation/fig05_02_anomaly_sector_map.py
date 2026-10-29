@@ -1,9 +1,9 @@
 """
 Figure 5.4: the anomaly sector on the equator, as a strip map.
-Book: The Orbital Ring, Volume IV: Chapter 5, Section 5.2 (Figure 5.4).
-Run from the radiation folder: python fig05_04_anomaly_sector_map.py [--out=FOLDER]
+Book: Orbital Ring Engineering, Volume I: Chapter 5, Section 5.2 (Figure 5.4).
+Run from the radiation folder: python fig05_02_anomaly_sector_map.py [--out=FOLDER]
 Environment: none; reads ap8_igrf2026_spectra.npz (AP-8 MIN read with the IGRF 2026 field, made by igrf_altscan.py; the
-same file igrf_sector.txt and ch5_figure.txt are printed from). Writes fig05_04_anomaly_sector_map.svg and .png.
+same file igrf_sector.txt and ch5_figure.txt are printed from). Writes fig05_02_anomaly_sector_map.svg and .png.
 
 A strip of the equator from 180°W to 180°E. No coastline package (cartopy) is installed here, so the land along the
 equator is drawn as a labelled bar from the longitudes at which the equator enters and leaves each country or island,
@@ -113,9 +113,9 @@ def main():
     ax.set_title("The anomaly sector on the equator: where the ring meets trapped protons (AP-8, field of 2026, solar minimum)", fontsize=12.5)
     fig.subplots_adjust(left=0.03, right=0.99, top=0.91, bottom=0.14)
     for ext, kw in (("svg", {}), ("png", dict(dpi=200))):
-        fig.savefig(os.path.join(out, f"fig05_04_anomaly_sector_map.{ext}"), **kw)
+        fig.savefig(os.path.join(out, f"fig05_02_anomaly_sector_map.{ext}"), **kw)
     plt.close(fig)
-    print(f"saved fig05_04_anomaly_sector_map.svg and .png in {out}")
+    print(f"saved fig05_02_anomaly_sector_map.svg and .png in {out}")
 
 
 if __name__ == "__main__":

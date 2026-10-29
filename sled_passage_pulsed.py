@@ -2,7 +2,7 @@
 """
 Design history: the pulsed-track step of the sled passage work that led to the adopted bearing in `final_bearing.py`.
 Pulsed electromagnetic tracks for the sled passage: staggered coils, the protection law, block sections, failure cases.
-Book: The Orbital Ring, Volume IV: Chapter 8 (library and the pulsed-track step).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (library and the pulsed-track step).
 Run: python sled_passage_pulsed.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

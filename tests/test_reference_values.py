@@ -1,4 +1,4 @@
-"""Reference check for The Orbital Ring, Volume IV: anyone with the repository and the packages of requirements.txt can
+"""Reference check for Orbital Ring Engineering, Volume I: anyone with the repository and the packages of requirements.txt can
 confirm that the code still prints the numbers in the book.
 
     pip install pytest
@@ -24,7 +24,7 @@ from conftest import assert_lines_present, run_script, saved_log
 # ---------------------------------------------------------------- 1. the design point
 
 def test_default_design_point():
-    """700 km, retrograde, hardware 10,686 kg/m: the values of Chapter 3 and Table 8.1."""
+    """700 km, retrograde, hardware 10,686 kg/m: the values of Chapter 3 and Table 7.1."""
     assert ring.ALTITUDE_KM == 700.0 and ring.RETROGRADE and ring.M_HARDWARE_M == 10686.0
     assert ring.M_CABLE_STRUCTURAL == pytest.approx(115_005, abs=0.5)        # kg/m
     assert ring.M_CABLE_M == pytest.approx(125_691, abs=0.5)                 # kg/m, with hardware

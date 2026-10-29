@@ -2,7 +2,7 @@
 """
 The elevator system, second pass: the track's width and conductance, the track as hot as it can go, where the cruise energy
 goes, 4,000 m/s and the stop acceleration, the magnet arrangement, throughput against pod spacing, and the safety case.
-Book: The Orbital Ring, Volume IV: Chapter 17.
+Book: Orbital Ring Engineering, Volume I: Chapter 13.
 Run: python elevator_system2.py > elevator_system2.txt    (after radiation/elevator_dose_rates.py; imports elevator_system.py)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring); ORBITAL_RING_OUT (output folder, default runs)
 
@@ -55,13 +55,13 @@ L_BOIL = 2.256e6                        # latent heat of water, J/kg
 Q_RAD = 0.9 * SB * (373.0**4 - 250.0**4)  # ASSUMPTION: condenser radiator at 100 C, emissivity 0.9, sink 250 K (earthshine and sun not resolved)
 
 # ---- regeneration (item 3) ----
-SIG_CU = 60e6                           # CNT at the conductivity of copper (Chapter 10)
+SIG_CU = 60e6                           # CNT at the conductivity of copper (Chapter 8)
 F_LOSS = 0.10                           # I^2R loss in the winding (task)
-V_LINE = (100e3, 1e6)                   # bus voltage on the ribbon's conductor: tether_config V_BUS and the 1 MV of Chapter 15's lines
-TAPE_PER_M2 = 1630.0 / (3 * 100.0 * 0.844)   # LIM stator tape per m2 of band: 1,630 kg per LIM over 3 pole pitches of 100 m and the 0.844 m band (Chapter 11, 2026-10-27)
+V_LINE = (100e3, 1e6)                   # bus voltage on the ribbon's conductor: tether_config V_BUS and the 1 MV of Chapter 11's lines
+TAPE_PER_M2 = 1630.0 / (3 * 100.0 * 0.844)   # LIM stator tape per m2 of band: 1,630 kg per LIM over 3 pole pitches of 100 m and the 0.844 m band (Chapter 9, 2026-10-27)
 CRYO_PER_M2 = 5.0                       # ASSUMPTION: a vacuum-insulated cryostat skin 5 kg/m2
-LEAK_PER_M2 = 6200.0 / (450.0 * 0.844)  # W/m2: the site's 6.2 kW leak over its 450 m band (Chapter 18)
-COP = 0.0106                            # cryocooler COP at 70 K (Chapter 18)
+LEAK_PER_M2 = 6200.0 / (450.0 * 0.844)  # W/m2: the site's 6.2 kW leak over its 450 m band (Chapter 14)
+COP = 0.0106                            # cryocooler COP at 70 K (Chapter 14)
 
 # ---- throughput (item 6) ----
 SPACINGS = (300.0, 900.0, 1800.0, 3600.0)      # 5 min added beyond the task's 15, 30, 60

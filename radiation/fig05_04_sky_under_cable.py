@@ -1,11 +1,11 @@
 """
 Figure 5.2: the sky seen from the room under the cable.
-Book: The Orbital Ring, Volume IV: Chapter 5, Section 5.7 (Figure 5.2).
-Run from the radiation folder: python fig05_02_sky_under_cable.py [--out=FOLDER] [--h=1.0]
+Book: Orbital Ring Engineering, Volume I: Chapter 5, Section 5.7 (Figure 5.2).
+Run from the radiation folder: python fig05_04_sky_under_cable.py [--out=FOLDER] [--h=1.0]
 Environment: none; reads sweetspot_gcr.txt and sweetspot_trapped.txt in the radiation folder (the logs of
-sweetspot_run.py and sweetspot_trapped.py), writes fig05_02_sky_under_the_cable.svg and .png to FOLDER (default: here).
+sweetspot_run.py and sweetspot_trapped.py), writes fig05_04_sky_under_the_cable.svg and .png to FOLDER (default: here).
 --h=2.0 draws the version with the ceiling 1 m below the cable (the EML track and its cryostat between them) and the
-dose point 2 m below the cable, from the h = 2.0 m row of the log, as fig05_02_sky_under_the_cable_h2.svg; the
+dose point 2 m below the cable, from the h = 2.0 m row of the log, as fig05_04_sky_under_the_cable_h2.svg; the
 trapped-proton share blocked by the cable is in the log for h = 1 m only, so that line is left off the h = 2 m version.
 
 Left: a cross-section looking along the ring: the 8.22 m square cable, the 4 m wide room under it with its ceiling at the
@@ -124,9 +124,9 @@ def main():
     fig.suptitle(f"What the room under the cable sees of the sky, at 700 km (dose point {h:.0f} m below the cable)", fontsize=12.5, y=0.99)
     fig.subplots_adjust(left=0.02, right=0.98, top=0.90, bottom=0.04)
     for ext, kw in (("svg", {}), ("png", dict(dpi=200))):
-        fig.savefig(os.path.join(out, f"fig05_02_sky_under_the_cable{suffix}.{ext}"), **kw)
+        fig.savefig(os.path.join(out, f"fig05_04_sky_under_the_cable{suffix}.{ext}"), **kw)
     plt.close(fig)
-    print(f"saved fig05_02_sky_under_the_cable{suffix}.svg and .png in {out}")
+    print(f"saved fig05_04_sky_under_the_cable{suffix}.svg and .png in {out}")
 
 
 if __name__ == "__main__":

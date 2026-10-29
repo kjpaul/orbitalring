@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Stress and taper profile of a ground-anchored tether.
-Book: The Orbital Ring, Volume IV: Chapter 17 (taper 305 and 725).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 (taper 305 and 725).
 Run: python tether_stress.py [all] [--save] [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

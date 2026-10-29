@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Chapter metrics from the baseline LSM run: energies, cryogenic loads, mass fractions.
-Book: The Orbital Ring, Volume IV: Chapter 14.
+Book: Orbital Ring Engineering, Volume I: Chapter 10.
 Run: python tools/lsm_chapter_metrics.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 

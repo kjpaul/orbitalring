@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 The elevator pod, its shield, the graded brake track, the carriage magnets and the tether sized as one system.
-Book: The Orbital Ring, Volume IV: Chapter 17 (pods of 25 to 400 seats at 2,000 and 3,000 m/s with a 1.5 g stop).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 (pods of 25 to 400 seats at 2,000 and 3,000 m/s with a 1.5 g stop).
 Run: python elevator_system.py > elevator_system.txt      (reads runs/elevator_dose_rates.npz from radiation/elevator_dose_rates.py)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py);
              ORBITAL_RING_OUT (folder of the dose-rate file and of the figures and CSVs, default runs)
@@ -44,8 +44,8 @@ GM = ring.GM; RE = ring.R_EARTH_EQ; W = ring.OMEGA_SIDEREAL
 r_r = ring.R_ORBIT                      # the ring
 r_geo = (GM / W**2)**(1.0 / 3.0)        # the platform (GEO), as ch17_options.py
 g0 = 9.80665; MU0 = 4e-7 * math.pi; SB = 5.67e-8
-RHO = 1700.0                            # CNT yarn, kg/m3 (Chapter 17)
-SIG = 18.75e9                           # working stress, Pa (Chapter 17, Table 17.3)
+RHO = 1700.0                            # CNT yarn, kg/m3 (Chapter 13)
+SIG = 18.75e9                           # working stress, Pa (Chapter 13, Table 13.3)
 
 # the pod (Paul, 2026-10-27/28)
 V_SEAT = 0.56                           # m3 per seat, 0.5 x 0.8 x 1.4 m, reclined
@@ -108,7 +108,7 @@ RELEASE_ALTS = [700e3, 2000e3, 5000e3, 10000e3, 20000e3, 35000e3]
 CARGO_RHO = 500.0                       # ASSUMPTION: cargo packs at 500 kg/m3
 CARGO_STRUCT = 0.10                     # ASSUMPTION: cargo pod structure 10% of the cargo
 PARACHUTE_KG_PER_T = 25.0               # derived below from an 8 m/s splashdown; ASSUMPTION on the canopy areal mass
-TROLLEY_LOAD = 100e3                    # a trolley line carries 100 t at its lower end (Chapter 15)
+TROLLEY_LOAD = 100e3                    # a trolley line carries 100 t at its lower end (Chapter 11)
 
 def anet(r): return GM / r**2 - W * W * r
 def Phi(r): return -GM / r - 0.5 * W * W * r * r
@@ -512,10 +512,10 @@ def main():
     section("7. THE TETHER WITH THE PODS ON THE LINE AND THE TRACK AS DISTRIBUTED LOADS, AT 18.75 GPa")
     # check against the chapter: tip load only
     E_chk = np.full(len(rg), 50e3 * anet(r_r)); chk = size_tether(rg, np.zeros(len(rg)), E_chk)
-    print(f"check, Table 17.3 method (50 t at the tip, no track, no pods on the line): tension at the ring {chk['T_ring']/1e3:.0f} kN, diameter {chk['d_ring']*1e3:.1f} mm, "
+    print(f"check, Table 13.3 method (50 t at the tip, no track, no pods on the line): tension at the ring {chk['T_ring']/1e3:.0f} kN, diameter {chk['d_ring']*1e3:.1f} mm, "
           f"at the platform {chk['T_geo']/1e6:.2f} MN and {chk['d_geo']*1e3:.1f} mm, lower tether {chk['m_lower']/1e3:,.0f} t ({chk['m_lower']/50e3:.0f} t per tonne), "
           f"upper {chk['m_up_per_m']:.3f} kg/m to {(chk['r_up_end']-RE)/1e3:,.0f} km ({chk['L_up']/1e3:,.0f} km, {chk['m_upper']/1e3:,.0f} t) ; whole {chk['total']/1e3:,.0f} t")
-    print("  (Table 17.3: 396 kN, 5.2 mm, 18.3 MN, 35 mm, 36,700 t, to 82,000 km, 46,000 km, 76,300 t)")
+    print("  (Table 13.3: 396 kN, 5.2 mm, 18.3 MN, 35 mm, 36,700 t, to 82,000 km, 46,000 km, 76,300 t)")
     print(f"\nthe upper tether always reaches {(chk['r_up_end']-RE)/1e3:,.0f} km altitude ({chk['L_up']/1e3:,.0f} km long): the balance condition sigma/rho does not depend on the load.")
     print("\nloads: the largest sum over the phase of the pod train of the brake reactions of all the pods on the line (weight in the cruise, m (anet + 1.5 g) in the stop),")
     print("carried by every section because the upper tether's pull is fixed and the ring holds the slack as pretension; the track's weight; the tether's own weight.")
@@ -617,7 +617,7 @@ def main():
             m_tps = tps * m_entry; m_chute = PARACHUTE_KG_PER_T * (M_c * (1 + CARGO_STRUCT) + m_tps) / 1e3
             m_empty = M_c * CARGO_STRUCT + m_tps + m_chute
             print(f"  {M_c/1e3:7.0f} | {R:8.2f} | {beta:10,.0f} | {label:14s} | {f['v_entry'] if f['v_entry'] else 0:24,.0f} | {f['q_peak']/1e6:19.2f} | {f['q_total']/1e6:8.1f} ({f['q_total']/1e4:,.0f}) | {f['g_peak']:6.1f} | {tps*100:5.1f} | {m_tps/1e3:5.1f} | {m_chute/1e3:11.2f} | {m_empty/1e3:11.1f} | {m_empty/M_c:27.2f} | {f['v_ground']:.0f}")
-    print(f"  a trolley line carries {TROLLEY_LOAD/1e3:.0f} t at its lower end (Chapter 15), so the empty pods above ride up on a trolley car.")
+    print(f"  a trolley line carries {TROLLEY_LOAD/1e3:.0f} t at its lower end (Chapter 11), so the empty pods above ride up on a trolley car.")
     print("\ncargo descents at 3,000 and 4,000 m/s with the 1.5 g stop (an unshielded 50 t cargo pod of 55 t with its structure; the drive and the track scale with mass):")
     for v in (3000.0, 4000.0):
         d = descent(v, 55e3); print_descent(d, f"cargo pod at {v:,.0f} m/s")
@@ -633,7 +633,7 @@ def main():
 
     # ---- figures and CSVs ----
     section("FIGURES AND FILES")
-    # descent profiles, Figure 17.2 form, for the 25-seat 2 mSv pod
+    # descent profiles, Figure 13.2 form, for the 25-seat 2 mSv pod
     for v in SPEEDS:
         g = pods[(25, v, 2.0)]; d = descent(v, g["m"])
         fig, ax = plt.subplots(figsize=(8, 4.8)); ax2 = ax.twinx()

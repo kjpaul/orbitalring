@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Design history: the Halbach limiter bearing that Chapter 8 considered and did not adopt. The adopted bearing is in `final_bearing.py`.
+Design history: the Halbach limiter bearing that Chapter 7 considered and did not adopt. The adopted bearing is in `final_bearing.py`.
 Field, force and thermal functions of the Halbach limiter bearing.
-Book: The Orbital Ring, Volume IV: Chapters 7 and 8 (library).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (library).
 Run: imported; not run by itself
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 

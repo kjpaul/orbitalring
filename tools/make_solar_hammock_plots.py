@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Draws the 24-hour power profiles of the suspended solar array at several altitudes.
-Book: The Orbital Ring, Volume IV: Chapter 16 figures.
+Book: Orbital Ring Engineering, Volume I: Chapter 12 figures.
 Run: python tools/make_solar_hammock_plots.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 

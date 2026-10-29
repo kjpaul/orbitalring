@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Minimum safe altitude: where the released cable and the falling casing go after a catastrophic break, and the drag lifetimes.
-Book: The Orbital Ring, Volume IV: Chapter 4 (Tables 4.2 to 4.5, Figures 4.2 to 4.6), Chapter 19.
+Book: Orbital Ring Engineering, Volume I: Chapter 4 (Tables 4.2 to 4.5, Figures 4.2 to 4.6), Chapter 15.
 Run: python debris_simulation.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
@@ -413,7 +413,7 @@ def particulate_from_pop2(h_ring, large_frag_eff=LARGE_FRAG_PARTICULATE_EFF):
     ~95% of cable mass stays in large fragments with delta_v ~ V_RECOIL
     (429 m/s) from hoop-stress breakup, directed along the cable.
 
-    CORRECTED 2026-10-01 (see debris_orbits.py and Vol IV Ch 4 Section 4.4).
+    CORRECTED 2026-10-01 (see debris_orbits.py and Vol I Ch 4 Section 4.4).
     The cable is NOT at circular velocity.  It moves ~800-870 m/s faster
     than circular (that excess carries the casing weight and the hoop
     tension), so a released fragment is at the PERIGEE of its orbit and

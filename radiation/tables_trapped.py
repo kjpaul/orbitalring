@@ -1,6 +1,6 @@
 """
 Trapped-proton dose tables behind a water sphere for the AP-8 epoch field or the IGRF 2026 field.
-Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Book: Orbital Ring Engineering, Volume I: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
 Run from the radiation folder: python tables_trapped.py (see README_radiation.md for the order and the packages)
 Environment: none; reads and writes files in the radiation folder.
 """

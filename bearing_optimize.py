@@ -4,7 +4,7 @@ Optimization of the levitation bearing's coils and gaps (Claude_Code_instruction
 Part 1: make the field solution trustworthy: grid convergence of the present design, the tape current limit taken from the
 field on every tape of a modelled winding instead of the largest cell field at a bundle corner, and an independent check
 of the pull by the method of images.
-Book: The Orbital Ring, Volume IV: Chapter 8 (Sections 8.1 to 8.5, Tables 8.2 and 8.3; the optimized numbers are for a later pass).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (Sections 7.5 to 7.9, Tables 7.2 and 7.3; the optimized numbers are for a later pass).
 Run: python bearing_optimize.py --part=1 [--quick]   (about two hours; --quick skips the finest grid)
      python bearing_optimize.py --part=2 --stage=screen|confirm25|confirm125|report   (Part 2, see below)
      python bearing_optimize.py --part=2b --stage=rerate|rerate25|wall   (Part 2 redone on Paul's rules of 2026-10-21, and the cryostat wall)
@@ -430,7 +430,7 @@ def part_1(quick=False):
         m_h = r["NI"] / I50_h * n_legs * TAPE_T * r["w_tape"] * TAPE_RHO
         print(f"    tape per meter of track at 50 percent: {m_v:.1f} kg/m (faces vertical), {m_h:.1f} kg/m (faces horizontal), counting {n_legs} leg-equivalents of {r['w_tape']*1e3:.0f} mm tape")
     print()
-    print("  Book figures of 2026-10-12 to compare with (Chapter 8): corner field 2.3 T joined and 1.7 T split; 245 A limit at the corner (split), 122 A at 50 percent;")
+    print("  Book figures of 2026-10-12 to compare with (Chapter 7): corner field 2.3 T joined and 1.7 T split; 245 A limit at the corner (split), 122 A at 50 percent;")
     print("  field 0.92 T average over the bundle at 322,000 ampere-turns; support track 250.6 kN/m at 322 kA per leg (bearing_air.json, 10 mm cells).")
     return results
 
@@ -1011,7 +1011,7 @@ def report_tables(cache, lift_tape, f_casing, f_cable, d, h, full=False):
                 vs = str(v)
             parts.append(f"{vs}: NI {(r['NI_req']/best['NI_req']-1)*100:+.1f} %, Ic {(r['ic12']/best['ic12']-1)*100:+.1f} %, tape {(r['tape12']/best['tape12']-1)*100:+.1f} %, rated {r['F_rated']/1e3:.0f} kN/m{'' if passes(r) else ' (fails)'}")
         print(f"    {name:16}: " + ("; ".join(parts) if parts else "no neighbouring case run"))
-    # the tape current table (Table 8.2) for the best and the present
+    # the tape current table (Table 7.2) for the best and the present
     print()
     NI_normal = None
     weight_share = d["m_casing"] * ring.G_NET / 2
@@ -1264,7 +1264,7 @@ def wall_check(geom, h, theva, theva77, NI_req, NI_load, label, kind="support"):
     wall when a driven winding pulses (its field at the wall plane, rising in the 2 ms protection rise or the 20 ms ramp)."""
     wb = shape_width(geom["shape"])
     print(f"  {label}: bundle {wb*1e3:.0f} mm wide; wall {WALL_T*1e3:.0f} mm Ti-6Al-4V, {LN2_T*1e3:.0f} mm liquid nitrogen behind it, {MLI_T*1e3:.0f} mm insulation face to the bundle (the 10 mm allowance).")
-    print(f"  Coolant pressure at the coil: no cryogenic hydraulics code exists in the repository and Chapter 18 states no pressure [QUESTION FOR AUTHOR];")
+    print(f"  Coolant pressure at the coil: no cryogenic hydraulics code exists in the repository and Chapter 14 states no pressure [QUESTION FOR AUTHOR];")
     print(f"  the stress is tabulated against pressure.  A strip of width b and thickness t under pressure p: clamped edges sigma = p b^2 / (2 t^2),")
     print(f"  simply supported 3 p b^2 / (4 t^2) [UNVERIFIED: plate-strip formulas, Roark]; yield Ti-6Al-4V {YIELD_TI_RT/1e6:.0f} MPa at room temperature,")
     print(f"  {YIELD_TI_77/1e6:.0f} MPa at 77 K [UNVERIFIED: handbook values].  The outside of the cryostat is in vacuum, so the whole absolute pressure loads the wall.")
@@ -1529,7 +1529,7 @@ def requirement_note(d):
     print(f"     support track: design_NI iterates final_bearing's 'on top' loop, the casing {ring.M_LOAD_M:,.0f} kg/m plus the bearing's own casing side")
     print(f"     ({d['m_casing']-ring.M_LOAD_M:.0f} kg/m at the mean-field currents), so {d['m_casing']:,.0f} x {g:.3f} / 2 = {d['m_casing']*g/2/1e3:.1f} plus the load share {l_half/1e3:.1f} = {d['F_s']/1e3:.1f} kN/m.")
     print(f"     The Design Case numbers give {ring.M_LOAD_M:,.0f} x {g:.3f} / 2 = {w_half/1e3:.2f} kN/m (half the casing weight) plus 5,000,000 x {g:.3f} / 100 / 2 = {l_half/1e3:.2f} kN/m")
-    print(f"     (half the parked 5,000 t on 100 m) = {F_REQ_DESIGN_CASE/1e3:.1f} kN/m.  Chapter 8 and final_bearing's own decision (Part A: the bearing's casing side is")
+    print(f"     (half the parked 5,000 t on 100 m) = {F_REQ_DESIGN_CASE/1e3:.1f} kN/m.  Chapter 7 and final_bearing's own decision (Part A: the bearing's casing side is")
     print(f"     inside the 12,000 kg/m) put the bearing inside the casing budget, so the Design Case value is the requirement from here; the 'on top'")
     print(f"     value with the Part 3 casing side (999 kg/m) would be {(ring.M_LOAD_M+999)*g/2/1e3+l_half/1e3:.1f} kN/m.  1.5 x the casing weight share ({1.5*ring.M_LOAD_M*g/1e3:.1f} kN/m")
     print(f"     for the whole casing, {1.5*ring.M_LOAD_M*g/2/1e3:.1f} per track) is below it, so the parked load sets the requirement.")
@@ -1627,7 +1627,7 @@ def control_plan(r, rl, theva):
     print(f"  so the plan gives the driven winding every standing load until the pumps have taken it over, with no time limit (a driven superconducting")
     print(f"  winding holds a steady current with no loss but its joints and supply).")
     print()
-    print(f"  During a sled passage (the pair, kN/m): " + "; ".join(f"{u} km/s {F} {k}" for u, F, k in PASS_PULLS) + " (Table 8.5 of the chapter, final_bearing run).")
+    print(f"  During a sled passage (the pair, kN/m): " + "; ".join(f"{u} km/s {F} {k}" for u, F, k in PASS_PULLS) + " (Table 7.5 of the chapter, final_bearing run).")
     print(f"  Below 6,988 m/s the load windings on the support tracks pull with the sled's weight, half each; above it the lift tracks on the ceiling pull")
     print(f"  the casing down, half each; the support winding does not move during a pass.  The two driven windings of a face never act together;")
     print(f"  the opposite face's windings act only as protection, when the gap drifts {PROT_TRIGGER*1e3:.0f} mm, and then within their own limiter.  The lift track's")

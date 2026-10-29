@@ -1,6 +1,6 @@
 """
 Hand calculations for the design point: lateral forces, ring and cable totals, a few chapter figures from the constants of ring_altitude.py.
-Book: The Orbital Ring, Volume IV: Chapter 2 Table 2.1, Chapters 3, 4, 15 and 16 (checks of quoted numbers).
+Book: Orbital Ring Engineering, Volume I: Chapter 2 Table 2.1, Chapters 3, 4, 11 and 12 (checks of quoted numbers).
 Run: python tools/numbers_700_hand.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array)
 

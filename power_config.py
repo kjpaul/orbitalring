@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Parameters of the power simulation.
-Book: The Orbital Ring, Volume IV: Chapters 10 and 16 (imported by power_simulation.py).
+Book: Orbital Ring Engineering, Volume I: Chapters 8 and 12 (imported by power_simulation.py).
 Run: imported; not run by itself
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 

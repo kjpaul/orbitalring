@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
 First check of the tape current in the deployment LIM coil against the THEVA 70 K limit for three winding layouts and 1 to 12 soldered layers of 3 mm tape (a 2-D solver check is a later task).
-Book: The Orbital Ring, Volume IV: Chapter 11 (Table 11.2, the tape current rows), Chapter 12 (Section 12.1).
+Book: Orbital Ring Engineering, Volume I: Chapter 9 (Table 9.2, the tape current rows; Section 9.5).
 Run: python tools/lim_tape_current_check.py   (reads the THEVA file in data/ through bearing_design.py)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
-First check of the tape current in the deployment LIM coil (Chapter 11 Table 11.2, Chapter 12 Section 12.1).
+First check of the tape current in the deployment LIM coil (Chapter 9, Table 9.2 and Section 9.5).
 Coil: 208 turns at 163 A peak (lim_config.py).  The code has no winding layout, so two limiting layouts are tried:
   A  one pancake: the turns stacked face to face, bundle 3 mm wide (the tape width) and 208 turn pitches high
   B  one flat sheet: the turns laid edge to edge, 208 tape widths wide and one conductor thick

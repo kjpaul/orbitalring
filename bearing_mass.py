@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Mass of the iron-core bearing against the cable it costs, and the air-core alternative (loop ratings, requirement sets, dynamics of the lightest design).
-Book: The Orbital Ring, Volume IV: Chapter 8 (named; the field solver and the mass argument).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (named; the field solver and the mass argument).
 Run: python bearing_mass.py [--parts=ABCD] [--resolve] (reads data/bearing_sweep.json and data/bearing_air.json)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 

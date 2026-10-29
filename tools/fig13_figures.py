@@ -1,14 +1,14 @@
 """
-Draws Figures 17.2 and 17.3 of the rewritten Chapter 17 (2026-10-28) and prints the values the captions quote.
-  Figure 17.2  fig17_02_descent_profile_700.png: speed (right axis, km/h) and brake power (left axis, MW) of the 100-seat
+Draws Figures 13.2 and 13.3 of the rewritten Chapter 13 (2026-10-28) and prints the values the captions quote.
+  Figure 13.2  fig13_02_descent_profile_700.png: speed (right axis, km/h) and brake power (left axis, MW) of the 100-seat
                pod at 4,000 m/s against distance down the tether, 1 g drive from the coils, cruise, 1.5 g stop. The pod is
                sized as in elevator_system2.py (facing-pair magnets, the shield for 2 mSv from the Chapter 5 dose rates).
-  Figure 17.3  fig17_03_throughput_700.png: whole elevator per passenger per day against passengers per day (log axis) from
+  Figure 13.3  fig13_03_throughput_700.png: whole elevator per passenger per day against passengers per day (log axis) from
                elevator_system2's throughput table, six lines (100 and 400 seats at 2,000, 3,000 and 4,000 m/s) with points
                at 60, 30, 15 and 5 minute spacing on the 2,000 K ribbon, fainter lines for the 1,000 K ribbon.
-Figure 17.1 (the net pull) is unchanged and stays with Vol_III/renumber_scripts_2026-10-12/fig17_figures.py.
-Book: The Orbital Ring, Volume IV: Chapter 17, Figures 17.2 and 17.3.
-Run from Python/orbitalring:  python tools/fig17_figures.py <throughput.csv> <output folder>
+Figure 13.1 (the net pull) is unchanged and stays with Vol_III/renumber_scripts_2026-10-12/fig17_figures.py (written under the old numbering).
+Book: Orbital Ring Engineering, Volume I: Chapter 13, Figures 13.2 and 13.3.
+Run from Python/orbitalring:  python tools/fig13_figures.py <throughput.csv> <output folder>
 Environment: ORBITAL_RING_OUT (folder holding elevator_dose_rates.npz; default runs). Same size, fonts and colors as the
 figures of 2026-10-21 (10 x 5 in at 200 dpi, DejaVu Sans 11 pt, blue #2b6ca3, red #b5451b, green #2e8b57).
 """
@@ -30,7 +30,7 @@ r_r, r_geo, g0 = e1.r_r, e1.r_geo, e1.g0
 L_LINE = (r_geo - r_r) / 1e3          # km, platform to ring
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Figure 17.2: the 100-seat pod at 4,000 m/s
+# Figure 13.2: the 100-seat pod at 4,000 m/s
 # ----------------------------------------------------------------------------------------------------------------------
 V_C, N_SEATS = 4000.0, 100
 rows = e2.arrangements()
@@ -44,7 +44,7 @@ S, V, P = d["s_km"], d["v"], d["P"]
 j = int(np.argmax(P))
 def at(s_km):
     k = int(np.argmin(np.abs(S - s_km))); return P[k] / 1e6, V[k] * 3.6
-print("-- Figure 17.2: the 100-seat pod at 4,000 m/s, 1 g drive, 1.5 g stop --")
+print("-- Figure 13.2: the 100-seat pod at 4,000 m/s, 1 g drive, 1.5 g stop --")
 print(f"  pod {pod['m']/1e3:.1f} t with the shield for 2 mSv ({x_shield:.1f} g/cm2 of water), facing-pair magnets {mag['kg_per_N']*1e6:,.0f} kg per MN")
 print(f"  line from the platform to the ring {L_LINE:,.0f} km")
 print(f"  drive: {d['t_drive']/60:.1f} min over {d['s_drive']/1e3:,.0f} km to {V_C*3.6:,.0f} km/h ; peak drive power {d['P_drive']/1e6:,.0f} MW ; energy {d['E_drive']/1e9:,.0f} GJ")
@@ -71,11 +71,11 @@ ax.annotate(f"{round(P[j]/1e6, -2):,.0f} MW at the start of the stop", xy=(S[j],
 ax.text(L_LINE - 300, 80, "Ring", color="gray", ha="right", fontsize=9)
 h1, l1 = ax.get_legend_handles_labels(); h2, l2 = ax2.get_legend_handles_labels()
 ax.legend(h1 + h2, l1 + l2, loc="upper left")
-fig.tight_layout(); fn = os.path.join(outdir, "fig17_02_descent_profile_700.png"); fig.savefig(fn, dpi=200); plt.close(fig)
+fig.tight_layout(); fn = os.path.join(outdir, "fig13_02_descent_profile_700.png"); fig.savefig(fn, dpi=200); plt.close(fig)
 print("  wrote", fn)
 
 # ----------------------------------------------------------------------------------------------------------------------
-# Figure 17.3: throughput against spacing, from elevator_system2's table
+# Figure 13.3: throughput against spacing, from elevator_system2's table
 # ----------------------------------------------------------------------------------------------------------------------
 T = []
 with open(src) as f:
@@ -87,7 +87,7 @@ def series(v, n, K):
     pts = [next(r for r in T if r["speed_m_s"] == v and r["seats"] == n and r["ribbon_K"] == K and r["spacing_min"] == sp) for sp in SPACINGS]
     return [r["passengers_per_day"] for r in pts], [r["tether_per_passenger_per_day_t"] for r in pts], pts
 
-print("\n-- Figure 17.3: whole elevator per passenger per day (t) at 60 / 30 / 15 / 5 min spacing, 2,000 K ribbon (1,000 K in brackets) --")
+print("\n-- Figure 13.3: whole elevator per passenger per day (t) at 60 / 30 / 15 / 5 min spacing, 2,000 K ribbon (1,000 K in brackets) --")
 fig, ax = plt.subplots(figsize=(10, 5))
 for v in SPEEDS:
     for n in SEATS:
@@ -108,10 +108,10 @@ ax.yaxis.set_major_formatter(mt.FuncFormatter(lambda x, _: f"{x:,.0f}"))
 ax.set_xlabel("Passengers per day"); ax.set_ylabel("Whole elevator per passenger per day (t)")
 ax.grid(True, alpha=0.3, which="major")
 ax.legend(loc="upper right", fontsize=10)
-fig.tight_layout(); fn = os.path.join(outdir, "fig17_03_throughput_700.png"); fig.savefig(fn, dpi=200); plt.close(fig)
+fig.tight_layout(); fn = os.path.join(outdir, "fig13_03_throughput_700.png"); fig.savefig(fn, dpi=200); plt.close(fig)
 print("  wrote", fn)
 r400 = [next(r for r in T if r["speed_m_s"] == 4000 and r["seats"] == 400 and r["ribbon_K"] == 2000 and r["spacing_min"] == sp) for sp in SPACINGS]
-print("  Table 17.9 line (400 seats, 4,000 m/s, 2,000 K): " + " ; ".join(
+print("  Table 13.9 line (400 seats, 4,000 m/s, 2,000 K): " + " ; ".join(
     f"{r['spacing_min']:.0f} min: {r['pods_on_line']:.0f} pods, {r['largest_load_pod_weights']:.2f} pod weights, {r['tether_whole_t']:,.0f} t, {r['passengers_per_day']:,.0f} pax/day, {r['tether_per_passenger_per_day_t']:.1f} t"
     for r in r400))
 print(f"  bottom of the ribbon at the next pod {r400[-1]['bottom_K_at_next_pod']:.0f} K, next peak {r400[-1]['next_peak_bottom_K']:.0f} K at 5 min spacing")

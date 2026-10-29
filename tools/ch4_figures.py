@@ -1,6 +1,6 @@
 """
 Draws the Chapter 4 figures (released-cable orbits, perigee and lifetime against altitude, ring mass against altitude, the share of the ring free of trapped protons).
-Book: The Orbital Ring, Volume IV: Chapter 4 Figures 4.1 to 4.6.
+Book: Orbital Ring Engineering, Volume I: Chapter 4 Figures 4.1 to 4.7 (the Kepler orbit is Figure 4.1; the rest follow).
 Run: python tools/ch4_figures.py (figures go to <output folder>/figures_ch04; IGRF_ALTSCAN names the AP-8 scan file, default radiation/igrf_altscan_clean.txt)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs); IGRF_ALTSCAN (the AP-8 scan file)
 """
@@ -42,7 +42,7 @@ ax.set_xlabel("Ring Altitude (km)"); ax.set_ylabel("Altitude of the Released Cab
 ax.set_title("Where the Cable Goes When It Is Set Free")
 ax.set_xlim(200,1500); ax.set_ylim(0,12000); ax.grid(alpha=0.3); ax.legend(loc="upper left")
 ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}")); ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}"))
-save(fig,"fig04_01_released_cable_orbits")
+save(fig,"fig04_02_released_cable_orbits")
 
 # Fig 4.2 lifetime vs perigee (circular orbits), three ballistic coefficients
 s=ring_state(H_DESIGN); side=math.sqrt(s['m_struct']/RHO_CNT); Brod=ballistic_coefficient(side)
@@ -61,7 +61,7 @@ ax.set_xlabel("Perigee Altitude (km)"); ax.set_ylabel("Time Until Reentry (years
 ax.set_title("Orbital Lifetime of a Dense CNT Fragment")
 ax.grid(alpha=0.3, which="both"); ax.legend(loc="lower right")
 ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}"))
-save(fig,"fig04_02_fragment_lifetime")
+save(fig,"fig04_03_fragment_lifetime")
 
 # Fig 4.3 Pop 1 prompt soot vs ring altitude
 hh=np.linspace(550,1500,96)
@@ -78,7 +78,7 @@ ax.set_xlabel("Ring Altitude (km)"); ax.set_ylabel("Prompt Stratospheric Soot fr
 ax.set_title("Population 1: The Only Prompt Reentry")
 ax.grid(alpha=0.3); ax.legend(loc="upper right")
 ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}"))
-save(fig,"fig04_03_ejecta_soot_vs_altitude")
+save(fig,"fig04_04_ejecta_soot_vs_altitude")
 
 # Fig 4.6 design space
 fig,ax=plt.subplots(figsize=(10,4.4))
@@ -93,7 +93,7 @@ ax.axvline(250,color="black",linewidth=1.5,linestyle="--"); ax.text(250,0.22,"25
 ax.set_xlim(0,1200); ax.set_ylim(0,1); ax.set_yticks([]); ax.set_xlabel("Ring Altitude (km)")
 ax.set_title("The Altitude Design Space"); ax.grid(axis="x",alpha=0.3)
 ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}"))
-save(fig,"fig04_06_design_space")
+save(fig,"fig04_07_design_space")
 # Fig 4.5 ring mass across the altitude trade space
 alt=np.linspace(250,1500,101)
 D=[ring.design(x,True) for x in alt]
@@ -108,7 +108,7 @@ for ax,fmt8,fmt25 in [(axs[0],f"{d8['m_cable']/1e3:.0f} t/m",f"{d25['m_cable']/1
     ax.text(HD+20,ym,fmt8+f" at {HD:,.0f} km",fontsize=9); ax.text(265,yt,fmt25+" at 250 km",fontsize=9,color="gray")
 axs[2].set_xlabel("Ring Altitude (km)"); axs[0].set_title("Ring Mass Across the Altitude Trade Space (Retrograde Cable)")
 axs[2].xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}")); axs[2].yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}"))
-save(fig,"fig04_05_ring_mass_vs_altitude")
+save(fig,"fig04_06_ring_mass_vs_altitude")
 # Fig 4.4 share of the ring free of trapped protons (AP-8 read with the IGRF 2026 field; radiation/igrf_altscan.py)
 import re, os
 scan=os.environ.get("IGRF_ALTSCAN", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "radiation", "igrf_altscan_clean.txt"))
@@ -126,7 +126,7 @@ ax.set_xlim(500,1000); ax.set_ylim(30,100); ax.grid(alpha=0.3); ax.legend(loc="l
 ax.set_xlabel("Ring Altitude (km)"); ax.set_ylabel("Share of the Ring With No Trapped Protons (%)")
 ax.set_title("The Radiation Ceiling (Magnetic Field of 2026)")
 ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v,p: f"{v:,.0f}"))
-save(fig,"fig04_04_proton_free_share")
+save(fig,"fig04_05_proton_free_share")
 # Kepler orbit diagram for Section 4.4: the released cable's ellipse, drawn to scale at the design altitude
 rp=R_EARTH+H_DESIGN; n0=released_cable(H_DESIGN); ra=R_EARTH+n0['h_a']; a_=0.5*(rp+ra); e_=(ra-rp)/(ra+rp); b_=a_*math.sqrt(1-e_**2)
 th=np.linspace(0,2*np.pi,400); k=1e-3
@@ -145,6 +145,6 @@ ax.annotate("",xy=(rp*k,y0),xytext=(-ra*k,y0),arrowprops=dict(arrowstyle="<->",c
 ax.plot([0,rp*k],[0,0],color="green",linewidth=1.2); ax.plot([0,-ra*k],[0,0],color="red",linewidth=1.2)
 ax.set_aspect("equal"); ax.set_xlim(-ra*k-4200,rp*k+4300); ax.set_ylim(y0-1500,b_*k+2600); ax.axis("off")
 ax.legend(loc="upper center",ncol=2,frameon=False); ax.set_title("The Orbit of the Released Cable")
-save(fig,"fig04_kepler_orbit")
+save(fig,"fig04_01_kepler_orbit")
 print("kepler orbit: rp",rp*k,"ra",ra*k,"a",a_*k,"e",e_,"period h",2*math.pi*math.sqrt(a_**3/GM)/3600)
 print("done", soot250)

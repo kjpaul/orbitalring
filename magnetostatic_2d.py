@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Two-dimensional magnetostatic solver (vector potential, sparse direct solve, saturating iron, Maxwell stress on a box).
-Book: The Orbital Ring, Volume IV: Chapter 8 (library used by the bearing scripts).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (library used by the bearing scripts).
 Run: imported; not run by itself
 Environment: none
 

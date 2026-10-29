@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Free fall of a body released from the tether at 275 km.
-Book: The Orbital Ring, Volume IV: Chapter 17 (peak 3,400 m/s at 51 km).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 (peak 3,400 m/s at 51 km).
 Run: python freefall_trajectory.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Physics functions of the power simulation (solar flux, bifacial panels, HVDC losses).
-Book: The Orbital Ring, Volume IV: Chapters 10 and 16 (library).
+Book: Orbital Ring Engineering, Volume I: Chapters 8 and 12 (library).
 Run: imported; not run by itself
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array)
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Draws the 24-hour output of a bifacial solar panel riding on the ring.
-Book: The Orbital Ring, Volume IV: Chapter 10 or 16 figure (bifacial panel output).
+Book: Orbital Ring Engineering, Volume I: Chapter 8 or 12 figure (bifacial panel output).
 Run: python tools/make_bifacial_24hr_graph.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 

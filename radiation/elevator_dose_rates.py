@@ -1,5 +1,5 @@
 """
-Book: The Orbital Ring, Volume IV: Chapter 17 (the pod descending the space elevator through the Van Allen belts).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 (the pod descending the space elevator through the Van Allen belts).
 Run from the radiation folder: python elevator_dose_rates.py > elevator_dose_rates.txt   (needs aep8, astropy, numpy; uses fold_trapped.py and out_elec/)
 Environment: ORBITAL_RING_OUT (output folder for the rate file, default ../runs)
 
@@ -7,10 +7,10 @@ Dose rate along the tether, from the ring at 700 km to the platform at GEO, at t
 for trapped protons (AP-8, folded with the Geant4 depth-dose responses of fold_trapped.py) and trapped electrons (AE-8, folded
 with the Geant4 electron runs in out_elec/). The rates are written to elevator_dose_rates.npz so that elevator_system.py can
 weight them by the time any descent profile spends at each altitude without needing the aep8 package. The method is that of
-elevator_dose.py (Table 17.6); this script only separates the rates from the profile.
+elevator_dose.py (Table 13.6); this script only separates the rates from the profile.
 
-Cases: solar max at longitudes 0 (the worst of the five longitudes checked for Table 17.6), -30 and +120 deg, and solar min at 0 deg.
-The check at the end refolds the Table 17.6 profile (2,000 m/s, 1 g drive, 3 m/s2 stop) and prints it beside the table's values."""
+Cases: solar max at longitudes 0 (the worst of the five longitudes checked for Table 13.6), -30 and +120 deg, and solar min at 0 deg.
+The check at the end refolds the Table 13.6 profile (2,000 m/s, 1 g drive, 3 m/s2 stop) and prints it beside the table's values."""
 import numpy as np, warnings, sys, os, glob, re
 warnings.filterwarnings("ignore")
 import astropy.units as u, aep8
@@ -75,7 +75,7 @@ for solar, lon in cases:
 np.savez(os.path.join(OUT, "elevator_dose_rates.npz"), **out)
 print(f"\nwrote {os.path.join(OUT, 'elevator_dose_rates.npz')}")
 
-# ---- check: refold the Table 17.6 profile (2,000 m/s, 1 g drive, 3 m/s2 stop; solar max, lon 0) ----
+# ---- check: refold the Table 13.6 profile (2,000 m/s, 1 g drive, 3 m/s2 stop; solar max, lon 0) ----
 def anet(r): return GM / r**2 - W * W * r
 def profile(v_c, a_drive, a_stop, dt=1.0):
     alts = []; r = r_geo; v = 0.0
@@ -94,7 +94,7 @@ alts = profile(2000.0, g0, 3.0); sec, _ = np.histogram(alts, bins=edges); sec = 
 Hp = out["Hp_max_+0"]; De = out["De_max_+0"]
 p = (Hp * sec[None, :]).sum(1) * 1e3; e = (De * sec[None, :]).sum(1) * 1e3
 table_17_6 = {2: (103, 15.8, 118), 5: (43.2, 2.84, 46), 10: (22.5, 1.55, 24), 20: (10.7, 0.691, 11.4), 30: (6.14, 0.312, 6.45), 50: (2.61, 0.0565, 2.66)}
-print(f"\ncheck against Table 17.6 (2,000 m/s, 1 g drive, 3 m/s2 stop, {sec.sum()/3600:.2f} h on the tether; solar max, lon 0):")
+print(f"\ncheck against Table 13.6 (2,000 m/s, 1 g drive, 3 m/s2 stop, {sec.sum()/3600:.2f} h on the tether; solar max, lon 0):")
 print("  T g/cm2 | this run: protons, electrons, total mSv | elevator_dose.txt: protons, electrons, total mSv")
 for i in range(len(T)):
     tv = int(T[i]) if T[i] in table_17_6 else None

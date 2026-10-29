@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 The load a passing sled puts on the bearing: point and beam models of the casing, limiter forces, gap histories at each speed.
-Book: The Orbital Ring, Volume IV: Chapter 8 Section 8.3 (12.6 g, the neutral speed, the casing's momentum).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 Section 7.7 (12.6 g, the neutral speed, the casing's momentum).
 Run: python sled_passage_simulation.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
@@ -48,7 +48,7 @@ u + V_GROUND_SYNC.  Note that lsm_simulation.py starts the sled at v = 0 and
 uses that v directly in v^2/R, so its radial load treats v as inertial; its
 12.2 g at 30 km/s is 12.6 g in this convention.  Both are printed.
 
-Mass driver rails are taken on top of the casing (Chapter 8 and 14 layout).
+Mass driver rails are taken on top of the casing (Chapters 7 and 10 layout).
 The spacecraft zone is at the front of the sled.  The vertical force balance
 does not depend on either choice, but the order in which a point of casing
 sees the zone and the bare sled does.
@@ -95,7 +95,7 @@ L_SLED = float(lsm.L_SLED)         # m
 M_SLED_M = float(lsm.M_SLED_PER_M) # kg/m sled hardware
 M_SC = float(lsm.M_SPACECRAFT)     # kg spacecraft
 
-# EML bearing (Chapter 8, Equations 8.1 and 8.2).  Two tracks under the cable,
+# EML bearing (Chapter 7, Equations 7.1 and 7.2).  Two tracks under the cable,
 # pull only.  The Halbach model in levitation_physics.py gives larger numbers
 # (409 and 1,604 kN/m in the 2026-10-04 run); the chapter values are used here
 # and the difference is reported.
@@ -947,7 +947,7 @@ def main():
     print(f"  U is the energy stored pushing the casing from the nominal gap down to that gap (int F dg).")
     print(f"  The whole limiter travel to contact stores {limiter_U(0.0, tabs)/1e3:.2f} kJ/m.")
     print("")
-    print(f"  Reaction plate materials at contact (gap 0), same force law; Chapter 8 (8.4a) names molybdenum, levitation_config.py")
+    print(f"  Reaction plate materials at contact (gap 0), same force law; Chapter 7 (7.4a) names molybdenum, levitation_config.py")
     print(f"  defaults to copper, and the time domain above uses {tabs['mat']['name']}:")
     print(f"  {'material':>28} {'F(0) kN/m':>10} {'Q(0) MW/m':>10} {'skin mm':>8} {'skin layer kg/m':>16} {'cp J/kgK':>9}")
     for name in ("copper_OFHC", "molybdenum", "aluminum_6061", "gamma_TiAl"):

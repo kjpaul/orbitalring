@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Searches the LIM design parameters for a gamma-TiAl reaction plate.
-Book: The Orbital Ring, Volume IV: Chapter 12 plate material choice (text).
+Book: Orbital Ring Engineering, Volume I: Chapter 9 plate material choice (text).
 Run: python tools/lim_optimizer_gTiAl.py
 Environment: none
 

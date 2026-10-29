@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Anchor lines of an inclined ring: lateral force per meter, line angle, length, stress, taper and number of lines at each station; sled passage bending.
-Book: The Orbital Ring, Volume IV: Chapter 15 (10.46 GPa, taper 2.31, 331 lines); Chapter 2 Table 2.1 cross-check.
+Book: Orbital Ring Engineering, Volume I: Chapter 11 (10.46 GPa, taper 2.31, 331 lines); Chapter 2 Table 2.1 cross-check.
 Run: python anchor_line_analysis.py --inclination=DEG [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

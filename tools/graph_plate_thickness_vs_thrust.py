@@ -1,6 +1,6 @@
 """
 Draws thrust against reaction plate thickness for several plate metals (eddy current model).
-Book: The Orbital Ring, Volume IV: Chapter 12 figure (the chapter does not name it).
+Book: Orbital Ring Engineering, Volume I: Chapter 9 figure (the chapter does not name it).
 Run: python tools/graph_plate_thickness_vs_thrust.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 """

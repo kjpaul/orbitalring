@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Parametric trade study of the induction mass driver (payload against length, plate and thermal margin), with figures.
-Book: The Orbital Ring, Volume IV: Chapter 14 figures.
+Book: Orbital Ring Engineering, Volume I: Chapter 10 figures.
 Run: python md_trade_study.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

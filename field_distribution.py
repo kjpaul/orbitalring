@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Magnetic field distribution of the LIM stator.
-Book: The Orbital Ring, Volume IV: Not yet mapped to a revised chapter.
+Book: Orbital Ring Engineering, Volume I: Not yet mapped to a revised chapter.
 Run: python field_distribution.py
 Environment: none
 

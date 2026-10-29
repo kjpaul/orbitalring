@@ -1,12 +1,12 @@
 """
 Orbits of the released cable after a break (apogee, the two halves).
-Book: The Orbital Ring, Volume IV: Chapter 4 (4,565 km apogee, 2,131 and 8,113 km halves).
+Book: Orbital Ring Engineering, Volume I: Chapter 4 (4,565 km apogee, 2,131 and 8,113 km halves).
 Run: python debris_orbits.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
 debris_orbits.py -- Where the released cable goes after a catastrophic break.
 
-Companion to debris_simulation.py (Volume IV, Chapter 4).  That script's
+Companion to debris_simulation.py (Volume I, Chapter 4).  That script's
 Population 2 model started the large cable fragments from the circular
 orbital velocity at the ring altitude.  The cable does not move at circular
 velocity.  It moves faster than circular (that excess is what carries the

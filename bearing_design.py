@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Iron-core bearing field design: pole geometries solved with the 2-D solver, ratings, tape, coil lengths, protection and losses.
-Book: The Orbital Ring, Volume IV: Chapter 8 (the iron-core route that mass ruled out; the plate B-H discussion).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (the iron-core route that mass ruled out; the plate B-H discussion).
 Run: python bearing_design.py [--parts=ABCDEF] [--resweep] (reads data/bearing_sweep.json)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
@@ -360,7 +360,7 @@ def part_C(recs, theva):
           f"{2*F_need/W:.2f} times, {(2*F_need - W)/1e3:.0f} kN/m = {(2*F_need - W)/pz.G_NET:,.0f} kg/m.")
     print(f"    Tape: {tape:,.0f} m per meter of ring per track, {tape*TAPE_T*0.012*TAPE_RHO:.1f} kg/m; two tracks around the ring {2*tape*L_RING/1e9:,.1f} million km, {2*tape*TAPE_T*0.012*TAPE_RHO*L_RING/1e9:.2f} Mt.")
     print(f"    Plate {m['plate_t']*1e3:.0f} mm thick, {m['plate_w']:.1f} m wide, {m['iron_cable_m2']*RHO_PLATE:,.0f} kg/m; yoke and poles {m['iron_casing_m2']*RHO_LAM:,.0f} kg/m of laminations per track.")
-    print(f"    This replaces Equations 8.1 to 8.4: 218 kN/m (two tracks at 0.523 T), 871 kN/m (at Ic), 573 kPa (1.2 T) and 776 kN/m (margin) came from the")
+    print(f"    This replaces Equations 7.1 to 7.4: 218 kN/m (two tracks at 0.523 T), 871 kN/m (at Ic), 573 kPa (1.2 T) and 776 kN/m (margin) came from the")
     print(f"    one-way sheet formula, which the solves do not support (Part B of compensation_tracks_2026-10-11.md: a flat array gives 0.2 kN/m).")
     # ripple along the direction of travel
     print()

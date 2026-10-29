@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Solar power generation on the ring and the suspended array, and HVDC distribution to the LIM sites and the ground.
-Book: The Orbital Ring, Volume IV: Chapter 10 (demand, HVDC), Chapter 16 (the array at 600 km).
+Book: Orbital Ring Engineering, Volume I: Chapter 8 (demand, HVDC), Chapter 12 (the array at 600 km).
 Run: python power_simulation.py [--demand=ops] [--power=16] [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 

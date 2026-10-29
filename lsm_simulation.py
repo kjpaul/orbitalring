@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Linear synchronous motor mass driver launch along the ring: laps, time, power and acceleration to the launch speed.
-Book: The Orbital Ring, Volume IV: Chapter 14 (189.7 min, 4.99 laps, 416 GW, 12.2 g); Chapter 8 (the sled speed profile the bearing scripts import).
+Book: Orbital Ring Engineering, Volume I: Chapter 10 (189.7 min, 4.99 laps, 416 GW, 12.2 g); Chapter 7 (the sled speed profile the bearing scripts import).
 Run: python lsm_simulation.py [--v_launch=..] [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

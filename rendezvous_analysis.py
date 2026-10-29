@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Rendezvous speeds between a climber and the ring or a tether at each altitude.
-Book: The Orbital Ring, Volume IV: Chapter 17 (605 m/s at 20,000 km).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 (605 m/s at 20,000 km).
 Run: python rendezvous_analysis.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

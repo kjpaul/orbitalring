@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Linear induction motor deployment of the ring: months of decelerating the cable against the casing with LIM sites around the ring, with the power, thermal and current limits.
-Book: The Orbital Ring, Volume IV: Chapter 3 (deployment time), Chapter 12 (named, with its command lines), Chapter 10 (demand), Chapter 13 (prograde comparison).
+Book: Orbital Ring Engineering, Volume I: Chapter 3 (deployment time; Section 3.1, the prograde comparison), Chapter 9 (named, with its command lines), Chapter 8 (demand).
 Run: python lim_simulation.py [options, see --help]; the 16 MW case is in run_all.py
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

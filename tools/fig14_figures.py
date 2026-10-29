@@ -1,17 +1,17 @@
 """
-Draws Figures 18.1 (cable and casing wall temperature through the deployment) and 18.2 (the cold-side heat load of a site with
-the cryogenic radiator width on the right axis) from the thermal time series of tools/ch18_thermal_series.py, and prints the
+Draws Figures 14.1 (cable and casing wall temperature through the deployment) and 14.2 (the cold-side heat load of a site with
+the cryogenic radiator width on the right axis) from the thermal time series of tools/ch14_thermal_series.py, and prints the
 values the chapter quotes (day-one peaks, the first months, the settled values, the cold-side peak and its month).
-Book: The Orbital Ring, Volume IV: Chapter 18, Figures 18.1 and 18.2.
-Run: python tools/fig18_figures.py <series.csv> <output folder>
-Environment: none.  Copied from Vol_III/renumber_scripts_2026-10-12/fig18_figures.py on 2026-10-27; the month ticks follow the run's length.
+Book: Orbital Ring Engineering, Volume I: Chapter 14, Figures 14.1 and 14.2.
+Run: python tools/fig14_figures.py <series.csv> <output folder>
+Environment: none.  Copied from Vol_III/renumber_scripts_2026-10-12/fig18_figures.py (written under the old numbering) on 2026-10-27; the month ticks follow the run's length.
 """
 import csv, sys, os
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-src = sys.argv[1] if len(sys.argv) > 1 else "ch18_thermal_series.csv"
+src = sys.argv[1] if len(sys.argv) > 1 else "ch14_thermal_series.csv"
 outdir = sys.argv[2] if len(sys.argv) > 2 else "."
 MONTH = 30 * 86400.0
 
@@ -27,7 +27,7 @@ with open(src) as f:
 CABLE, WALL, COLD = "#b5451b", "#2b6ca3", "#2b6ca3"
 plt.rcParams.update({"font.size": 11})
 
-# Figure 18.1: cable and wall temperature
+# Figure 14.1: cable and wall temperature
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(t, Tc, color=CABLE, lw=1.6, label="Cable")
 ax.plot(t, Tw, color=WALL, lw=1.6, label="Casing wall")
@@ -48,10 +48,10 @@ ax.text(0.3, 275, "0°C", color="gray", fontsize=9)
 ax.legend(loc="upper right")
 ax.set_xticks(range(0, int(max(t)) + 2, 2))
 fig.tight_layout()
-fig.savefig(os.path.join(outdir, "fig18_01_cable_wall_temperature_700.png"), dpi=200)
+fig.savefig(os.path.join(outdir, "fig14_01_cable_wall_temperature_700.png"), dpi=200)
 plt.close(fig)
 
-# Figure 18.2: cold-side load with radiator width on the right axis
+# Figure 14.2: cold-side load with radiator width on the right axis
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(t, q, color=COLD, lw=1.6)
 ax.set_xlabel("Time from the start of deployment (months)")
@@ -71,7 +71,7 @@ ax2.set_ylim(0, 45 * k)
 ax2.set_ylabel("Cryogenic radiator width over 450 m (m)")
 ax.set_xticks(range(0, int(max(t)) + 2, 2))
 fig.tight_layout()
-fig.savefig(os.path.join(outdir, "fig18_02_cold_load_radiator_700.png"), dpi=200)
+fig.savefig(os.path.join(outdir, "fig14_02_cold_load_radiator_700.png"), dpi=200)
 plt.close(fig)
 
 print("peak cable", max(Tc), "at month", t[i], "final", Tc[-1], Tw[-1])

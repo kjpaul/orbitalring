@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Design history: the Halbach limiter bearing that Chapter 8 considered and did not adopt. The adopted bearing is in `final_bearing.py`.
+Design history: the Halbach limiter bearing that Chapter 7 considered and did not adopt. The adopted bearing is in `final_bearing.py`.
 Halbach array against solenoid levitation, the safety Halbach limiters and the plate thermal limits, with figures.
-Book: The Orbital Ring, Volume IV: Chapters 7 and 8 figures fig_levitation_*; the chapter's bearing numbers now come from final_bearing.py.
+Book: Orbital Ring Engineering, Volume I: Chapter 7 figures fig_levitation_*; the chapter's bearing numbers now come from final_bearing.py.
 Run: python levitation_simulation.py all [--material=..] [--wavelength=..]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

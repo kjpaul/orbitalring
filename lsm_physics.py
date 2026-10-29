@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Physics functions of the LSM mass driver.
-Book: The Orbital Ring, Volume IV: Chapter 14 (library).
+Book: Orbital Ring Engineering, Volume I: Chapter 10 (library).
 Run: imported; not run by itself
 Environment: none
 

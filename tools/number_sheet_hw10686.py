@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Builds the number sheet of the cable hardware change (4,076 to 10,686 kg/m): every quantity the book quotes, old value beside new, from two folders of logs.
-Book: The Orbital Ring, Volume IV: The renumbering pass of 2026-10-12 (a tool, not a simulation).
+Book: Orbital Ring Engineering, Volume I: The renumbering pass of 2026-10-12 (a tool, not a simulation).
 Run: python tools/number_sheet_hw10686.py [--old=FOLDER] [--new=FOLDER] [--out=FILE]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

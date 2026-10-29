@@ -1,6 +1,6 @@
 """
 Solar particle event dose on the ring at 700 km (Chapter 5, Section 5.9).
-Book: The Orbital Ring, Volume IV: Chapter 5, Section 5.9.
+Book: Orbital Ring Engineering, Volume I: Chapter 5, Section 5.9.
 Run from the radiation folder: python spe_700.py [--log=FILE]
 Environment: none; reads the Geant4 proton runs in out_gcr/ and out_trap*/ (through gcr.py and fold_trapped.py), the
 PSTAR table, and sweetspot.py for the room geometry; writes the log to FILE (default spe_700.txt here).

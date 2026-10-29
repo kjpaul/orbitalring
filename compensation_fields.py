@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Solves the field cases of the compensation and support tracks (linear and saturating iron) and writes the cache data/compensation_fields.json that the bearing scripts read.
-Book: The Orbital Ring, Volume IV: Chapter 8 (library, and the air-core case that a flat array gives 0.2 kN/m).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (library, and the air-core case that a flat array gives 0.2 kN/m).
 Run: python compensation_fields.py (recomputes the cache, about 4 minutes)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
@@ -15,7 +15,7 @@ solved with magnetostatic_2d.py.  Cases:
   A2  air core, 20 coils on edge (legs stacked 100 mm apart): a 1 m current sheet
       with its return 100 mm behind
   A3  air core, 20 flat coils with alternating polarity (pitch 50 mm)
-  A4  air core, 1 m current sheet with its return far away (the Chapter 8 picture)
+  A4  air core, 1 m current sheet with its return far away (the Chapter 7 picture)
   I1  iron: laminated yoke with alternating poles, pitch 250 mm (4 poles of 200 mm)
   I2  iron: pitch 500 mm (2 poles of 400 mm)
   I3  iron: pitch 125 mm (8 poles of 100 mm)
@@ -33,7 +33,7 @@ The field is linear in the current, so one solve per geometry gives every
 current.  Iron: relative permeability 1,000 for the laminated yoke and 200 for
 the sintered plate (levitation_config.py), linear; saturation is checked, not
 modeled.  Cell size 5 mm.  [UNVERIFIED] the yoke and pole dimensions are a
-design sketch, not a Chapter 8 value.
+design sketch, not a Chapter 7 value.
 
 Reference: "Orbital Ring, Mass Driver and Space Elevator Engineering" by Paul G de Jong
 """
@@ -260,7 +260,7 @@ def case_support_edge(NI=NI_SUPPORT, back=0.025):
 
 
 def case_support_sheet_far(NI=NI_SUPPORT):
-    """S3: the Chapter 8 picture, a 1 m current sheet with its return far away (mu0 K / 2 for an infinite sheet)."""
+    """S3: the Chapter 7 picture, a 1 m current sheet with its return far away (mu0 K / 2 for an infinite sheet)."""
     g = ms.Grid(4.0, 3.0, 0.01)
     g.add_iron(-PLATE_W / 2, PLATE_W / 2, GAP, GAP + PLATE_T, PLATE_MU)
     g.add_current(-TRACK_W / 2, TRACK_W / 2, -0.025, 0.0, NI)

@@ -3,7 +3,7 @@
 Space Elevator Tether Dynamics — Master Script
 ================================================
 
-Runs the five tether analysis sections (Chapter 17 of The Orbital Ring, Volume IV) and generates all plots and tables.
+Runs the five tether analysis sections (Chapter 13 of Orbital Ring Engineering, Volume I) and generates all plots and tables.
 Figures and CSV files go under the folder named by ORBITAL_RING_OUT (default runs); the ring is set by ring_altitude.py
 (ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM).  For the whole simulation set see run_all.py.
 

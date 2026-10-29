@@ -1,6 +1,6 @@
 """
 Cosmic ray dose under the cable scanned over the directions of the sky.
-Book: The Orbital Ring, Volume IV: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
+Book: Orbital Ring Engineering, Volume I: Chapter 5 (Tables 5.1 to 5.10, Figure 5.1).
 Run from the radiation folder: python sweetspot_scan.py (see README_radiation.md for the order and the packages)
 Environment: none; reads and writes files in the radiation folder.
 """

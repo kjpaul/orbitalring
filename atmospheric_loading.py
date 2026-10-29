@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Wind and atmospheric loading on the lower tether.
-Book: The Orbital Ring, Volume IV: Chapter 17 or 15 (peak 10 N/m).
+Book: Orbital Ring Engineering, Volume I: Chapter 13 or 11 (peak 10 N/m).
 Run: python atmospheric_loading.py [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

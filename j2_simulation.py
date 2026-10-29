@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 J2 precession of an inclined ring and the torque the anchor lines must hold.
-Book: The Orbital Ring, Volume IV: Chapter 2 (6.89 degrees per day).
+Book: Orbital Ring Engineering, Volume I: Chapter 2 (6.89 degrees per day).
 Run: python j2_simulation.py --inclination=DEG [--cable=prograde] [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 

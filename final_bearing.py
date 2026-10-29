@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 The adopted levitation bearing: air-core support and lift tracks, their ratings, the dynamics cases, the losses, the bundle and the stray field; and the ring renumbered with the bearing's hardware mass.
-Book: The Orbital Ring, Volume IV: Chapter 8 (named; Sections 8.1 to 8.3, the 114 cases and the 50 mm smallest gap).
+Book: Orbital Ring Engineering, Volume I: Chapter 7 (named; Sections 7.5 to 7.7, the 114 cases and the 50 mm smallest gap).
 Run: python final_bearing.py [--parts=ABCD] (reads the caches in data/)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py)
 
@@ -58,7 +58,7 @@ TAU_HW = bd.TAU_HW
 DEPLOY_DAYS_OLD, DEPLOY_ENERGY_OLD_EJ = 567.3, 18.88743500        # lim_simulation.txt
 DEPLOY_DEMAND_GW, OPS_DEMAND_GW = 711.57, 44.47                   # power_deployment.txt, power_ops.txt
 # LIM stator position [UNVERIFIED]: reaction plates 1.2 m wide and 0.2 m thick on the cable's lateral faces, the stator 0.2 m
-# outside them, 2 m tall, centered 1 m above the cable's horizontal centerline (Chapter 8 says "offset above the centerline")
+# outside them, 2 m tall, centered 1 m above the cable's horizontal centerline (Chapter 7 says "offset above the centerline")
 STATOR_X = ring.CABLE_SIDE / 2 + 0.2 + 0.2 + 0.1
 STATOR_Y = ring.CABLE_SIDE / 2 + 1.0
 Y_TRACK = ring.CABLE_SIDE / 2 - PLATE_W / 2                       # 3.42 m: the plates at the cable edges
@@ -130,7 +130,7 @@ def part_A(theva, sup, lift):
     print(f"  supports at one tape mass [UNVERIFIED] {dm_top['casing_side']:.0f} kg/m on the casing.  Plates 4 x {M_PLATE:,.0f} = {dm_top['plates']:,.0f} kg/m; hardware with the LIM plates {dm_top['hw']:,.0f} kg/m.")
     print()
     print(f"  Decision: the bearing's casing side ({dm_in['casing_side']:.0f} kg/m) is taken as INSIDE the 12,000 kg/m, because that figure was set in Chapter 3 as the whole")
-    print(f"  casing load including its levitation tracks (Chapter 8 describes the coils as part of the casing) and {dm_in['casing_side']:.0f} kg/m is {dm_in['casing_side']/120:.1f} percent of it,")
+    print(f"  casing load including its levitation tracks (Chapter 7 describes the coils as part of the casing) and {dm_in['casing_side']:.0f} kg/m is {dm_in['casing_side']/120:.1f} percent of it,")
     print(f"  inside the precision of a round estimate; the plates are the only new hardware.  Both versions follow; 'on top' is the conservative one.")
     print()
     rows = [("Casing mass", "kg/m", lambda d, ml, mh: ml, 0), ("Cable hardware", "kg/m", lambda d, ml, mh: mh, 0),
@@ -160,7 +160,7 @@ def part_A(theva, sup, lift):
     print(f"  Downstream scripts that import ring_altitude and whose logs then need a rerun (run_700.sh): lsm_simulation, lim_simulation, levitation_simulation,")
     print(f"  md_simulation, anchor_line_analysis, j2_simulation, debris_simulation, tether_stress, climber_descent, power_deployment, power_ops, ring_altitude")
     print(f"  (table), sled_passage_simulation, sled_passage_limits, sled_passage_pulsed, sled_passage_spread, compensation_tracks, bearing_design, bearing_mass,")
-    print(f"  final_bearing, and the Chapter 3 and 8 numbers (Table 8.1, Equations 3.x).  levitation_config.py also carries the plate thickness (0.10 m) and the")
+    print(f"  final_bearing, and the Chapter 3 and 7 numbers (Table 7.1, Equations 3.x).  levitation_config.py also carries the plate thickness (0.10 m) and the")
     print(f"  40-coil array that the design no longer has.")
     return dict(old=old, inside=inside, top=top, dm_in=dm_in, dm_top=dm_top, m_top=m_new)
 
