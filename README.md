@@ -62,7 +62,7 @@ Run each script from the repository root. Chapters are chapters of Volume I (*Or
 | `debris_simulation.py` | where the released cable and the falling casing go after a break; drag lifetimes; minimum safe altitude (log `debris_simulation.txt`) | 4, 15 |
 | `debris_orbits.py` | orbits of the released cable: apogee for each recoil case, the two halves (log `debris_orbits.txt`) | 4 |
 | `altitude_trade.py` | released-cable orbits and drag lifetimes at several ring altitudes (log `altitude_trade.txt`) | 4, 15 |
-| `radiation/` | the trapped-proton and cosmic-ray chain of Chapter 5: AP-8 spectra, the anomaly sector, Geant4 depth-dose, dose tables, Figure 5.1 (see `radiation/README_radiation.md`) | 5 |
+| `radiation/` | the trapped-proton and cosmic-ray chain of Chapter 5: AP-8 spectra, the anomaly sector, Geant4 depth-dose, dose tables, Figures 5.1 to 5.4 (see `radiation/README_radiation.md`) | 5 |
 
 ### The levitation bearing
 
