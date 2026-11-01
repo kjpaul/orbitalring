@@ -29,3 +29,8 @@ marketing/
 !radiation/pstar_carbon.txt
 !radiation/pstar_water.txt
 !radiation/igrf_altscan_clean.txt
+
+# Radiation working files: install wheels are binaries, not source; the electron depth-dose outputs belong in the Vol_III runs folder.
+radiation/*.whl
+radiation/out_elec/
+radiation/__pycache__/
