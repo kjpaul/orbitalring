@@ -16,7 +16,7 @@ The first import of geant4_pybind downloads about 2 GB of Geant4 data.
 | `pitch.py` | pitch-angle distribution from AP-8 | |
 | `sweetspot.py`, `sweetspot_trapped.py` | dose under the cable by direction, trapped protons | `sweetspot_trapped.txt` |
 | `gcr.py`, `sweetspot_run.py`, `sweetspot_scan.py` | cosmic ray dose behind shielding and under the cable, with the ISS and atmosphere checks | `gcr_per_sr.txt`, `sweetspot_gcr.txt` |
-| `elevator_dose.py` | Chapter 17 (Table 17.6): trapped-proton and electron dose to a pod descending the space elevator from GEO to the 700 km ring, AP-8 and AE-8 along the tether weighted by the descent profile, folded with the Geant4 responses; needs `aep8` 0.1.0 (`aep8.flux()` API) | `elevator_dose.txt` |
+| `elevator_dose.py` | Chapter 13, Space Elevators (Table 13.6): trapped-proton and electron dose to a pod descending the space elevator from GEO to the 700 km ring, AP-8 and AE-8 along the tether weighted by the descent profile, folded with the Geant4 responses; needs `aep8` 0.1.0 (`aep8.flux()` API) | `elevator_dose.txt` |
 | `g4_depthdose.py QBBC e- out_elec ...` | Geant4 electron depth-dose runs in water, 0.3 to 7 MeV, 100,000 events each, `DEPTH_CM=60 NBIN=300` (for `elevator_dose.py`) | `out_elec/` |
 | `solar_cal.py`, `ch5_tables.py` | solar cell thresholds, electronics dose, panel life | `solar_cal.txt`, `ch5_tables.txt` |
 | `pstar_*.txt`, `estar_al.txt` | NIST PSTAR and ESTAR tables as downloaded | |

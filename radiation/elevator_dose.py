@@ -1,10 +1,10 @@
 """
-Book: The Orbital Ring, Volume IV: Chapter 17 (the pod descending the space elevator through the Van Allen belts).
+Book: Orbital Ring Engineering, Volume I: Chapter 13, Space Elevators (the pod descending the space elevator through the Van Allen belts).
 Run from the radiation folder: python elevator_dose.py > elevator_dose.txt   (needs aep8, astropy, numpy; uses fold_trapped.py)
 
 Trapped-proton dose to a pod riding the tether from GEO down to the 700 km ring, on the equator at a chosen longitude.
 AP-8 integral spectra (solar min and max) at each altitude, folded with the Geant4 water depth-dose responses of
-fold_trapped.py, weighted by the time the pod spends at that altitude on the descent profiles of Chapter 17 (ch17_options.py)."""
+fold_trapped.py, weighted by the time the pod spends at that altitude on the descent profiles of Chapter 13 (Table 13.6)."""
 import numpy as np, warnings, sys, os
 warnings.filterwarnings("ignore")
 import astropy.units as u, aep8
@@ -105,8 +105,8 @@ for solar in ("min","max"):
             per=(De*sec[None,:]).sum(1)*1e3
             print(f"   {name}: " + " ; ".join(f"{T[i]:g} g/cm2 {per[i]:.3g} mSv" for i in (0,1,2,3,4,6,8,9,11)))
 
-# ---------------- combined table for Chapter 17: worst longitude (0 deg), solar max ----------------
-print("\n-- Table for Chapter 17: dose per descent behind water shields, solar max, longitude 0 (the worst of the five), protons + electrons --")
+# ---------------- combined table for Chapter 13, Space Elevators (Table 13.6): worst longitude (0 deg), solar max ----------------
+print("\n-- Table for Chapter 13 (Table 13.6): dose per descent behind water shields, solar max, longitude 0 (the worst of the five), protons + electrons --")
 loc=EarthLocation.from_geodetic(0*u.deg, 0*u.deg, (mid/1e3)*u.km)
 Ie=np.array([aep8.flux(loc, t, E*u.MeV, kind="integral", solar="max", particle="e").to_value(u.cm**-2/u.s) for E in Ege])
 De=np.array([edose_rate(Ie[:,j]) for j in range(len(mid))]).T
