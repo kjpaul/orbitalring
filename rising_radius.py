@@ -49,6 +49,10 @@ class RisingRing:
     def __init__(self, m_rotor, m_load, m_struct, lim_sites, lims_per_site, sigma, v_cable_design=None, tension_design=None, E=E_CNT):
         self.GM, self.omega = ring.GM, ring.OMEGA_SIDEREAL
         self.R_design, self.L_design = ring.R_ORBIT, ring.L_RING
+        # the launch frame: the cable's direction is positive; the casing ends at s omega r with s = -1 for the retrograde cable
+        # (the casing eastward, the cable westward) and s = +1 for the prograde cable (both eastward)
+        self.sign = -1.0 if ring.RETROGRADE else 1.0
+        self.dir_pos, self.dir_neg = ("W", "E") if ring.RETROGRADE else ("E", "W")
         self.M_r = m_rotor * self.L_design                 # total masses, fixed through the run
         self.M_l = m_load * self.L_design
         self.m_rotor, self.m_load = m_rotor, m_load         # per meter at the design point (for the record)
@@ -86,6 +90,8 @@ class RisingRing:
         self._log_day(0.0, 0.0, 0.0)
         # the sampled series in step with lim_simulation's data lists
         self.s_alt = [self.altitude_km]; self.s_strain = [0.0]; self.s_phase = [1]; self.s_anchor = [0.0]; self.s_r = [self.r]
+        # the LIM's limits through the run (sampled with the series): volts, current, site power, thrust per LIM, cryogenic power, time
+        self.s_volts = [0.0]; self.s_amps = [0.0]; self.s_power = [0.0]; self.s_thrust = [0.0]; self.s_cryo = [0.0]; self.s_time = [0.0]
 
     # ------------------------------------------------------------------ state
     @property
@@ -122,13 +128,13 @@ class RisingRing:
         self.T = a / r ** 3 + c * r - b / r ** 2
         self.eps = self.T / self.EA
         if self.phase == 2:
-            self.L_l = -self.M_l * self.omega * r ** 2
+            self.L_l = self.sign * self.M_l * self.omega * r ** 2
         self.v_c = self.L_c / (self.M_r * r)
         self.v_l = self.L_l / (self.M_l * r)
 
     def _earth(self, dL_E, dt, t_new):
         self.L_earth += dL_E
-        self.W_earth += -self.omega * dL_E                   # torque x Omega_l, Omega_l = -omega_E in the launch frame
+        self.W_earth += self.sign * self.omega * dL_E        # torque x Omega_l, Omega_l = s omega_E in the launch frame
         self.F_anchor = dL_E / (self.r * dt)
         if self.F_anchor > self.F_anchor_peak[0]:
             self.F_anchor_peak = (self.F_anchor, t_new)
@@ -144,7 +150,7 @@ class RisingRing:
         if self.phase == 1:
             self.L_l -= dL
             self._solve()
-            if self.v_l <= -self.omega * self.r:             # the casing at the ground-synchronous speed: the anchors take over
+            if self.v_l <= self.sign * self.omega * self.r:  # the casing at the ground-synchronous speed: the anchors take over
                 self.phase = 2
                 self.t_phase2, self.r_phase2, self.v_c_phase2, self.T_phase2, self.L_c_phase2 = t_new, self.r, self.v_c, self.T, self.L_c
                 L_l_free = self.L_l
@@ -184,9 +190,29 @@ class RisingRing:
         """The LIM work the mechanical energy change implies: delta E minus the Earth's work."""
         return sum(self.energy()) - self.E0 - self.W_earth
 
-    def sample(self):
+    def sample(self, t=0.0, volts=0.0, amps=0.0, site_power=0.0, thrust=0.0, p_cryo=0.0):
         self.s_alt.append(self.altitude_km); self.s_strain.append(self.eps); self.s_phase.append(self.phase)
         self.s_anchor.append(self.F_anchor if self.phase >= 2 else 0.0); self.s_r.append(self.r)
+        self.s_time.append(t); self.s_volts.append(volts); self.s_amps.append(amps); self.s_power.append(site_power); self.s_thrust.append(thrust); self.s_cryo.append(p_cryo)
+
+    def limits(self, volts_max, i_target, power_max, t_final):
+        """When each LIM limit binds, from the sampled series: the first day from which the coil voltage stays at its limit,
+        the thrust per LIM then, the days at the voltage limit, at the current cap and at the site power cap."""
+        import numpy as np
+        t = np.array(self.s_time); V = np.array(self.s_volts); I = np.array(self.s_amps); P = np.array(self.s_power); F = np.array(self.s_thrust)
+        if len(t) < 3:
+            return {}
+        dt = np.diff(t, append=t_final / DAY)
+        at_v = V >= 0.999 * volts_max; at_i = I >= 0.99 * i_target; at_p = P >= 0.98 * power_max
+        k_v = None
+        for k in range(len(t)):
+            if at_v[k] and at_v[k:].mean() > 0.95:
+                k_v = k; break
+        f = lambda x: None if x is None else float(x)
+        return dict(volt_limit_day=f(t[k_v]) if k_v is not None else None, thrust_at_volt_limit_N=f(F[k_v]) if k_v is not None else None,
+                    days_at_volt_limit=f(dt[at_v].sum()), days_at_current_cap=f(dt[at_i].sum()), days_at_power_cap=f(dt[at_p].sum()),
+                    current_cap_last_day=f(t[at_i][-1]) if at_i.any() else None, power_cap_first_day=f(t[at_p][0]) if at_p.any() else None,
+                    power_cap_last_day=f(t[at_p][-1]) if at_p.any() else None)
 
     def _log_day(self, t, F_total, dt):
         day = int(t // DAY)
@@ -215,12 +241,13 @@ class RisingRing:
               f" {self.v0:,.1f} m/s, unstressed circumference C0 = {self.C0 / 1e3:,.1f} km; rise to the design point {(self.R_design - self.r0) / 1e3:,.2f} km.")
         print(f"{self.lim_sites:,} LIM sites: spacing {self.C0 / self.lim_sites:,.1f} m at the build, {self.L_design / self.lim_sites:,.1f} m at the design point;"
               f" {self.n_stations} anchor stations (one per {ANCHOR_STATION_SPACING / 1e3:.0f} km of ring).")
+        L_design = self.M_r * self.R_design * self.v_cable_design + self.sign * self.M_l * self.R_design * ring.V_GROUND_SYNC
         print(f"Total masses: cable with hardware {self.M_r / 1e9:,.1f} Mt, casing {self.M_l / 1e9:,.1f} Mt; angular momentum at the build"
-              f" {self.L_c + self.L_l:.5e} kg m^2/s, at the design point {self.M_r * self.R_design * self.v_cable_design - self.M_l * self.R_design * ring.V_GROUND_SYNC:.5e}"
-              f" ({(self.M_r * self.R_design * self.v_cable_design - self.M_l * self.R_design * ring.V_GROUND_SYNC) / (self.L_c + self.L_l) * 100 - 100:+.3f} %, from the Earth in phase 2).")
+              f" {self.L_c + self.L_l:.5e} kg m^2/s, at the design point {L_design:.5e}"
+              f" ({L_design / (self.L_c + self.L_l) * 100 - 100:+.3f} %, from the Earth in phase 2); cable {'retrograde' if ring.RETROGRADE else 'prograde'}.")
         print("=" * 70 + "\n")
 
-    def report(self, E_total_loop, t_final, series, csv_stride_rows=4000):
+    def report(self, E_total_loop, t_final, series, csv_stride_rows=4000, extra=None):
         """The rising-radius report at the end of the run, and the files rising_radius_*.csv / .json in the output folder.
         series: (time_days, v_cable, v_casing, tension, casing_weight, cable_excess, stress) lists from lim_simulation, with
         the final state already appended (this object's sampled lists are in step with them)."""
@@ -241,7 +268,7 @@ class RisingRing:
         print(f"Build orbit: r0 {self.r0:,.1f} m, altitude {(self.r0 - ring.R_EARTH_EQ) / 1e3:,.2f} km, circular velocity {self.v0:,.1f} m/s,"
               f" C0 {self.C0 / 1e3:,.1f} km, site spacing {self.C0 / self.lim_sites:,.1f} m ({self.lim_sites:,} sites).")
         print(f"End of the run at {t_final / DAY:,.1f} days: altitude {self.altitude_km:,.2f} km (r {self.r:,.1f} m), tension {T_end / 1e9:,.2f} GN,"
-              f" stress {S_end / 1e9:.3f} GPa, strain {self.eps * 100:.4f} %, cable {self.v_c:,.2f} m/s, casing {-self.v_l:,.2f} m/s eastward,"
+              f" stress {S_end / 1e9:.3f} GPa, strain {self.eps * 100:.4f} %, cable {self.v_c:,.2f} m/s, casing {abs(self.v_l):,.2f} m/s {'eastward' if self.v_l * self.sign > 0 else 'westward'},"
               f" relative {self.v_c - self.v_l:,.2f} m/s.")
         print(f"Phase 2 ended on {self.end_trigger}: cable speed {self.v_c - self.v_cable_design:+.4f} m/s from the design {self.v_cable_design:,.2f} m/s,"
               f" tension {(T_end - self.T_design) / 1e9:+.5f} GN from the design {self.T_design / 1e9:,.2f} GN"
@@ -254,13 +281,13 @@ class RisingRing:
         xs = np.array([self.v0 - v for v in v_cas]); alt = np.array(self.s_alt)
         marks = [0.0, 1000.0, 3000.0, 5000.0, self.v0]
         if self.t_phase2 is not None:
-            marks.append(self.v0 + self.omega * self.r_phase2)
+            marks.append(self.v0 - self.sign * self.omega * self.r_phase2)
         marks.append(xs[-1])
         for xm in marks:
             if xm > xs[-1] + 0.5:
                 continue
             k = min(len(xs) - 1, int(np.searchsorted(xs, min(xm, xs[-1]))))      # xs is monotone in phase 1 and almost flat in phase 2
-            vL = v_cas[k]; direction = "W" if vL > 0.5 else ("E" if vL < -0.5 else "")
+            vL = v_cas[k]; direction = self.dir_pos if vL > 0.5 else (self.dir_neg if vL < -0.5 else "")
             print(f"{xs[k]:8,.0f} m/s {abs(vL):8,.0f} m/s {direction:1} {v_cab[k]:8,.0f} m/s {T_s[k] / 1e9:7.1f} GN {S_s[k] / 1e9:6.2f} GPa {alt[k]:7.1f} km"
                   f" {W_s[k] / 1e3:7.1f} kN/m {F_s[k] / 1e3:7.1f} kN/m {t_days[k]:7.1f} d")
         print()
@@ -289,7 +316,7 @@ class RisingRing:
         print(f"  potential energy change, -GM M / r              {(PE - PE0) / 1e18:12.6f}   (the ring lifted {(self.r - self.r0) / 1e3:,.2f} km)")
         print(f"  elastic energy, 1/2 E A eps^2 C0                {U / 1e18:12.6f}")
         print(f"  total mechanical energy change                  {dE / 1e18:12.6f}")
-        print(f"  the Earth's work through the anchors (phase 2)  {self.W_earth / 1e18:12.6f}   (negative: the ring works on the Earth)")
+        print(f"  the Earth's work through the anchors (phase 2)  {self.W_earth / 1e18:12.6f}   ({'negative: the ring works on the Earth' if self.W_earth < 0 else 'positive: the Earth works on the ring'})")
         print(f"  LIM work required, delta E - W_earth            {(dE - self.W_earth) / 1e18:12.6f}")
         print(f"  difference, LIM work (loop) - required          {(E_total_loop - (dE - self.W_earth)) / 1e18:12.8f}")
         print(f"  fixed-radius deployment energy, ring_altitude   {ring.E_DEPLOY / 1e18:12.6f}")
@@ -339,6 +366,16 @@ class RisingRing:
             E_lim_loop_EJ=E_total_loop / 1e18, E_lim_module_EJ=self.W_lim / 1e18, dKE_cable_EJ=(KE_c - KE_c0) / 1e18, dKE_casing_EJ=(KE_l - KE_l0) / 1e18,
             dPE_EJ=(PE - PE0) / 1e18, elastic_EJ=U / 1e18, dE_mech_EJ=dE / 1e18, W_earth_EJ=self.W_earth / 1e18,
             balance_EJ=(E_total_loop - (dE - self.W_earth)) / 1e18, E_deploy_fixed_EJ=ring.E_DEPLOY / 1e18, newton_iters_max=self.newton_iters_max)
+        if extra:
+            summary.update(extra)
+            if "VOLTS_MAX" in extra:
+                lim = self.limits(extra["VOLTS_MAX"], extra["I_TARGET"], extra["MAX_SITE_POWER"], t_final)
+                summary.update(lim)
+                if lim:
+                    r1 = lambda x: "never" if x is None else f"{x:,.1f}"
+                    print(f"Limits: the coil voltage at {extra['VOLTS_MAX'] / 1e3:.0f} kV from day {r1(lim['volt_limit_day'])} (thrust then {lim['thrust_at_volt_limit_N'] or 0:,.0f} N per LIM),"
+                          f" {lim['days_at_volt_limit']:,.1f} days at it; the current cap {extra['I_TARGET']:.1f} A for {lim['days_at_current_cap']:,.1f} days (last on day {r1(lim['current_cap_last_day'])});"
+                          f" the site power cap {extra['MAX_SITE_POWER'] / 1e6:.0f} MW for {lim['days_at_power_cap']:,.1f} days (days {r1(lim['power_cap_first_day'])} to {r1(lim['power_cap_last_day'])}).")
         with open(os.path.join(out, "rising_radius_summary.json"), "w") as fh:
             json.dump(summary, fh, indent=1)
         print("Summary in rising_radius_summary.json.")

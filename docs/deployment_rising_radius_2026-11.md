@@ -240,3 +240,133 @@ Under `runs/` (the output folder, not tracked by git; a copy is in `Vol_III/runs
 - `figures_rising_radius/fig03_02_deployment_tension_700_rising.svg|png`: Figure 3.2 redrawn from the rising series (`tools/fig03_02_deployment_tension.py --rising`). Its top and middle panels are against the casing's speed, which is constant through phase 2, so the last 163 GN appear as a vertical step at 8,114 m/s; a Figure 3.2 for the rising radius wants the cable's speed or time on that axis, which is a drawing decision for the book.
 
 Reproduce: `python lim_simulation.py --rising-radius > runs/rising_radius_lim_simulation.txt` (about 3 hours when run beside two other deployment runs), then `python tools/rising_radius_hanging.py`, `python tools/fig_rising_radius.py`, `python tools/fig03_02_deployment_tension.py --rising --out=runs/figures_rising_radius`.
+
+## 10. Round 2 (2026-11-06): the reruns the book quotes and the deployment study
+
+Asked for in `Vol_III/Claude_Code_instructions_deployment_radius_round2_2026-11-06.md`. The code gained two things: `rising_radius.py` handles the prograde cable (the casing ends at +omega_E r in the launch frame, the anchors hold it there, the Earth's work takes the sign of the casing's rotation) and logs when each LIM limit binds (the sampled coil voltage, current and site power; the first day from which the voltage stays at 100 kV, the days at the current cap and at the power cap), and `tools/rising_radius_study.py` runs and tabulates the study. The default fixed-radius run is untouched: the edits are inside the `if rising` blocks of `lim_simulation.py` (the diff shows no other line) and the 26 fast reference tests pass. The 8 MW rising run of Sections 3 to 9 stays the reference.
+
+### 10.1 The 16 MW per site rerun
+
+`lim_config.configure(MAX_SITE_POWER=16e6)` with everything else as the 8 MW run, on the full time steps (1 s on the first day, then 10 s). Log and files in `runs/rising_radius_16MW/`.
+
+| Quantity | Fixed radius, 16 MW (`lim_simulation_16MW.txt`, the book's Table 9.3 column) | Rising radius, 16 MW |
+|---|---|---|
+| Deployment time | 427.3 days (14.0 months) | 573.9 days (18.9 months, 1.57 years): phase 1 427.9 days, phase 2 146.1 days |
+| The casing at ground speed, phase 2 begins | day 427.3 (the end) | day 427.9 at 666.66 km, cable 8,207.3 m/s, 682.3 GN |
+| Phase 2: duration, anchor reaction, the Earth's share | none | 146.1 days, 44.8 MN mean (50.4 kN per station), 45.2 MN peak; 3.99e21 kg m^2/s, 1.22 % of the cable's angular momentum |
+| LIM work | 18.8 EJ | 23.864 EJ (268.3 TJ per site); the balance of the two sums 8e-6 EJ |
+| The 100 kV coil voltage arrives | 2.5 months | day 60.0 (2.0 months) with 1,709 N per LIM; at it for 514 of the 574 days |
+| The current cap, 183.1 A | the first six weeks | 60.1 days |
+| The 16 MW power cap | from 1.8 months, falls back to 6.9 MW | 8.1 days only (days 52.6 to 60.7); 16.00 MW peak at 1.80 months, 6.81 MW at the end |
+| Peak thrust per LIM | 1,950 N at 1.7 months | 1,948.8 N at 49.5 days (1.65 months) |
+| Peak thrust power, LIM power per LIM | 5.5 MW at 1.8 months | 5.50 MW at 1.82 months, 5.86 MW |
+| Peak hysteresis per LIM | 8.6 kW at two months | 8.64 kW at 2.00 months |
+| Peak cryogenic power per site, cold-side load, radiator width | | 2.79 MW, 33.5 kW, 5.43 m at 2.00 months |
+| Cryogenic power at the end | | 1.465 MW |
+| Peak cable and wall temperature | 382 K | 382.2 K, 371.4 K, day 1 |
+| Thrust, site power at the end | | 250.9 N, 6.81 MW (the same end state as the 8 MW run) |
+
+Phase 1 of the rising 16 MW run, 427.9 days, is within a day of the fixed-radius run's whole deployment, a coincidence of the two changes (the longer slowdown and the lower starting speed) against the stronger push. Phase 2 is the same 146.1 days as at 8 MW: once the voltage limit holds, the thrust per LIM is 250 N whatever the site is allowed to draw, so the extra power buys nothing after day 60. The quick-step run of the same case in the study gives 573.9 days and 23.864 EJ, the same figures. The book's "14 to 17 months" (9.8) becomes 18.9 to 21.3 months; the "427 days" of Table 9.2, Table 9.3, 9.5 and 9.7 becomes 574.
+
+The hang table for the 16 MW run (`runs/rising_radius_16MW/rising_radius_hanging.txt` and `.csv`): the ring rises faster, so every date moves up by 70 to 100 days.
+
+| Day | Ring km | 100 km below | Spreader arm, 550 km below | Longest hang above 150 km |
+|---|---|---|---|---|
+| 0 | 527.4 | 427.4 | -22.6 | 377.4 |
+| 60 | 546.2 | 446.2 | -3.8 | 396.2 |
+| 100 | 565.4 | 465.4 | 15.4 | 415.4 |
+| 200 | 600.8 | 500.8 | 50.8 | 450.8 |
+| 300 | 632.6 | 532.6 | 82.6 | 482.6 |
+| 400 | 659.7 | 559.7 | 109.7 | 509.7 |
+| 500 | 683.2 | 583.2 | 133.2 | 533.2 |
+| 573.9 | 700.0 | 600.0 | 150.0 | 550.0 |
+
+A 400 km hang clears 150 km from day 67 (day 98 at 8 MW), 450 km from day 198 (265), 500 km from day 363 (436), 550 km only at the end; the 550 km arm hung from day 0 would be below the ground for the first 66 days (97). The points 20, 50 and 100 km below the casing are never below 150 km.
+
+### 10.2 The prograde deployment
+
+`ORBITAL_RING_CABLE=prograde python lim_simulation.py --rising-radius`, full time steps, 8 MW per site, 208 turns; log and files in `runs/rising_radius_prograde/`. The ring is `ring_altitude.py`'s prograde case: cable 89,266 kg/m structural, 99,952 with hardware, 52.51 m^2, design speed 8,343.3 m/s eastward, design tension 656.4 GN (12.5 GPa on that area), relative speed 7,827 m/s. The brief named 865 GN for the design point; that figure is not the prograde cable's tension in `ring_altitude.py` (Chapter 3, L156, uses it for a cable of the prograde mass asked to absorb the retrograde momentum), and the run uses the code's 656.4 GN. The build orbit is the same 527.36 km, since the strain is the same 2.5 %: the ring is assembled prograde at 7,597.5 m/s and its casing slows eastward to 516 m/s while the cable goes to 8,343 m/s.
+
+| Quantity | Prograde, rising radius | Retrograde, rising radius (Section 4) |
+|---|---|---|
+| Deployment time | 476.9 days (15.7 months): phase 1 385.1 days, phase 2 91.8 days | 647.1 days: 501.1 and 146.1 |
+| Casing at ground speed | day 385.1 at 665.40 km, cable 8,281.2 m/s, 524.8 GN, 9.99 GPa | day 501.1 at 666.66 km, 8,207.3 m/s, 682.3 GN, 10.09 GPa |
+| Phase 2: rise, cable gain, tension gain | 34.60 km, 62.1 m/s, 131.5 GN | 33.34 km, 62.7 m/s, 163.3 GN |
+| Angular momentum from the Earth | 3.245e21 kg m^2/s, 1.236 % of the cable's final 2.625e23 (1.242 % of the ring's) | 3.991e21, 1.220 % |
+| Anchor reaction, phase 2 | 57.9 MN mean, 65 kN per station; 58.4 MN peak | 44.8 MN, 50 kN |
+| LIM work | 18.219 EJ (204.8 TJ per site) | 23.864 EJ |
+| Cable kinetic, casing kinetic, potential, elastic | +26.422, -15.331, +7.010, +0.356 EJ: 18.456 EJ | +29.825, -15.331, +8.621, +0.459: 23.573 |
+| The Earth's work through the anchors | +0.237 EJ (positive: the Earth pushes the casing eastward as it moves eastward) | -0.291 EJ |
+| LIM work required, delta E minus the Earth's work; the balance | 18.219 EJ; 6e-6 EJ | 23.864; 6e-6 |
+| Fixed-radius deployment energy (`ring_altitude`) | 14.595 EJ | 18.804 EJ |
+| The 100 kV limit arrives; thrust then | day 346.7 (11.4 months), 364 N | day 353.2, 364 N |
+| Thrust per LIM at the end; site power at the end | 321 N, 7.59 MW (the prograde relative speed is lower, 7,827 m/s, so the voltage limit leaves more thrust) | 251 N, 6.81 MW |
+| Supply frequency at the end | 39.3 Hz | 44.2 Hz |
+| Peak thrust, hysteresis, cryogenic power, cable temperature | 1,933 N at day 27.2; 5.05 kW; 2.20 MW; 382.2 K | 1,938 N at 27.6; 5.09 kW; 2.20 MW; 382.2 K |
+
+The closed-form budget from the design point and the build orbit (Section 4's method with `ring_altitude.design(retrograde=False)`) gives the same 18.456 EJ of mechanical change (26.422 + 7.010 + 0.356 - 15.331), so the run and the closed form agree, and the book's 14.6 EJ against 18.8 EJ becomes 18.2 EJ against 23.9 EJ: the prograde deployment still takes a quarter less energy, and 170 fewer days, 477 against 647. The energy through the anchors changes sign between the two: the retrograde ring does 0.29 EJ of work on the Earth in its final tensioning, the prograde ring receives 0.24 EJ from it.
+
+### 10.3 The turns variants at 16 MW
+
+From the study's quick-step runs (Section 10.4): with 208 turns the 16 MW site reaches 100 kV on day 60.0 and deploys in 573.9 days; with 150 turns it reaches 100 kV on day 229.4, sits at the current cap for 233 days instead, and deploys in 689.0 days, 115 days slower (the book's fixed-radius figure is 77 days slower). At 8 MW the 150-turn coil never reaches 100 kV and deploys in 650.8 days, 3.7 days slower than 208 turns (the book: 26 days slower); 260 turns reaches 100 kV on day 119.7 and takes 866.9 days.
+
+### 10.4 The deployment study
+
+`tools/rising_radius_study.py --run` runs the cases (quick steps, five at a time, 2 to 9 minutes each), `--table` makes the table from their summaries: `runs/rising_radius_study/rising_radius_study.md`, `.csv`, `.svg|png`, one folder per case with its log, daily table, series and summary. The coil voltage limit is 100 kV in every case. The baseline is the 8 MW, 208-turn, two-LIM site of the reference run. "100 kV from day" is the first day from which the coil voltage stays at its limit; "days at I cap" and "days at P cap" are the days the current cap (183.1 A, the worst tape at half its measured limit) and the site power cap bind. "Plates" is the LIM reaction plate mass on the cable (936 kg/m per plate; the baseline's two plates are 1,872 kg/m, 936 t per 500 m site); "cable" is the cable with hardware after the quadratic has resized it for the plates; "tape" is the HTS tape of the site's LIMs (2 layers of 3 mm tape, 382 km and 1.63 t per LIM at 208 turns, `lim_hysteresis.tape_mass_per_lim`); "coil area" is the coil cryostat surface per site. The cryogenic power is per site: its peak and its value at the end of the run.
+
+| case | MW/site | turns | LIMs/site | days | phase 1 d | phase 2 d | 100 kV from day | thrust/LIM at 100 kV N | days at I cap | days at P cap | LIM work EJ | peak site MW | peak plate K | cryo peak MW | cryo end MW | plates kg/m cable | cable kg/m | tape km/site | tape t/site | coil area m2/site |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| base_8MW | 8 | 208 | 2 | 647.1 | 501.0 | 146.1 | 353.2 | 364 | 28.0 | 343.3 | 23.864 | 8.00 | 382.2 | 2.20 | 1.465 | 1872 | 125,691 | 764 | 3.3 | 3101 |
+| P12MW | 12 | 208 | 2 | 572.7 | 426.6 | 146.1 | 90.6 | 999 | 45.2 | 56.1 | 23.864 | 12.00 | 382.2 | 2.57 | 1.465 | 1872 | 125,691 | 764 | 3.3 | 3101 |
+| P16MW | 16 | 208 | 2 | 573.9 | 427.9 | 146.1 | 60.0 | 1709 | 60.1 | 8.1 | 23.864 | 16.00 | 382.2 | 2.79 | 1.465 | 1872 | 125,691 | 764 | 3.3 | 3101 |
+| P24MW | 24 | 208 | 2 | 575.9 | 429.9 | 146.1 | 58.8 | 1902 | 59.3 | 0.0 | 23.864 | 17.37 | 382.2 | 2.82 | 1.465 | 1872 | 125,691 | 764 | 3.3 | 3101 |
+| N150 | 8 | 150 | 2 | 650.8 | 528.8 | 122.0 | never |  | 115.9 | 542.8 | 23.864 | 8.00 | 331.2 | 2.24 | 1.585 | 1872 | 125,691 | 551 | 2.4 | 2236 |
+| N260 | 8 | 260 | 2 | 866.9 | 638.3 | 228.6 | 119.7 | 627 | 15.5 | 115.4 | 23.864 | 8.00 | 425.9 | 2.10 | 1.509 | 1872 | 125,691 | 955 | 4.1 | 3876 |
+| L4 | 8 | 208 | 4 | 642.5 | 510.8 | 131.8 | never |  | 10.4 | 632.4 | 23.899 | 8.00 | 453.5 | 2.62 | 1.947 | 3744 | 127,427 | 1528 | 6.5 | 6202 |
+| L6 | 8 | 208 | 6 | 703.0 | 556.1 | 146.9 | never |  | 0.0 | 697.6 | 23.935 | 8.00 | 492.6 | 3.16 | 2.435 | 5616 | 129,166 | 2291 | 9.8 | 9303 |
+| N150_16MW | 16 | 150 | 2 | 689.0 | 507.4 | 181.6 | 229.4 | 617 | 232.8 | 0.0 | 23.864 | 12.49 | 331.2 | 3.23 | 2.047 | 1872 | 125,691 | 551 | 2.4 | 2236 |
+| P16MW_L4 | 16 | 208 | 4 | 315.9 | 242.5 | 73.5 | 148.8 | 416 | 18.4 | 137.9 | 23.899 | 16.00 | 453.5 | 3.28 | 2.097 | 3744 | 127,427 | 1528 | 6.5 | 6202 |
+| P24MW_L4 | 24 | 208 | 4 | 288.6 | 215.1 | 73.5 | 43.0 | 1107 | 25.0 | 19.7 | 23.899 | 24.00 | 453.5 | 3.94 | 2.097 | 3744 | 127,427 | 1528 | 6.5 | 6202 |
+| P24MW_L6 | 24 | 208 | 6 | 210.3 | 160.9 | 49.3 | 94.4 | 435 | 5.3 | 84.6 | 23.935 | 24.00 | 492.6 | 4.72 | 2.729 | 5616 | 129,166 | 2291 | 9.8 | 9303 |
+| P16MW_N150_L4 | 16 | 150 | 4 | 310.4 | 252.5 | 57.8 | never |  | 54.6 | 263.4 | 23.899 | 16.00 | 385.8 | 3.62 | 2.423 | 3744 | 127,427 | 1102 | 4.7 | 4472 |
+| P24MW_N150_L6 | 24 | 150 | 6 | 205.8 | 167.7 | 38.2 | never |  | 35.3 | 171.7 | 23.935 | 24.00 | 425.8 | 4.73 | 3.259 | 5616 | 129,166 | 1652 | 7.1 | 6709 |
+
+The extra hardware against the baseline, per site and for the ring:
+
+| Case | Plates on the cable | Cable with hardware | Tape per site | Cryogenic power at the end | Radiator width, peak | Anchor reaction in phase 2 (mean, per station) |
+|---|---|---|---|---|---|---|
+| baseline, 2 LIMs, 208 turns | 1,872 kg/m, 936 t per site | 125,691 kg/m | 3.3 t (764 km) | 1.47 MW | 4.28 m | 44.8 MN, 50 kN |
+| 4 LIMs, 208 turns | 3,744 kg/m, 1,872 t per site | 127,427 kg/m, +1,735 kg/m, +77 Mt of cable | 6.5 t (1,528 km) | 1.95 MW at 8 MW, 2.10 at 16 and 24 MW | 5.09 m (8 MW) | 90.2 MN, 101 kN (16 MW) |
+| 6 LIMs, 208 turns | 5,616 kg/m, 2,808 t per site | 129,166 kg/m, +3,474 kg/m, +155 Mt of cable | 9.8 t (2,291 km) | 2.44 MW at 8 MW, 2.73 at 24 MW | 6.14 m (8 MW), 9.18 m (24 MW) | 136.0 MN, 153 kN (24 MW) |
+| 4 LIMs, 150 turns | 3,744 kg/m | 127,427 kg/m | 4.7 t (1,102 km) | 2.42 MW (16 MW) | | |
+| 6 LIMs, 150 turns | 5,616 kg/m | 129,166 kg/m | 7.1 t (1,652 km) | 3.26 MW (24 MW) | | |
+
+Reading the table:
+
+- **Site power alone** saves 73 days whatever the power: 12, 16 and 24 MW all give 573 to 576 days, because the run is at the 100 kV limit from day 60 to 90 on, and from there the thrust is set by the voltage, not the power. At 24 MW the site never draws more than 17.4 MW. Phase 2 is the same 146 days in every two-LIM, 208-turn case: it runs at the voltage limit with 250 N per LIM regardless of the power. Per unit of hardware, the 12 MW step is the best single change in the table, 18.6 days per MW of site power, and it adds nothing to the ring; the 16 MW step buys 9.1 days per MW, the 24 MW step 4.4.
+- **Turns alone** do not help. 150 turns never reaches 100 kV but loses thrust per ampere and sits at the current cap for 116 days: 651 days, 4 days slower than 208, with 0.9 t less tape per site. 260 turns reaches 100 kV on day 120 with 627 N and takes 867 days.
+- **LIMs per site alone**, at 8 MW, do not help either: four LIMs give 643 days (the 8 MW cap binds for 632 of them; the voltage limit is never reached), six LIMs 703 days, because the extra LIMs' cryogenic load (2.4 MW at the end against 1.5) comes out of the same 8 MW and the cable is 3,474 kg/m heavier. Their first-day plate temperature is 453 K and 493 K against the 500 K plate limit (the baseline's 382 K).
+- **Power and LIMs together** is where the days are. 16 MW with four LIMs: 316 days (243 of phase 1, 74 of phase 2), for 3.3 t more tape per site, 1,735 kg/m more cable (77 Mt), 0.6 MW more cryogenic power per site at the end, and an anchor reaction of 90 MN (101 kN per station) in phase 2. 24 MW with four LIMs: 289 days. 24 MW with six LIMs: 210 days (161 and 49), for 6.5 t more tape, 155 Mt more cable, 1.3 MW more cryogenic power per site, a 9.2 m radiator, and 136 MN on the anchors (153 kN per station). With 150 turns the same two cases give 310 and 206 days with 1.8 and 2.7 t less tape than at 208 turns, and the shortest phase 2 of the table, 58 and 38 days, because the lower-turn coils are not at the voltage limit in phase 2 and push with 300 to 340 N per LIM instead of 250. Per tonne of tape per site these combined cases buy 100 to 230 days.
+- **Phase 2 under a month**: no case in the table. Phase 2 scales with the thrust at the voltage limit times the LIMs per site: 146 days with two LIMs, 73.5 with four, 49.3 with six at 208 turns; 58 and 38 days with four and six at 150 turns. Under 30 days would take about ten LIMs per site at 208 turns or eight at 150 turns, at 100 kV, or a higher coil voltage. The anchor reaction in phase 2 is the LIM thrust, so it grows with the LIM count: 45 MN with two LIMs, 90 with four, 136 with six.
+- The LIM work is the same 23.864 EJ in every two-LIM case, as it must be (the mechanical energy change is set by the design point and the build orbit), and 23.90 and 23.94 EJ with the heavier four- and six-plate cables.
+
+Two cautions on the multi-LIM cases. The model puts the extra LIMs on extra reaction plates per side of the cable (`N_PLATES_PER_SIDE`, the knob the brief named), each 200 mm by 1.2 m of gamma-TiAl; where a second and third plate sit on the 8.2 m cable, and how two LIMs share a side of a 500 m site when each is 300 m long, are layout questions the model does not ask. And the first-day plate temperature of the six-LIM site, 493 K, is 7 K under the 500 K at which the controller cuts the current, so that case has no thermal margin on the first day.
+
+The study ran on the quick time steps (10 s on the first day, 100 s after; the reference run uses 1 and 10 s). The 8 MW baseline on the quick steps gives 647.1 days and 23.864 EJ, the same as the full-step run; the 16 MW case on the full steps is in Section 10.1 for the comparison.
+
+### 10.5 Files and figures of round 2
+
+Under `runs/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/`):
+
+- `rising_radius_16MW/`: `rising_radius_lim_simulation.txt`, `rising_radius_daily.csv`, `rising_radius_deployment_tension.csv`, `rising_radius_summary.json`, `rising_radius_hanging.txt|csv`, `figures_rising_radius/` (altitude, tension, speeds, anchor reaction, energy, the Figure 3.2 redraw).
+- `rising_radius_prograde/`: the same set for the prograde run.
+- `rising_radius_study/`: `rising_radius_study.md|csv|svg|png` (the table and the bar chart of phase 1 and phase 2 days with the tape per site), `_run_console.txt`, and one folder per case with its log, daily table, series and summary.
+
+Reproduce: `python -c "import lim_config as c; c.configure(MAX_SITE_POWER=16e6); import runpy, sys; sys.argv=['lim_simulation.py', '--rising-radius']; runpy.run_path('lim_simulation.py', run_name='__main__')"` with `ORBITAL_RING_OUT=runs/rising_radius_16MW`; `ORBITAL_RING_CABLE=prograde python lim_simulation.py --rising-radius` with `ORBITAL_RING_OUT=runs/rising_radius_prograde`; `python tools/rising_radius_study.py --run --jobs=5` then `--table`; `python tools/rising_radius_hanging.py runs/rising_radius_16MW/rising_radius_daily.csv`; the figures with `ORBITAL_RING_OUT=<folder> python tools/fig_rising_radius.py` and `tools/fig03_02_deployment_tension.py --rising --out=<folder>/figures_rising_radius`.
+
+### 10.6 Method notes of round 2
+
+- The prograde case needed no structural change: the launch frame keeps the cable's direction positive, and the casing's end state, the phase 2 constraint and the Earth's work carry a sign, -1 for the retrograde cable and +1 for the prograde.
+- "100 kV from day" is the first sampled day from which the coil voltage is at 99.9 % of the limit for 95 % of the remaining samples; "days at the current cap" counts samples within 1 % of 183.1 A; "days at the power cap" samples within 2 % of the site's limit. The log's `volts_max` time (the first sample at the rounded maximum) can differ by a month from the first.
+- The study ran on the quick time steps to keep thirteen cases to half an hour; the one case run both ways (16 MW) agrees to 0.1 day and 1e-6 EJ.
+- The cases with more LIMs per site set `ORBITAL_RING_HW_KGM` to the plate mass of that case so that `ring_altitude.py` resizes the cable for it; the design point of such a run is that heavier ring's (its cable speed and tension differ in the fourth digit), and the LIM work rises by the lift and spin of the extra plates, 0.035 EJ per plate pair.

@@ -565,7 +565,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             data_time.append((time + dt) / cfg.DAY); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
             data_tension.append(T_sim); data_casing_weight.append(W_casing); data_cable_excess.append(F_excess); data_stress.append(stress_c)
             if rising is not None:
-                rising.sample()
+                rising.sample((time + dt) / cfg.DAY, volts, i_peak, site_power, thrust, p_cryo)
             # Warm-loop heat load per meter (two-node model)
             if cfg.WARM_THERMAL_MODEL == "two_node" and eddy_to_cable:
                 p_eddy_total_ring = p_eddy * cfg.LIMS_PER_SITE * cfg.LIM_SITES
@@ -747,8 +747,19 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     data_time.append(time / cfg.DAY); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
     data_tension.append(T_end); data_casing_weight.append(W_end); data_cable_excess.append(F_end); data_stress.append(S_end)
     if rising is not None:                                    # the rising-radius report and files replace the fixed-radius tension block
-        rising.sample()
-        rising.report(E_total, time, (data_time, data_v_cable, data_v_casing, data_tension, data_casing_weight, data_cable_excess, data_stress))
+        rising.sample(time / cfg.DAY, volts, i_peak, site_power, thrust, p_cryo)
+        extra = dict(N_TURNS=cfg.N_TURNS, LIMS_PER_SITE=cfg.LIMS_PER_SITE, N_PLATES_PER_SIDE=cfg.N_PLATES_PER_SIDE, MAX_SITE_POWER=cfg.MAX_SITE_POWER,
+                     VOLTS_MAX=cfg.VOLTS_MAX, I_TARGET=cfg.I_TARGET, M_HARDWARE_kg_m=cfg.M_HARDWARE, M_CABLE_M_kg_m=cfg.M_CABLE_M,
+                     M_CABLE_STRUCTURAL_kg_m=cfg.M_CABLE_STRUCTURAL, L_HTS_LIM_m=cfg.L_HTS_LIM, L_HTS_SITE_m=cfg.L_HTS_LIM * cfg.LIMS_PER_SITE,
+                     COIL_SURFACE_AREA_PER_SITE_m2=cfg.COIL_SURFACE_AREA_PER_SITE, M_LIM_PLATE_kg_m=cfg.M_LIM_PLATE, retrograde=ring.RETROGRADE,
+                     site_power_max_MW=max_min["site_power_max"][3] / 1e6, plate_t_max_K=max_min["plate_t_max"][3], cable_temp_max_K=max_min["cable_temp_max"][3],
+                     wall_temp_max_K=max_min["wall_temp_max"][3], p_cryo_max_MW=max_min["p_cryo_max"][3] / 1e6, p_cryo_max_day=max_min["p_cryo_max"][1] / cfg.DAY,
+                     p_hyst_max_kW=max_min["p_hyst_max"][3] / 1e3, p_eddy_max_kW=max_min["p_eddy_max"][3] / 1e3, q_cryo_cold_max_kW=max_min["q_cryo_cold_max"][3] / 1e3,
+                     radiator_width_max_m=max_min["radiator_width_max"][3], thrust_max_N=max_min["thrust_max"][3], thrust_max_day=max_min["thrust_max"][1] / cfg.DAY,
+                     volts_max_V=max_min["volts_max"][3], volts_max_day=max_min["volts_max"][1] / cfg.DAY, current_max_A=max_min["current_max"][3],
+                     final_volts_V=volts, final_current_A=i_peak, final_site_power_MW=site_power / 1e6, final_thrust_N=thrust, final_p_cryo_MW=p_cryo / 1e6,
+                     final_slip_pct=slip * 100, final_f_supply_Hz=f_supply, E_site_TJ=E_site / 1e12)
+        rising.report(E_total, time, (data_time, data_v_cable, data_v_casing, data_tension, data_casing_weight, data_cable_excess, data_stress), extra=extra)
         return (param_str, True, time)
     import numpy as _np
     import csv as _csv
