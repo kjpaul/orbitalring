@@ -370,3 +370,85 @@ Reproduce: `python -c "import lim_config as c; c.configure(MAX_SITE_POWER=16e6);
 - "100 kV from day" is the first sampled day from which the coil voltage is at 99.9 % of the limit for 95 % of the remaining samples; "days at the current cap" counts samples within 1 % of 183.1 A; "days at the power cap" samples within 2 % of the site's limit. The log's `volts_max` time (the first sample at the rounded maximum) can differ by a month from the first.
 - The study ran on the quick time steps to keep thirteen cases to half an hour; the one case run both ways (16 MW) agrees to 0.1 day and 1e-6 EJ.
 - The cases with more LIMs per site set `ORBITAL_RING_HW_KGM` to the plate mass of that case so that `ring_altitude.py` resizes the cable for it; the design point of such a run is that heavier ring's (its cable speed and tension differ in the fourth digit), and the LIM work rises by the lift and spin of the extra plates, 0.035 EJ per plate pair.
+
+## 11. Round 3 (2026-11-06): the deployment options table at full time steps
+
+Asked for in `Vol_III/Claude_Code_instructions_deployment_options_table_2026-11-06.md`. The design stays at 8 MW per site, 208 turns and two LIMs per site with the rising radius (647 days); Chapter 9 gets a section on shortening the deployment with a table of the options, and that table needs the full time steps (1 s on the first day, then 10 s), not the quick steps of the Section 10.4 study. `tools/rising_radius_options.py --run` ran the eight cases of the brief (seven runs, 8 to 29 minutes each, seven at a time; the 16 MW case is the full-step run of Section 10.1 copied in), `--table` made the table from their summaries and daily tables: `runs/rising_radius_options/rising_radius_options.md`, `.csv`, one folder per case. The cases are the study's, with the study's names and overrides, so the cases with two and three reaction plates per side set `ORBITAL_RING_HW_KGM` as before and the quadratic sizes the cable for them. The default fixed-radius run is untouched (the code change of this round is the new tool and one line of `tools/rising_radius_study.py`, the study folder from the environment); the fast reference tests pass (28 passed, 11 skipped).
+
+The full-step base case reproduces the Section 4 run to every digit (647.1141 days, 23.86409 EJ, 44.787 MN), which is also the check that the runs used the full steps: the quick-step study gave 647.1088 days. The other cases agree with their quick-step runs to 0.04 days or better, so the Section 10.4 table stands; the numbers below are the full-step ones.
+
+### 11.1 The table
+
+Case numbers as in the brief. Months are days over 30.44. "100 kV from day" is the first day from which the coil voltage stays at the limit (Section 10.6); "never" means the site power cap binds to the end instead. The ring total is the peak site power times the 88,946 sites; the panel is the deployment array that supplies it at Chapter 8's 291 W/m^2 averaged around the ring, 27,500 m^2 and 55 m of width per site at 8 MW, scaled with the peak site power.
+
+**Deployment and power**
+
+| # | Case | Days | Months | Phase 1 d | Phase 2 d | 100 kV from day | LIM work EJ | Peak site MW | Ring GW | Panel m^2 per site | Panel width m |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 8 MW, 208 turns, 2 LIMs (the design) | 647.1 | 21.3 | 501.1 | 146.1 | 353.2 | 23.864 | 8.00 | 712 | 27,500 | 55 |
+| 2 | 12 MW, 208, 2 | 572.7 | 18.8 | 426.6 | 146.1 | 90.6 | 23.864 | 12.00 | 1,067 | 41,250 | 83 |
+| 3 | 16 MW, 208, 2 | 573.9 | 18.9 | 427.9 | 146.1 | 60.0 | 23.864 | 16.00 | 1,423 | 55,000 | 110 |
+| 4 | 8 MW, 208, 4 | 642.6 | 21.1 | 510.8 | 131.8 | never | 23.899 | 8.00 | 712 | 27,500 | 55 |
+| 5 | 16 MW, 208, 4 | 315.9 | 10.4 | 242.5 | 73.5 | 148.8 | 23.899 | 16.00 | 1,423 | 55,000 | 110 |
+| 6 | 16 MW, 150, 4 | 310.4 | 10.2 | 252.5 | 57.8 | never | 23.899 | 16.00 | 1,423 | 55,000 | 110 |
+| 7 | 24 MW, 208, 6 | 210.3 | 6.9 | 161.0 | 49.3 | 94.4 | 23.935 | 24.00 | 2,135 | 82,500 | 165 |
+| 8 | 24 MW, 150, 6 | 205.9 | 6.8 | 167.7 | 38.2 | never | 23.935 | 24.00 | 2,135 | 82,500 | 165 |
+
+**Thermal, and the hardware on the cable with the quadratic's design point for it**
+
+The plate temperature is the peak of the LIM reaction plate against the 500 K limit at which the controller cuts the current. The cryogenic power is per site, its peak and its value at the end. The levitation plates are the same 8,814 kg/m in every case (four bearing plates); the LIM reaction plates are 936 kg/m each, two per plate pair. "Structural" is the cable's structural mass from `ring_altitude.cable_mass_structural` with that hardware, "cable" the cable with hardware, and the total is that times the 44,476 km ring against the design's 5,590 Mt. The design-point speed and tension are `ring_altitude.design(m_hw=...)`; each run ends at exactly these (the run's final cable speed and tension agree with them to all printed digits).
+
+| # | Case | Plate K | Cryo peak MW | Cryo end MW | LIM plates kg/m | Hardware vs design kg/m | Structural kg/m | Cable kg/m | Cable Mt | vs design Mt | Cable area m^2 | Design v_cable m/s | Relative speed m/s | Design tension GN |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 8 MW, 208, 2 | 382.2 | 2.20 | 1.46 | 1,872 | 0 | 115,005 | 125,691 | 5,590 | 0 | 67.65 | 8,270.0 | 8,786.2 | 845.6 |
+| 2 | 12 MW, 208, 2 | 382.2 | 2.57 | 1.46 | 1,872 | 0 | 115,005 | 125,691 | 5,590 | 0 | 67.65 | 8,270.0 | 8,786.2 | 845.6 |
+| 3 | 16 MW, 208, 2 | 382.2 | 2.79 | 1.46 | 1,872 | 0 | 115,005 | 125,691 | 5,590 | 0 | 67.65 | 8,270.0 | 8,786.2 | 845.6 |
+| 4 | 8 MW, 208, 4 | 453.5 | 2.62 | 1.95 | 3,744 | +1,872 | 114,869 | 127,427 | 5,667 | +77 | 67.57 | 8,259.6 | 8,775.7 | 844.6 |
+| 5 | 16 MW, 208, 4 | 453.5 | 3.28 | 2.10 | 3,744 | +1,872 | 114,869 | 127,427 | 5,667 | +77 | 67.57 | 8,259.6 | 8,775.7 | 844.6 |
+| 6 | 16 MW, 150, 4 | 385.8 | 3.62 | 2.42 | 3,744 | +1,872 | 114,869 | 127,427 | 5,667 | +77 | 67.57 | 8,259.6 | 8,775.7 | 844.6 |
+| 7 | 24 MW, 208, 6 | 492.3 | 4.72 | 2.73 | 5,616 | +3,744 | 114,735 | 129,166 | 5,744 | +155 | 67.49 | 8,249.4 | 8,765.6 | 843.6 |
+| 8 | 24 MW, 150, 6 | 425.8 | 4.73 | 3.26 | 5,616 | +3,744 | 114,735 | 129,166 | 5,744 | +155 | 67.49 | 8,249.4 | 8,765.6 | 843.6 |
+
+The design point moves with the hardware, through the quadratic. Each extra plate pair, 1,872 kg/m, takes 136 kg/m off the structural cable (115,005 to 114,869 to 114,735 kg/m) and puts 1,735 kg/m on the cable with hardware (125,691 to 127,427 to 129,166), 77 Mt per pair on the ring. The cable speed falls 10.4 m/s per pair (8,270.0 to 8,259.6 to 8,249.4 m/s; the relative speed to the casing the same, 8,786 to 8,776 to 8,766 m/s) and the design tension 1.0 GN per pair (845.6 to 844.6 to 843.6 GN), since a heavier cable carries the casing's momentum deficit with less excess speed and the cross-section follows the structural mass (67.65 to 67.57 to 67.49 m^2). Phase 2 begins at 666.66 km and 682.3 GN with two LIMs, 666.32 km and 679.8 GN with four, 665.98 km and 677.4 GN with six. The LIM work rises 0.035 EJ per pair with the lift and spin of the plates: 23.864, 23.899, 23.935 EJ.
+
+**Hardware on the casing, the anchors in phase 2, the hang schedule**
+
+The tape is the HTS tape of the site's LIMs (two layers of 3 mm tape, `lim_hysteresis.tape_mass_per_lim`: 382 km and 1.63 t per LIM at 208 turns, 275 km and 1.18 t at 150). The model has no LIM stator mass: it carries the coil's tape length and the cryostat surface per site (the coil area), not the stator's structure, so that column is not in the table. The cryogenic plant per site is sized by the peak cryogenic power of the second column group. The anchor reaction is the mean over phase 2 (the peak is within 1 % of it) and per station is over the 889 stations at 50 km. The hang columns are from the daily tables: the first day on which a hang of that length, hung from the casing, is above the 150 km floor of Section 7; a 550 km hang (the spreader arm as hung during the deployment) clears 150 km only at the end of the deployment in every case, by construction, since it is the arm's length from the 700 km ring.
+
+| # | Case | Tape per site t (km) | Coil area m^2 per site | Cryo plant MW per site | Anchor reaction MN (peak) | Per station kN | Thrust per LIM in phase 2 N | 450 km hang clears day | 550 km hang clears day |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 8 MW, 208, 2 | 3.3 (764) | 3,101 | 2.20 | 44.8 (45.2) | 50 | 251 | 265 | 647 |
+| 2 | 12 MW, 208, 2 | 3.3 (764) | 3,101 | 2.57 | 44.8 (45.2) | 50 | 251 | 197 | 573 |
+| 3 | 16 MW, 208, 2 | 3.3 (764) | 3,101 | 2.79 | 44.8 (45.2) | 50 | 251 | 198 | 574 |
+| 4 | 8 MW, 208, 4 | 6.5 (1,528) | 6,202 | 2.62 | 50.3 (50.5) | 57 | 141 | 271 | 643 |
+| 5 | 16 MW, 208, 4 | 6.5 (1,528) | 6,202 | 3.28 | 90.2 (90.9) | 101 | 253 | 128 | 316 |
+| 6 | 16 MW, 150, 4 | 4.7 (1,102) | 4,472 | 3.62 | 114.5 (115.0) | 129 | 322 | 147 | 310 |
+| 7 | 24 MW, 208, 6 | 9.8 (2,291) | 9,303 | 4.72 | 136.0 (137.1) | 153 | 254 | 85 | 210 |
+| 8 | 24 MW, 150, 6 | 7.1 (1,652) | 6,709 | 4.73 | 175.6 (176.3) | 198 | 329 | 99 | 206 |
+
+### 11.2 The hang schedule of cases 2 and 5, for Chapter 12
+
+From `tools/rising_radius_hanging.py` on each case's daily table (`rising_radius_hanging.txt` and `.csv` in the case folder), beside the design's schedule of Section 7:
+
+| Hang below the casing | Design, 8 MW (647 days) | Case 2, 12 MW (573 days) | Case 5, 16 MW and four LIMs (316 days) |
+|---|---|---|---|
+| 400 km clears 150 km from day | 98 | 74 | 49 |
+| 450 km | 265 | 197 | 128 |
+| 500 km | 436 | 362 | 211 |
+| 550 km, the spreader arm | 647, the end | 573, the end | 316, the end |
+| 600 km | never | never | never |
+
+### 11.3 Reading, for Chapter 9
+
+- **Site power alone** buys 74 days and nothing more. At 12 MW the run reaches the 100 kV coil limit on day 91 with 999 N per LIM and deploys in 573 days; at 16 MW the limit comes on day 60 with 1,709 N, and the deployment is 574 days, a day longer, because the push comes earlier but the voltage limit sets the thrust from there on. Phase 2 is the same 146 days in cases 1 to 3: the thrust at 100 kV is 251 N per LIM whatever the site may draw. The design's 8 MW site is at its power cap for 343 days (day 27 to 370) and reaches 100 kV only on day 353. The 12 MW case adds nothing to the ring; it widens the deployment panel from 55 to 83 m and the ring's draw from 712 to 1,067 GW.
+- **More LIMs alone**, at 8 MW, buy nothing: four LIMs give 643 days, because the 8 MW cap binds from day 10 to the end (the coil voltage is 75 kV at the end, never at the limit) and the extra LIMs' cryogenic load, 1.95 MW at the end against 1.46, comes out of the same 8 MW; the 141 N per LIM at the end is less than the design's 251. It costs 77 Mt of cable and 3.3 t more tape per site, and the first-day plate temperature is 453 K.
+- **Power and LIMs together** are where the days are. 16 MW with four LIMs, case 5: 316 days (243 of phase 1, 73.5 of phase 2), 100 kV from day 149; for 3.3 t more tape and 3,100 m^2 more coil cryostat per site, 77 Mt more cable, 1.1 MW more cryogenic plant per site (3.3 MW peak), and an anchor reaction of 90 MN in phase 2, 101 kN per station against the design's 50. With 150 turns instead, case 6: 310 days (252.5 and 57.8), never at 100 kV (81 kV at the end), the 16 MW cap from day 47 to the end; the lower-turn coil is at the power cap in phase 2 and pushes with 322 N per LIM instead of 253, so phase 2 is 16 days shorter and the anchors carry 114.5 MN, 129 kN per station; 1.8 t less tape than case 5 and a cooler plate, 386 K. 24 MW with six LIMs, case 7: 210 days (161 and 49), 100 kV from day 94; 6.5 t more tape and 6,200 m^2 more coil area per site than the design, 155 Mt more cable, 4.7 MW of cryogenic plant per site, a 9.2 m radiator, 136 MN on the anchors (153 kN per station), and a first-day plate temperature of 492 K, 8 K under the 500 K limit. With 150 turns, case 8: 206 days (168 and 38), never at 100 kV (82 kV at the end), the 24 MW cap from day 34 to the end, 329 N per LIM in phase 2, 176 MN on the anchors (198 kN per station), 426 K on the plate, 7.1 t of tape per site.
+- **Where the 100 kV limit sits.** Day 353 in the design, 91 at 12 MW, 60 at 16 MW, 149 with 16 MW and four LIMs, 94 with 24 MW and six; never in the 150-turn cases and in the four-LIM 8 MW case, where the power cap binds to the end. The 208-turn cases end phase 2 at the voltage limit with 251 to 254 N per LIM; the 150-turn cases end it at the power cap with 322 to 329 N.
+- **Phase 2 under a month.** No case in the table. At 208 turns and 100 kV the phase 2 thrust is 251 to 254 N per LIM, so phase 2 scales with the LIM count: 146 days with two, 73.5 with four, 49.3 with six. By that scaling ten LIMs per site would give 29 days, with 16 t of tape per site and some 230 MN on the anchors, 260 kN per station; this is the scaling of the table, not a run. At 150 turns the thrust at the power cap, 322 to 329 N, gives 58 days with four LIMs and 38 with six, so eight LIMs at about 32 MW per site would be the other route, 29 days by the same scaling. The other lever is the coil voltage: a higher limit than 100 kV raises the thrust per LIM at the limit and shortens phase 2 for every case that ends there, but no run of this round changed it. The anchor reaction in phase 2 is the LIM thrust, so every route to a short phase 2 puts a proportionally larger force through the anchor stations.
+- The LIM work is 23.86 EJ in every two-LIM case, as it must be, and 23.90 and 23.94 EJ with the heavier four- and six-plate cables.
+
+The two cautions of Section 10.4 hold: the model puts the extra LIMs on extra reaction plates per side of the 8.2 m cable without asking where they sit or how two 300 m LIMs share a side of a 500 m site, and the six-LIM site has 8 K of thermal margin on the first day (case 7) or 74 K (case 8).
+
+### 11.4 Files
+
+Under `runs/rising_radius_options/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/rising_radius_options/`): `rising_radius_options.md` and `.csv` (the one-row-per-case table with every column above), `_run_console.txt`, and one folder per case with `rising_radius_lim_simulation.txt`, `rising_radius_daily.csv`, `rising_radius_deployment_tension.csv`, `rising_radius_summary.json`; `rising_radius_hanging.txt|csv` in the folders of cases 2 and 5. Reproduce: `python tools/rising_radius_options.py --run --jobs=7` then `--table`; the hang schedule with `python tools/rising_radius_hanging.py runs/rising_radius_options/<case>/rising_radius_daily.csv`.

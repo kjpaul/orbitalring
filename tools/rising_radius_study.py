@@ -12,7 +12,7 @@ Book: Orbital Ring Engineering, Volume I: Chapter 9 (Sections 9.5 to 9.7, Table 
 Run: python tools/rising_radius_study.py --run [--jobs=5] [--only=a,b] [--full]     (runs the cases; --full for the 10 s steps)
      python tools/rising_radius_study.py --table                                     (the table from the summaries, to the console,
                                                                                       rising_radius_study.md and .csv in the study folder)
-Environment: ORBITAL_RING_OUT (output folder, default runs)
+Environment: ORBITAL_RING_OUT (output folder, default runs); ORBITAL_RING_STUDY_DIR (the study's subfolder, default rising_radius_study)
 """
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
@@ -57,7 +57,7 @@ ORDER = list(CASES)
 
 
 def study_dir():
-    return ring.out_dir("rising_radius_study")
+    return ring.out_dir(os.environ.get("ORBITAL_RING_STUDY_DIR", "rising_radius_study"))
 
 
 def run_case(name, full=False):
