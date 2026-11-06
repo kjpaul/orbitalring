@@ -229,7 +229,7 @@ Under `runs/` (the output folder, not tracked by git; a copy is in `Vol_III/runs
 
 - `rising_radius_lim_simulation.txt`: the log (the LIM history as in the fixed run, then the rising-radius report).
 - `rising_radius_daily.csv`: day by day, altitude, radius, tension, stress, strain, speeds, casing weight, cable excess, phase, LIM thrust, anchor reaction total and per station, the three angular momenta, the energies. (The closing row's thrust column reads 0: the run was started before the fix that carries the last thrust into it; the final thrust is in the log's "final" row, 250.9 N per LIM, 44.6 MN in total.)
-- `rising_radius_deployment_tension.csv`: the Figure 3.2 series (the same seven columns as `lim_deployment_tension.csv`, plus altitude, radius, strain, phase and anchor force), 4,052 rows.
+- `rising_radius_deployment_tension.csv`: the Figure 3.2 series (the same seven columns as `lim_deployment_tension.csv`, plus altitude, radius, strain, phase and anchor force), 4,053 rows.
 - `rising_radius_summary.json`: the headline numbers.
 - `rising_radius_hanging.txt`, `rising_radius_hanging.csv`: Section 7.
 - `figures_rising_radius/rising_radius_altitude.svg|png`: the ring's altitude, the point 100 km below, the longest hang above 150 km.
