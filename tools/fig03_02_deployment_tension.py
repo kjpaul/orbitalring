@@ -13,6 +13,8 @@ rest (7,504 m/s), retrograde deployment complete (8,020 m/s).  Middle panel: wha
 the casing's net weight (the bearing load) and the cable's excess force against the casing speed, their difference
 (the tension over the orbital radius) shaded and drawn.  Bottom panel: tension and net weight against time in days.
 Style as fig13_figures.py (DejaVu Sans, 11 pt, the house blue and red).  Revised 2026-10-23 after Paul's review.
+--rising (2026-11-06): the series of lim_simulation.py --rising-radius (rising_radius_deployment_tension.csv): the orbital speed
+is the series' own first row (the build orbit, not ring.V_ORBIT), the marks move with it, the files get the suffix _rising.
 """
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
@@ -42,12 +44,15 @@ def main():
     out = next((a[6:] for a in sys.argv[1:] if a.startswith("--out=")), ring.out_dir("figures_ch03"))
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__); return
-    retro_path = args[0] if args else os.path.join(ring.out_dir(), "lim_deployment_tension.csv")
+    rising = "--rising" in sys.argv
+    retro_path = args[0] if args else os.path.join(ring.out_dir(), "rising_radius_deployment_tension.csv" if rising else "lim_deployment_tension.csv")
     pro_path = args[1] if len(args) > 1 else None
     os.makedirs(out, exist_ok=True)
     R = read_series(retro_path)
     P = read_series(pro_path) if pro_path else None
     v_o = ring.V_ORBIT; v_g = ring.V_GROUND_SYNC; r_orb = ring.R_ORBIT
+    if rising:                                                 # the build orbit's speed and the final radius from the series itself
+        v_o = float(R["v_casing_m_s"][0]); v_g = -float(R["v_casing_m_s"][-1]); r_orb = float(R["radius_m"][-1])
     vL = R["v_casing_m_s"]; dv = v_o - vL                     # the casing's delta-v from orbital speed
     T = R["tension_GN"]; S = R["stress_GPa"]; W = R["casing_net_weight_kN_m"]; F = R["cable_excess_kN_m"]
     T_over_r = T * 1e9 / r_orb / 1e3                           # kN/m, the difference between the excess force and the weight
@@ -90,7 +95,7 @@ def main():
     ax1t.set_xlabel("Casing speed (m/s), westward (W) through rest to eastward (E)", fontsize=10)
     ax1.grid(True, alpha=0.3)
     ax1.legend(loc="upper left", fontsize=9)
-    ax1.set_title("Cable tension through the deployment of the 700 km ring", fontsize=12, pad=38)
+    ax1.set_title("Cable tension through the deployment of the 700 km ring" + (", the ring rising from the build orbit" if rising else ""), fontsize=12, pad=38)
 
     # ---- middle: what the cable's excess force is spent on
     x2 = vL
@@ -138,10 +143,11 @@ def main():
     ax3.set_title("The same two quantities against time", fontsize=12)
 
     fig.subplots_adjust(left=0.10, right=0.86, top=0.90, bottom=0.06)
+    name = "fig03_02_deployment_tension_700" + ("_rising" if rising else "")
     for ext, kw in (("svg", {}), ("png", dict(dpi=200))):
-        fig.savefig(os.path.join(out, f"fig03_02_deployment_tension_700.{ext}"), **kw)
+        fig.savefig(os.path.join(out, f"{name}.{ext}"), **kw)
     plt.close(fig)
-    print(f"saved fig03_02_deployment_tension_700.svg and .png in {out}")
+    print(f"saved {name}.svg and .png in {out}")
 
 
 if __name__ == "__main__":

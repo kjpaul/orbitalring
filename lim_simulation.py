@@ -19,6 +19,9 @@ Usage:
     --thermal=cable  Eddy heat goes to cable
     --thermal=cryo   Eddy heat goes to cryogenic system (default)
 
+    --rising-radius  (or ORBITAL_RING_RISING=1) the ring's radius as a state variable: built unstressed at r0 = R / (1 + sigma/E),
+                     angular momentum conserved, the anchors hold the casing in the final tensioning (rising_radius.py, 2026-11-06)
+
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
@@ -38,6 +41,7 @@ except ImportError:
 import lim_config as cfg
 import ring_altitude as ring
 import lim_physics as phys
+import rising_radius as rrad
 
 
 # =============================================================================
@@ -156,7 +160,7 @@ def deployment_tension_closed_form(v_casing):
     return cfg.M_LOAD_M * (1.0 + cfg.M_LOAD_M / cfg.M_CABLE_M) * x * x
 
 
-def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0):
+def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_cable=True, quick_mode=False, m_load=0.0, rising_radius=False):
     """Run the deployment simulation.
     
     Args:
@@ -165,6 +169,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         thrust_model: 1, 2, or 3
         eddy_to_cable: If True, eddy heat stays in cable
         quick_mode: If True, use larger time steps for faster execution
+        rising_radius: If True, the ring's radius is a state variable (rising_radius.py); the LIM model is unchanged
     
     Returns:
         (param_string, success, total_time)
@@ -199,6 +204,14 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     cfg.M_CABLE_TOTAL = cfg.M_CABLE_M * cfg.L_RING
     cfg.M_LOAD_TOTAL = cfg.M_LOAD_M * cfg.L_RING
     print(f"Cable mass M_CABLE_M={cfg.M_CABLE_M:.0f} kg/m for M_LOAD_M={cfg.M_LOAD_M:.0f} kg/m")
+
+    # Rising radius (2026-11-06): the kinematics object, None in the default fixed-radius run
+    rising = None
+    if rising_radius:
+        at_design = (cfg.M_LOAD_M == ring.M_LOAD_M and cfg.M_CABLE_STRUCTURAL == ring.M_CABLE_STRUCTURAL)
+        rising = rrad.RisingRing(cfg.M_CABLE_M, cfg.M_LOAD_M, cfg.M_CABLE_STRUCTURAL, cfg.LIM_SITES, cfg.LIMS_PER_SITE, cfg.SIGMA_CABLE,
+                                 v_cable_design=ring.V_CABLE if at_design else None, tension_design=ring.CABLE_TENSION if at_design else None)
+        rising.print_build()
 
     # Print configuration
     print(f"VOLTS_MAX: {cfg.VOLTS_MAX/1000:.0f} kV")
@@ -250,8 +263,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
     # Initialize state
     dt = dt1
-    v_cable = cfg.V_ORBIT
-    v_casing = cfg.V_ORBIT
+    v_cable = cfg.V_ORBIT if rising is None else rising.v0
+    v_casing = cfg.V_ORBIT if rising is None else rising.v0
     time = 0
     v_slip = v_slip_init
     i_peak = i_peak_init
@@ -275,7 +288,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     E_total = 0.0
 
     # Deployment tension tracking (Chapter 3): the initial state, then every step
-    T0, W0, F0, S0 = deployment_tension(v_cable, v_casing)
+    T0, W0, F0, S0 = deployment_tension(v_cable, v_casing) if rising is None else rising.forces()
     data_time.append(0.0); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
     data_tension.append(T0); data_casing_weight.append(W0); data_cable_excess.append(F0); data_stress.append(S0)
     T_prev, W_prev = T0, W0
@@ -300,7 +313,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
 
     # Main loop
-    while v_casing > cfg.V_GROUND_STATIONARY:
+    while (v_casing > cfg.V_GROUND_STATIONARY) if rising is None else rising.running():
         
         # Controller iterations for self-consistency
         for _ in range(10):
@@ -474,15 +487,21 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
                 break
 
         # Apply acceleration
-        v_cable = phys.calc_cable_velocity(v_cable, thrust, dt, cfg.LIM_SITES, cfg.M_CABLE_TOTAL)
-        v_casing = phys.calc_casing_velocity(v_casing, thrust, dt, cfg.LIM_SITES, cfg.M_LOAD_TOTAL)
+        if rising is None:
+            v_cable = phys.calc_cable_velocity(v_cable, thrust, dt, cfg.LIM_SITES, cfg.M_CABLE_TOTAL)
+            v_casing = phys.calc_casing_velocity(v_casing, thrust, dt, cfg.LIM_SITES, cfg.M_LOAD_TOTAL)
+        else:                                                 # angular momentum moved by the total thrust; the radius re-solved
+            v_cable, v_casing = rising.step(thrust * cfg.LIM_SITES * cfg.LIMS_PER_SITE, dt, time + dt, v_rel)
 
         # Deployment tension at this step (Chapter 3, 2026-10-23)
-        T_sim, W_casing, F_excess, stress_c = deployment_tension(v_cable, v_casing)
-        T_cf = deployment_tension_closed_form(v_casing)
-        T_diff_abs_max = max(T_diff_abs_max, abs(T_sim - T_cf))
-        if T_cf > 1e6:
-            T_diff_rel_max = max(T_diff_rel_max, abs(T_sim - T_cf) / T_cf)
+        if rising is None:
+            T_sim, W_casing, F_excess, stress_c = deployment_tension(v_cable, v_casing)
+            T_cf = deployment_tension_closed_form(v_casing)
+            T_diff_abs_max = max(T_diff_abs_max, abs(T_sim - T_cf))
+            if T_cf > 1e6:
+                T_diff_rel_max = max(T_diff_rel_max, abs(T_sim - T_cf) / T_cf)
+        else:
+            T_sim, W_casing, F_excess, stress_c = rising.forces()
         if (T_sim - T_prev) / dt > dT_max[0]:
             dT_max = ((T_sim - T_prev) / dt, time + dt)
         if (W_casing - W_prev) / dt > dW_max[0]:
@@ -545,6 +564,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             data_wall_temp.append(wall_temp)
             data_time.append((time + dt) / cfg.DAY); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
             data_tension.append(T_sim); data_casing_weight.append(W_casing); data_cable_excess.append(F_excess); data_stress.append(stress_c)
+            if rising is not None:
+                rising.sample()
             # Warm-loop heat load per meter (two-node model)
             if cfg.WARM_THERMAL_MODEL == "two_node" and eddy_to_cable:
                 p_eddy_total_ring = p_eddy * cfg.LIMS_PER_SITE * cfg.LIM_SITES
@@ -555,11 +576,12 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
         # Monthly progress display
         if time > month_count * cfg.MONTH:
-            progress = phys.calc_deployment_progress(v_casing)
+            progress = phys.calc_deployment_progress(v_casing) if rising is None else rising.progress()
             if month_count == 0:
-                print("\nMonth | Progress | Voltage | Current | Thrust | Site Power | Cryo Rad W | T_cable | T_wall")
-                print("-" * 95)
-            print(f"{month_count:5} | {progress:6.1f}% | {volts:7.0f} V | {i_peak:5.1f} A | {thrust:6.0f} N | {site_power/1e6:5.2f} MW | {radiator_width:6.2f} m    | {cable_temp:5.1f} K | {wall_temp:5.1f} K")
+                print("\nMonth | Progress | Voltage | Current | Thrust | Site Power | Cryo Rad W | T_cable | T_wall" + (" | Altitude | Tension | Phase" if rising else ""))
+                print("-" * (95 if rising is None else 125))
+            print(f"{month_count:5} | {progress:6.1f}% | {volts:7.0f} V | {i_peak:5.1f} A | {thrust:6.0f} N | {site_power/1e6:5.2f} MW | {radiator_width:6.2f} m    | {cable_temp:5.1f} K | {wall_temp:5.1f} K"
+                  + (f" | {rising.altitude_km:6.1f} km | {rising.T/1e9:6.1f} GN | {min(rising.phase, 2)}" if rising else ""))
 
             power_track.append([
                 f"{month_count} mth", f"{round(v_casing, 1)} m/s", f"{round(i_peak, 1)} A",
@@ -659,9 +681,12 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     ])
 
     # Sanity check for KE
-    ke_cable = phys.get_ke(cfg.M_CABLE_M, cfg.V_ORBIT, v_cable)
-    ke_load = phys.get_ke(cfg.M_LOAD_M, cfg.V_ORBIT, v_casing)
-    ke_added = ke_cable + ke_load
+    if rising is None:
+        ke_cable = phys.get_ke(cfg.M_CABLE_M, cfg.V_ORBIT, v_cable)
+        ke_load = phys.get_ke(cfg.M_LOAD_M, cfg.V_ORBIT, v_casing)
+        ke_added = ke_cable + ke_load
+    else:
+        ke_added = rising.lim_work_required()                 # the mechanical energy change less the Earth's work
     ke_diff = ke_added - E_total
 
     # Final results
@@ -673,7 +698,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     print(f"Final casing velocity: {v_casing:.2f} m/s")
     print(f"Energy per site: {E_site/1e12:.6f} TJ")
     print(f"Total energy delivered: {E_total/1e18:.8f} EJ")
-    print(f"Total energy from 1/2 m v^2: {ke_added/1e18:.8f} EJ")
+    print(f"Total energy from 1/2 m v^2: {ke_added/1e18:.8f} EJ" if rising is None else
+          f"Total energy from the mechanical energy change less the Earth's work: {ke_added/1e18:.8f} EJ")
     print(f"These values differ by: {ke_diff/1e18:.10f} EJ")
     print(f"\nThermal Mode: {'Cable absorbs eddy heat' if eddy_to_cable else 'Cryo handles all heat'}")
     if eddy_to_cable and cfg.WARM_THERMAL_MODEL == "two_node":
@@ -717,9 +743,13 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     print("-" * 70)
 
     # Deployment tension (Chapter 3, task of 2026-10-23): the final state joins the sampled series, then the report
-    T_end, W_end, F_end, S_end = deployment_tension(v_cable, v_casing)
+    T_end, W_end, F_end, S_end = deployment_tension(v_cable, v_casing) if rising is None else rising.forces()
     data_time.append(time / cfg.DAY); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
     data_tension.append(T_end); data_casing_weight.append(W_end); data_cable_excess.append(F_end); data_stress.append(S_end)
+    if rising is not None:                                    # the rising-radius report and files replace the fixed-radius tension block
+        rising.sample()
+        rising.report(E_total, time, (data_time, data_v_cable, data_v_casing, data_tension, data_casing_weight, data_cable_excess, data_stress))
+        return (param_str, True, time)
     import numpy as _np
     import csv as _csv
     import os as _os
@@ -1042,6 +1072,8 @@ def main():
     quick_mode = False
     show_graphs = []
     new_load_mass = 0.0
+    import os as _os
+    rising_radius = _os.environ.get("ORBITAL_RING_RISING", "0") not in ("", "0", "false", "False", "no")
 
     if len(sys.argv) > 1:
         if "--help" in sys.argv or "-h" in sys.argv:
@@ -1084,6 +1116,7 @@ Output Options:
   clean        Only show the title and axis labels
 
 Other Options:
+  --rising-radius  The ring's radius as a state variable (rising_radius.py); also ORBITAL_RING_RISING=1
   --model=N    Select thrust model (1, 2, or 3)
   --thermal=   Select thermal mode (cable or cryo)
   --quick      Fast test run (larger time steps, less accuracy)
@@ -1125,6 +1158,8 @@ Examples:
                     print(f"Invalid thermal mode {mode}, using default (cryo)")
             elif arg == "--quick":
                 quick_mode = True
+            elif arg == "--rising-radius":
+                rising_radius = True
             elif arg == "--save":
                 cfg.SAVE_GRAPHS = True
             elif arg == "--show":
@@ -1144,7 +1179,7 @@ Examples:
     i_peak = cfg.I_MIN
 
     param_str, success, total_time = run_deployment_simulation(
-        v_slip, i_peak, thrust_model, eddy_to_cable, quick_mode, new_load_mass
+        v_slip, i_peak, thrust_model, eddy_to_cable, quick_mode, new_load_mass, rising_radius
     )
 
     # Plot results if requested
