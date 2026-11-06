@@ -37,7 +37,7 @@ import os
 
 import ring_altitude as ring
 
-E_CNT = 500e9                  # Pa, the cable's modulus (Chapter 3: 25 GPa at 5 % break strain; sled_passage_simulation.E_CNT)
+E_CNT = ring.E_CNT                  # Pa, the cable's modulus (Chapter 3: 25 GPa at 5 % break strain; sled_passage_simulation.E_CNT)
 ANCHOR_STATION_SPACING = 50e3  # m of ring per anchor station (the brief of 2026-11-06: round(L_RING / 50e3) stations)
 DAY = 86400.0
 TWO_PI = 2.0 * math.pi
@@ -62,7 +62,7 @@ class RisingRing:
         self.T_design = tension_design if tension_design is not None else sigma * self.A
         self.eps_design = self.T_design / self.EA
         if v_cable_design is None:                           # momentum conservation at the design radius, as ring_altitude.V_CABLE
-            v_cable_design = ring.V_ORBIT + m_load * ring.DELTA_V_LOAD / m_rotor
+            v_cable_design = ring.cable_velocity(m_rotor, m_load)
         self.v_cable_design = v_cable_design
         self.r0 = self.R_design / (1.0 + self.eps_design)
         self.C0 = TWO_PI * self.r0
@@ -319,7 +319,7 @@ class RisingRing:
         print(f"  the Earth's work through the anchors (phase 2)  {self.W_earth / 1e18:12.6f}   ({'negative: the ring works on the Earth' if self.W_earth < 0 else 'positive: the Earth works on the ring'})")
         print(f"  LIM work required, delta E - W_earth            {(dE - self.W_earth) / 1e18:12.6f}")
         print(f"  difference, LIM work (loop) - required          {(E_total_loop - (dE - self.W_earth)) / 1e18:12.8f}")
-        print(f"  fixed-radius deployment energy, ring_altitude   {ring.E_DEPLOY / 1e18:12.6f}")
+        print(f"  deployment energy, ring_altitude ({ring.QUADRATIC:6} quadr.) {ring.E_DEPLOY / 1e18:12.6f}")
         print()
         # ---- the daily table (every 25 days in the log; every day in the CSV)
         print("Daily (every 25th day in the log; all days in rising_radius_daily.csv):")
@@ -365,7 +365,7 @@ class RisingRing:
             anchor_mean_MN=self.F_anchor_int / max(self.t_phase2_dur, 1e-9) / 1e6, n_stations=self.n_stations,
             E_lim_loop_EJ=E_total_loop / 1e18, E_lim_module_EJ=self.W_lim / 1e18, dKE_cable_EJ=(KE_c - KE_c0) / 1e18, dKE_casing_EJ=(KE_l - KE_l0) / 1e18,
             dPE_EJ=(PE - PE0) / 1e18, elastic_EJ=U / 1e18, dE_mech_EJ=dE / 1e18, W_earth_EJ=self.W_earth / 1e18,
-            balance_EJ=(E_total_loop - (dE - self.W_earth)) / 1e18, E_deploy_fixed_EJ=ring.E_DEPLOY / 1e18, newton_iters_max=self.newton_iters_max)
+            balance_EJ=(E_total_loop - (dE - self.W_earth)) / 1e18, E_deploy_ring_altitude_EJ=ring.E_DEPLOY / 1e18, ring_altitude_quadratic=ring.QUADRATIC, newton_iters_max=self.newton_iters_max)
         if extra:
             summary.update(extra)
             if "VOLTS_MAX" in extra:

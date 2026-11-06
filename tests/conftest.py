@@ -13,6 +13,10 @@ REFERENCE = os.path.join(ROOT, "tests", "reference")
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 os.environ.setdefault("MPLBACKEND", "Agg")
+# The reference run of 2026-10-12 used the fixed-radius quadratic; since 2026-11-06 ring_altitude.py sizes the cable with the
+# build orbit by default (ORBITAL_RING_QUADRATIC=rising).  The checks below run under the October quadratic unless the
+# caller sets the variable; the rising design point has its own test.
+os.environ.setdefault("ORBITAL_RING_QUADRATIC", "fixed")
 
 
 def run_script(args, env=None, timeout=600):

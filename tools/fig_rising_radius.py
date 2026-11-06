@@ -122,7 +122,7 @@ def main():
     ax.plot(day, D["PE_EJ"] - D["PE_EJ"][0], color=BLUE, lw=1.8, label="Potential energy change (the ring lifted)")
     ax.plot(day, D["elastic_EJ"], color=ORANGE, lw=1.8, label="Elastic energy of the cable")
     ax.plot(day, D["earth_work_EJ"], color=GRAY, lw=1.8, label="The Earth's work through the anchors")
-    ax.axhline(ring.E_DEPLOY / 1e18, color="black", lw=0.9, ls=":"); ax.text(3, ring.E_DEPLOY / 1e18 + 0.4, f"fixed-radius deployment energy {ring.E_DEPLOY / 1e18:.1f} EJ", fontsize=9)
+    ax.axhline(ring.E_DEPLOY / 1e18, color="black", lw=0.9, ls=":"); ax.text(3, ring.E_DEPLOY / 1e18 + 0.4, f"ring_altitude deployment energy ({ring.QUADRATIC} quadratic) {ring.E_DEPLOY / 1e18:.1f} EJ", fontsize=9)
     ax.axhline(0, color=GRAY, lw=0.8)
     if t2:
         ax.axvline(t2, color=GRAY, lw=0.9, ls="--")

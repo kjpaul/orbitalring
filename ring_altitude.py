@@ -3,7 +3,7 @@
 The design point of the ring (altitude, cable direction, masses per meter, speeds, tension, deployment energy) and the output and data folders every other script uses.
 Book: Orbital Ring Engineering, Volume I: Chapter 1 tables, Chapter 3 (the cable), Table 7.1 and every chapter's ring numbers; named in Chapter 3.
 Run: python ring_altitude.py (prints the reference table)
-Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
+Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM, ORBITAL_RING_QUADRATIC (the ring, through ring_altitude.py); ORBITAL_RING_ARRAY_OFFSET_KM (the suspended array); ORBITAL_RING_OUT (output folder, default runs)
 
 Single source for the ring's design altitude and everything that follows
 from it.  Every simulation in this folder imports its altitude-dependent
@@ -11,6 +11,11 @@ constants from here, so the design point is changed in one place.
 
 Design case (2026-10-04): 700 km, retrograde cable, suspended array at 600 km.
 (2026-10-02 to 2026-10-04 the design case was 800 km with the array 50 km below.)
+Since 2026-11-06 the cable is sized by the quadratic with the build orbit (QUADRATIC = "rising", the default): the ring is
+assembled unstressed on the circular orbit r0 = R / (1 + sigma / E) and rises to R as the cable is tensioned, conserving
+angular momentum, so the momentum constraint at R uses v_mom = sqrt(GM r0) / R in place of the circular velocity at R.
+ORBITAL_RING_QUADRATIC=fixed restores the October 2026 quadratic (everything starting at the circular speed of R), which
+sized the cable of the book's first results (115,005 kg/m, 8,270 m/s, 845.6 GN).
 Override for comparison runs without editing any file:
 
     ORBITAL_RING_ALT_KM=2000 python lim_simulation.py
@@ -55,6 +60,13 @@ M_LOAD_M = 12_000.0            # casing mass per meter (kg/m)
 M_HARDWARE_M = float(os.environ.get("ORBITAL_RING_HW_KGM", "10686"))
 RHO_CNT = 1700.0               # kg/m^3
 SIGMA_CABLE = 12.5e9           # Pa, operating stress (safety factor 2 on 25 GPa)
+E_CNT = 500e9                  # Pa, Young's modulus of the CNT cable (Chapter 3): 2.5 % strain at the operating stress
+STRAIN_DESIGN = SIGMA_CABLE / E_CNT
+# The momentum constraint of the cable-sizing quadratic: "rising" (the default since 2026-11-06) takes the deployment from
+# the build orbit and conserves angular momentum; "fixed" is the October 2026 quadratic (the book's first results).
+QUADRATIC = os.environ.get("ORBITAL_RING_QUADRATIC", "rising").strip().lower()
+if QUADRATIC not in ("rising", "fixed"):
+    raise SystemExit(f"ORBITAL_RING_QUADRATIC must be 'rising' or 'fixed', not '{QUADRATIC}'")
 
 ALTITUDE = ALTITUDE_KM * 1000.0
 R_ORBIT = R_EARTH_EQ + ALTITUDE
@@ -66,8 +78,19 @@ G_LOCAL = GM / R_ORBIT**2                          # gravity at the ring
 V_GROUND_SYNC = OMEGA_SIDEREAL * R_ORBIT           # casing speed, eastward, inertial
 G_NET = G_LOCAL - V_GROUND_SYNC**2 / R_ORBIT       # net downward accel. on the casing
 
-# Velocity change of the casing during deployment.
-DELTA_V_LOAD = V_ORBIT + V_GROUND_SYNC if RETROGRADE else V_ORBIT - V_GROUND_SYNC
+# The build orbit: the ring is assembled unstressed at r0 = R / (1 + strain), at circular speed, and rises to R.
+R_BUILD = R_ORBIT / (1.0 + STRAIN_DESIGN)
+ALTITUDE_BUILD = R_BUILD - R_EARTH_EQ
+V_BUILD = math.sqrt(GM / R_BUILD)                  # circular velocity at the build orbit
+# The speed that stands for the ring's angular momentum at R: the build orbit's angular momentum per unit mass, sqrt(GM r0),
+# brought to the design radius (the rising quadratic), or the circular velocity at R (the fixed-radius quadratic).
+V_MOM = math.sqrt(GM * R_BUILD) / R_ORBIT if QUADRATIC == "rising" else V_ORBIT
+
+# The casing's term in the momentum constraint: from v_mom to the ground-synchronous speed, eastward (the retrograde ring's
+# casing passes through rest).  With the fixed quadratic this is the casing's speed change at R; with the rising quadratic
+# the casing's real speed change, from the build orbit's circular speed, is DELTA_V_CASING.
+DELTA_V_LOAD = V_MOM + V_GROUND_SYNC if RETROGRADE else V_MOM - V_GROUND_SYNC
+DELTA_V_CASING = V_BUILD + V_GROUND_SYNC if RETROGRADE else V_BUILD - V_GROUND_SYNC
 
 # Casing end-of-deployment velocity measured in the launch direction of the
 # ring (westward positive for a retrograde ring).  The deployment loop runs
@@ -78,47 +101,81 @@ V_CASING_FINAL_LAUNCH_FRAME = -V_GROUND_SYNC if RETROGRADE else V_GROUND_SYNC
 
 def cable_mass_structural(m_load=M_LOAD_M, m_hw=M_HARDWARE_M, delta_v=DELTA_V_LOAD,
                           v_orbit=V_ORBIT, g_net=G_NET, r_orbit=R_ORBIT,
-                          rho=RHO_CNT, sigma=SIGMA_CABLE):
-    """Positive root of the cable sizing quadratic (same as lim_physics)."""
+                          rho=RHO_CNT, sigma=SIGMA_CABLE, v_mom=V_MOM):
+    """Positive root of the cable sizing quadratic: the force balance at the design radius, m_c (v_c^2 / r - g) = m_load g_net
+    + sigma A / r with A = m_s / rho and m_c = m_s + m_hw, under the momentum constraint m_c v_c = m_c v_mom + m_load delta_v.
+    With v_mom = v_orbit (the fixed-radius quadratic, D = 0) this is the October 2026 form, S m_s^2 + (S m_hw - K) m_s - (K m_hw + P) = 0;
+    with v_mom = sqrt(GM r0) / r (the build orbit's angular momentum per unit mass at r) the term D = v_mom^2 - v_orbit^2 of the
+    cable's own momentum enters: (S - D) m_s^2 + (S m_hw - K - 2 D m_hw) m_s - (K m_hw + P + D m_hw^2) = 0."""
     S = sigma / rho
-    K = m_load * delta_v * 2 * v_orbit - m_load * g_net * r_orbit
+    D = v_mom ** 2 - v_orbit ** 2                     # 0 for the fixed-radius quadratic
+    K = m_load * delta_v * 2 * v_mom - m_load * g_net * r_orbit
     P = (m_load * delta_v) ** 2
-    a, b, c = S, S * m_hw - K, -(K * m_hw + P)
+    a, b, c = S - D, S * m_hw - K - 2 * D * m_hw, -(K * m_hw + P + D * m_hw ** 2)
     return (-b + math.sqrt(b * b - 4 * a * c)) / (2 * a)
+
+
+def cable_velocity(m_cable, m_load=M_LOAD_M, delta_v=DELTA_V_LOAD, v_mom=V_MOM):
+    """The cable's speed at the design radius from the momentum constraint, for a cable of m_cable kg/m with hardware."""
+    return v_mom + m_load * delta_v / m_cable
 
 
 M_CABLE_STRUCTURAL = cable_mass_structural()
 M_CABLE_M = M_CABLE_STRUCTURAL + M_HARDWARE_M      # cable with hardware
 M_RING_M = M_CABLE_M + M_LOAD_M
 # Cable speed (magnitude) from momentum conservation.
-V_CABLE = V_ORBIT + M_LOAD_M * DELTA_V_LOAD / M_CABLE_M
+V_CABLE = V_MOM + M_LOAD_M * DELTA_V_LOAD / M_CABLE_M
 V_REL = V_CABLE + V_GROUND_SYNC if RETROGRADE else V_CABLE - V_GROUND_SYNC
 CABLE_AREA = M_CABLE_STRUCTURAL / RHO_CNT
 CABLE_SIDE = math.sqrt(CABLE_AREA)
 CABLE_TENSION = SIGMA_CABLE * CABLE_AREA
-E_DEPLOY = 0.5 * L_RING * (M_CABLE_M * (V_CABLE**2 - V_ORBIT**2)
-                           + M_LOAD_M * (V_GROUND_SYNC**2 - V_ORBIT**2))
 
 
-def design(altitude_km=ALTITUDE_KM, retrograde=RETROGRADE, m_load=M_LOAD_M, m_hw=M_HARDWARE_M):
+def deployment_energy(m_cable, m_load, v_cable, tension, r=R_ORBIT, r0=R_BUILD, v_build=V_BUILD, v_ground=V_GROUND_SYNC,
+                      quadratic=QUADRATIC, strain=STRAIN_DESIGN):
+    """The mechanical energy the deployment puts into the ring, J, for masses per meter at the design radius r.  Fixed
+    quadratic: the kinetic energy change at r from the circular speed.  Rising quadratic: from the build orbit r0 to r,
+    the kinetic energy change of cable and casing, the potential energy of the lift and the elastic energy of the cable
+    (tension x strain x unstressed circumference / 2); with no anchored phase this is the LIM work of the deployment."""
+    L = 2 * math.pi * r
+    M_c, M_l = m_cable * L, m_load * L
+    if quadratic == "fixed":
+        v_orb = math.sqrt(GM / r)
+        return 0.5 * (M_c * (v_cable ** 2 - v_orb ** 2) + M_l * (v_ground ** 2 - v_orb ** 2)), {}
+    ke = 0.5 * (M_c * (v_cable ** 2 - v_build ** 2) + M_l * (v_ground ** 2 - v_build ** 2))
+    pe = GM * (M_c + M_l) * (1.0 / r0 - 1.0 / r)
+    el = 0.5 * tension * strain * 2 * math.pi * r0
+    return ke + pe + el, dict(kinetic=ke, potential=pe, elastic=el)
+
+
+E_DEPLOY, E_DEPLOY_PARTS = deployment_energy(M_CABLE_M, M_LOAD_M, V_CABLE, CABLE_TENSION)
+
+
+def design(altitude_km=ALTITUDE_KM, retrograde=RETROGRADE, m_load=M_LOAD_M, m_hw=M_HARDWARE_M, quadratic=QUADRATIC):
     """Ring design at any altitude and cable direction (dict), for comparison tables."""
     r = R_EARTH_EQ + altitude_km * 1000.0
     v_orb = math.sqrt(GM / r)
     v_g = OMEGA_SIDEREAL * r
     g = GM / r**2
     g_net = g - v_g**2 / r
-    dv = v_orb + v_g if retrograde else v_orb - v_g
-    m_s = cable_mass_structural(m_load, m_hw, dv, v_orb, g_net, r)
+    r0 = r / (1.0 + STRAIN_DESIGN)
+    v_build = math.sqrt(GM / r0)
+    v_mom = math.sqrt(GM * r0) / r if quadratic == "rising" else v_orb
+    dv = v_mom + v_g if retrograde else v_mom - v_g
+    m_s = cable_mass_structural(m_load, m_hw, dv, v_orb, g_net, r, v_mom=v_mom)
     m_c = m_s + m_hw
-    v_c = v_orb + m_load * dv / m_c
+    v_c = v_mom + m_load * dv / m_c
     L = 2 * math.pi * r
-    return dict(altitude_km=altitude_km, retrograde=retrograde, r=r, L_ring=L, v_orbit=v_orb,
-                v_ground=v_g, g=g, g_net=g_net, delta_v_load=dv, m_struct=m_s, m_cable=m_c,
+    tension = SIGMA_CABLE * m_s / RHO_CNT
+    E_dep, parts = deployment_energy(m_c, m_load, v_c, tension, r=r, r0=r0, v_build=v_build, v_ground=v_g, quadratic=quadratic)
+    return dict(altitude_km=altitude_km, retrograde=retrograde, quadratic=quadratic, r=r, L_ring=L, v_orbit=v_orb,
+                v_ground=v_g, g=g, g_net=g_net, r_build=r0, altitude_build_km=(r0 - R_EARTH_EQ) / 1e3, v_build=v_build, v_mom=v_mom,
+                delta_v_load=dv, delta_v_casing=(v_build + v_g if retrograde else v_build - v_g), m_struct=m_s, m_cable=m_c,
                 m_ring=m_c + m_load, v_cable=v_c,
                 v_rel=v_c + v_g if retrograde else v_c - v_g,
-                area=m_s / RHO_CNT, side=math.sqrt(m_s / RHO_CNT), tension=SIGMA_CABLE * m_s / RHO_CNT,
+                area=m_s / RHO_CNT, side=math.sqrt(m_s / RHO_CNT), tension=tension,
                 M_ring=(m_c + m_load) * L,
-                E_deploy=0.5 * L * (m_c * (v_c**2 - v_orb**2) + m_load * (v_g**2 - v_orb**2)))
+                E_deploy=E_dep, E_deploy_parts=parts)
 
 
 # Solar array: hangs below the ring, spread by the anchor lines (Paul, 2026-10-04: 100 km, array at 600 km).
@@ -137,6 +194,21 @@ def report():
         ("Circular velocity", V_ORBIT, "m/s"), ("Escape velocity", V_ESCAPE, "m/s"),
         ("Orbital period", T_ORBIT / 60, "min"),
         ("Ground-sync velocity", V_GROUND_SYNC, "m/s"),
+    ]
+    if QUADRATIC == "rising":
+        rows += [
+            ("Quadratic", "rising (build orbit)", ""),
+            ("Build orbit altitude", ALTITUDE_BUILD / 1e3, "km"),
+            ("Build orbit radius", R_BUILD / 1e3, "km"),
+            ("Build orbit circular velocity", V_BUILD, "m/s"),
+            ("Momentum velocity v_mom", V_MOM, "m/s"),
+            ("Design strain", STRAIN_DESIGN * 100, "%"),
+            ("Rise to the design radius", (R_ORBIT - R_BUILD) / 1e3, "km"),
+            ("Delta-v casing (build orbit to ground sync)", DELTA_V_CASING, "m/s"),
+        ]
+    else:
+        rows += [("Quadratic", "fixed radius (October 2026)", "")]
+    rows += [
         ("Delta-v load", DELTA_V_LOAD, "m/s"),
         ("Cable structural", M_CABLE_STRUCTURAL, "kg/m"),
         ("Cable with hardware", M_CABLE_M, "kg/m"), ("Ring", M_RING_M, "kg/m"),
@@ -152,6 +224,12 @@ def report():
         ("Casing mass", M_LOAD_M * L_RING / 1e9, "Mt"),
         ("Ring mass", M_RING_M * L_RING / 1e9, "Mt"),
         ("Deployment energy", E_DEPLOY / 1e18, "EJ"),
+    ]
+    if E_DEPLOY_PARTS:
+        rows += [("  kinetic (cable and casing)", E_DEPLOY_PARTS["kinetic"] / 1e18, "EJ"),
+                 ("  potential (the lift)", E_DEPLOY_PARTS["potential"] / 1e18, "EJ"),
+                 ("  elastic (the cable)", E_DEPLOY_PARTS["elastic"] / 1e18, "EJ")]
+    rows += [
         ("LIM sites at 500 m", round(L_RING / 500.0), ""),
         ("Array altitude", ARRAY_ALTITUDE / 1e3, "km"),
         ("Array circumference", L_ARRAY / 1e3, "km"),

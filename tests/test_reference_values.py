@@ -38,6 +38,23 @@ def test_default_design_point():
     assert ring.E_DEPLOY / 1e18 == pytest.approx(18.804, abs=0.0005)                            # EJ
 
 
+RISING_M_STRUCT, RISING_V_CABLE, RISING_TENSION_GN, RISING_E_DEPLOY_EJ = 92883.313, 8330.820, 682.966, 19.1753   # the round-4 report, 2026-11-06
+
+
+def test_rising_quadratic_design_point():
+    """The design point since 2026-11-06: the quadratic with the build orbit (ORBITAL_RING_QUADRATIC=rising, the default
+    outside these tests), 700 km, retrograde, hardware 10,686 kg/m; the values of the round-4 report."""
+    d = ring.design(quadratic="rising")
+    assert d["v_mom"] == pytest.approx(7_412.2, abs=0.05)                    # m/s, sqrt(GM r0) / R
+    assert d["altitude_build_km"] == pytest.approx(527.36, abs=0.005)        # km, R / (1 + 2.5 %)
+    assert d["m_struct"] == pytest.approx(RISING_M_STRUCT, abs=0.5)          # kg/m
+    assert d["v_cable"] == pytest.approx(RISING_V_CABLE, abs=0.05)           # m/s
+    assert d["tension"] / 1e9 == pytest.approx(RISING_TENSION_GN, abs=0.05)  # GN
+    assert d["E_deploy"] / 1e18 == pytest.approx(RISING_E_DEPLOY_EJ, abs=0.0005)
+    out = run_script(["ring_altitude.py"], env={"ORBITAL_RING_QUADRATIC": "rising"})
+    assert f"Cable structural                       {RISING_M_STRUCT:>14,.3f} kg/m" in out
+
+
 def test_prograde_700km():
     d = ring.design(altitude_km=700.0, retrograde=False)
     assert d["m_struct"] == pytest.approx(89_266, abs=0.5)

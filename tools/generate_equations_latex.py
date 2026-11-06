@@ -34,6 +34,7 @@ def sci(x, nd=2):
     m, e = f"{x:.{nd}e}".split("e"); return rf"{m} \times 10^{{{int(e)}}}"
 
 ALT = f"{R.ALTITUDE_KM:.0f}"
+V_MOM_SYM = "mom" if R.QUADRATIC == "rising" else "orbit"    # the speed in the momentum constraint (ring_altitude.V_MOM)
 a_cent = R.V_CABLE**2 / R.R_ORBIT
 a_net = a_cent - R.G_LOCAL
 a_rel = a_net + R.G_LOCAL
@@ -61,6 +62,10 @@ VALUES = dict(P_AVG_M2=P_AVG_M2, N_SITES=N_SITES, P_DEPLOY_GW=P_DEPLOY/1e9, P_SI
               M_ring=M_ring, v_lat=v_lat, KE_lat=KE_lat, r_apo_km=r_apo/1e3, h_apo_km=(r_apo-R.R_EARTH_EQ)/1e3)
 
 EQS = {
+ # the momentum velocity of the rising quadratic (2026-11-06): the build orbit's angular momentum per unit mass at the design radius
+ f"eq03_05b_vmom_{ALT}": rf"""v_{{\mathrm{{mom}}}} &= \frac{{\sqrt{{GM\, r_0}}}}{{r}}, \qquad r_0 = \frac{{r}}{{1 + \sigma / E}}\\
+&= \frac{{\sqrt{{3.986 \times 10^{{14}} \times {c(R.R_BUILD)}}}}}{{{c(R.R_ORBIT)}}}\\
+&= {c(R.V_MOM,1)}\ \mathrm{{m/s}}""",
  f"eq01_02_vorbit_{ALT}": rf"""v_{{\mathrm{{orbit}}}} &= \sqrt{{\frac{{GM}}{{r}}}}\\
 &= \sqrt{{\frac{{3.986 \times 10^{{14}}}}{{{c(R.R_ORBIT)}}}}}\\
 &= {c(R.V_ORBIT,1)}\ \mathrm{{m/s}}""",
@@ -86,10 +91,10 @@ EQS = {
  "eq04_05_t_gap": rf"""t &= \sqrt{{\frac{{2d}}{{a_{{\mathrm{{rel}}}}}}}}\\
 &= \sqrt{{\frac{{2 \times 0.1}}{{{a_rel:.2f}}}}}\\
 &\approx {t_gap:.3f}\ \mathrm{{s}}""",
- "eq03_06_dv_retro_eq": rf"""\Delta v_{{\mathrm{{load,retro}}}} &= v_{{\mathrm{{orbit}}}} + v_{{\mathrm{{geo}}}}\\
-&= {c(R.V_ORBIT,1)} + {c(R.V_GROUND_SYNC,1)}\\
+ "eq03_06_dv_retro_eq": rf"""\Delta v_{{\mathrm{{load,retro}}}} &= v_{{\mathrm{{{V_MOM_SYM}}}}} + v_{{\mathrm{{geo}}}}\\
+&= {c(R.V_MOM,1)} + {c(R.V_GROUND_SYNC,1)}\\
 &= {c(R.DELTA_V_LOAD,1)}\ \mathrm{{m/s}}""",
- "eq03_07_vcable_retro_eq": rf"""v_{{\mathrm{{cable,retro}}}} &= {c(R.V_ORBIT,1)} + \frac{{12{{,}}000 \times {c(R.DELTA_V_LOAD,1)}}}{{{c(R.M_CABLE_M)}}}\\
+ "eq03_07_vcable_retro_eq": rf"""v_{{\mathrm{{cable,retro}}}} &= {c(R.V_MOM,1)} + \frac{{12{{,}}000 \times {c(R.DELTA_V_LOAD,1)}}}{{{c(R.M_CABLE_M)}}}\\
 &= {c(R.V_CABLE,1)}\ \mathrm{{m/s}}""",
  "eq03_08_tension_retro_eq": rf"""T &= \sigma_{{\mathrm{{cable}}}} \times A\\
 &= 12.5 \times 10^{{9}} \times {R.CABLE_AREA:.2f}\\

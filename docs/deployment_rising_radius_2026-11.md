@@ -373,6 +373,8 @@ Reproduce: `python -c "import lim_config as c; c.configure(MAX_SITE_POWER=16e6);
 
 ## 11. Round 3 (2026-11-06): the deployment options table at full time steps
 
+**Superseded (2026-11-06, round 4):** this table was made with the October cable; the cable of the rising quadratic and the site power sweep that replaces this table are in Section 13. Kept for the record.
+
 Asked for in `Vol_III/Claude_Code_instructions_deployment_options_table_2026-11-06.md`. The design stays at 8 MW per site, 208 turns and two LIMs per site with the rising radius (647 days); Chapter 9 gets a section on shortening the deployment with a table of the options, and that table needs the full time steps (1 s on the first day, then 10 s), not the quick steps of the Section 10.4 study. `tools/rising_radius_options.py --run` ran the eight cases of the brief (seven runs, 8 to 29 minutes each, seven at a time; the 16 MW case is the full-step run of Section 10.1 copied in), `--table` made the table from their summaries and daily tables: `runs/rising_radius_options/rising_radius_options.md`, `.csv`, one folder per case. The cases are the study's, with the study's names and overrides, so the cases with two and three reaction plates per side set `ORBITAL_RING_HW_KGM` as before and the quadratic sizes the cable for them. The default fixed-radius run is untouched (the code change of this round is the new tool and one line of `tools/rising_radius_study.py`, the study folder from the environment); the fast reference tests pass (28 passed, 11 skipped).
 
 The full-step base case reproduces the Section 4 run to every digit (647.1141 days, 23.86409 EJ, 44.787 MN), which is also the check that the runs used the full steps: the quick-step study gave 647.1088 days. The other cases agree with their quick-step runs to 0.04 days or better, so the Section 10.4 table stands; the numbers below are the full-step ones.
@@ -461,3 +463,155 @@ Asked for in `Vol_III/Claude_Code_instructions_figures_rising_radius_2026-11-06.
 - **Figures 14.1 and 14.2** (`fig14_01_cable_wall_temperature_700.png`, `fig14_02_cold_load_radiator_700.png`): `tools/ch14_thermal_series.py` gained `--rising` (the same run through `lim_simulation.py --rising-radius`, full time steps, 20 minutes) and wrote `runs/rising_radius_thermal/ch14_thermal_series_rising.csv` (279,554 rows at 200 s); `tools/fig14_figures.py` drew the two figures from it unchanged, so the layout, fonts and size are the Oct 27 ones and the month axis runs to 21.6 months (ticks to 22). The values: the cable peaks at 382.6 K on day 1, is 312 K at one month, below 260 K from month 1.6, 256.5 K at two months, 259 K through months 5 to 12, and falls to 255.3 K in the anchored phase (months 16.7 to 21.6); the wall is 7.3 K below it, 248 K at the end. The cold-side load starts at 16.2 kW, peaks at 26.4 kW (4.28 m) at 1.8 months, is 18.4 kW at month 12, and settles at 17.6 kW and 2.85 m from month 16.7 to the end. The figures' own labels say 383 K on day 1, 255 K and 248 K at the end; 26.4 kW, 4.28 m at 1.8 months; 17.6 kW, 2.85 m at the end.
 - **Caption checks for Chapter 14** (not edited; for Paul): the caption of Figure 14.1 (L39) says the cable settles at 257 K for the rest of the 21 months including the last five against the Earth, and the alt text (L38) says it stays near 257 K to the end; the run has 259 K through the middle of the deployment and 255 K through the anchored phase, and the figure's end label reads 255 K. The caption of Figure 14.2 (L54) and the alt text (L53) say 16 kW and a 2.85 m radiator through the last months; the run has 17.6 kW with the 2.85 m (the radiator width is proportional to the load, 0.162 m per kW, so 16 kW would be 2.59 m), the figure's end label reads 17.6 kW, and 16 kW is the load on day 0. The alt text's "width axis runs from 0 to 5 m" is 0 to 7.3 m in the figure (the right axis follows the 0 to 45 kW left axis), as it was in the fixed-radius figure.
 - Files: `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/rising_radius_thermal/` holds the console, the summary, the figures and the series decimated to one row per 10,000 s (`ch14_thermal_series_rising_1in50.csv`); the full series stays in `runs/rising_radius_thermal/`. Reproduce: `ORBITAL_RING_OUT=runs/rising_radius_thermal python tools/ch14_thermal_series.py runs/rising_radius_thermal/ch14_thermal_series_rising.csv --rising`, then `python tools/fig14_figures.py runs/rising_radius_thermal/ch14_thermal_series_rising.csv <out>`; Figure 3.2 with `python Vol_III/figure_scripts_2026-11-06/gen_fig03_02_rising.py runs/rising_radius_deployment_tension.csv runs/rising_radius_prograde/rising_radius_deployment_tension.csv --out=<out>`.
+
+## 13. Round 4 (2026-11-06): the rising quadratic, the verification run and the site power sweep
+
+Asked for in `Vol_III/Claude_Code_instructions_rising_quadratic_and_power_2026-11-06.md`. Paul's rulings: the cable is re-sized so that the deployment from the build orbit ends at 700 km and 12.5 GPa on internal momentum alone, with no anchored phase against the Earth; then the best site power is found for two LIMs per site and for four. This section supersedes the options table of Section 11 (its cable was the October one, which needs the 146-day anchored phase) and the study of Section 10.4; both stay for the record. The October design point and every result of Sections 1 to 12 come back with `ORBITAL_RING_QUADRATIC=fixed`.
+
+### 13.1 The quadratic with the build orbit
+
+`ring_altitude.py` sizes the cable by the force balance at the design radius R under a momentum constraint. The October form took everything to start at the circular speed of R, v_orbit = sqrt(GM / R) = 7,504.3 m/s. The real deployment starts at the build orbit r0 = R / (1 + sigma / E) = 6,905.5 km (527.36 km, 172.64 km below the ring), where the ring is assembled unstressed on the circular orbit at 7,597.5 m/s, and what is conserved as the ring rises is angular momentum. The speed that stands for the ring's angular momentum at R is the build orbit's angular momentum per unit mass brought to R, v_mom = sqrt(GM r0) / R = 7,412.2 m/s, and the momentum constraint becomes m_c v_c - m_load v_geo = (m_c + m_load) v_mom (the retrograde ring; the prograde with the sign of v_geo reversed, as the code had it). The force balance at R and the stress constraint are unchanged. With v_mom in place of v_orbit the cable's own momentum term no longer cancels, D = v_mom^2 - v_orbit^2 = -1.373e6 m^2/s^2, and the quadratic is
+
+    (S - D) m_s^2 + (S m_hw - K - 2 D m_hw) m_s - (K m_hw + P + D m_hw^2) = 0,
+    S = sigma / rho,  K = 2 m_load dv v_mom - m_load g_net R,  P = (m_load dv)^2,  dv = v_mom + v_geo,
+
+which is the October form when D = 0 (`cable_mass_structural` computes the same floating-point expressions then, so the October numbers come back to the last digit: 115,005.0919 kg/m, 8,270.0145 m/s). `ORBITAL_RING_QUADRATIC` selects `rising` (the default since this round) or `fixed`; `ring_altitude.py` also carries `R_BUILD`, `V_BUILD`, `V_MOM`, `DELTA_V_CASING`, `cable_velocity()` and `deployment_energy()` (the rising form: the kinetic energy change of cable and casing from the build orbit, the potential energy of the lift and the elastic energy of the cable, which with no anchored phase is the LIM work), and `design()` takes the mode. The reference tests run under the fixed quadratic (`tests/conftest.py`) and a new test holds the rising design point; 29 pass.
+
+| Quantity | Retrograde, rising quadratic (the design) | Retrograde, October (fixed) | Prograde, rising quadratic | Prograde, October |
+|---|---|---|---|---|
+| Momentum velocity v_mom | 7,412.2 m/s | 7,504.3 (v_orbit) | 7,412.2 | 7,504.3 |
+| Casing term dv in the constraint | 7,928.4 m/s | 8,020.4 | 6,896.1 | 6,988.1 |
+| Casing speed change, build orbit to ground speed | 8,113.7 m/s | 8,020.4 | 7,081.4 | 6,988.1 |
+| Cable structural | 92,883.3 kg/m | 115,005.1 | 71,386.0 | 89,266 |
+| Cable with hardware (10,686 kg/m) | 103,569.3 kg/m | 125,691.5 | 82,072.0 | 99,952 |
+| Cable speed | 8,330.8 m/s | 8,270.0 | 8,420.5 | 8,343.3 |
+| Speed past the casing | 8,847.0 m/s | 8,786.2 | 7,904.4 | 7,827 |
+| Cable tension, stress | 683.0 GN, 12.5 GPa | 845.6 GN | 524.9 GN | 656.4 GN |
+| Cable area, side | 54.64 m^2, 7.39 m | 67.65, 8.22 | 41.99, 6.48 | 52.51, 7.25 |
+| Cable mass with hardware; ring mass | 4,606 Mt; 5,140 Mt | 5,590; 6,124 | 3,650; 4,184 | 4,445; 4,979 |
+| Deployment energy (closed form) | 19.175 EJ: kinetic 11.569, lift 7.236, elastic 0.370 | 18.804 | 14.902: 8.727, 5.890, 0.285 | 14.595 |
+| Casing weight | 95.0 kN/m | same | same | same |
+
+These are the brief's check values (92,883 / 103,569 / 8,330.8 / 8,847 / 683.0 / 4,606 Mt) to the digit. The cable is 19 % lighter than October's (22,122 kg/m less structural mass, 984 Mt less on the ring), because the ring arrives at 700 km with less angular momentum than the October constraint assumed, so less cable mass is needed to carry the casing's momentum deficit at the same stress, and the cable runs 61 m/s faster. The deployment energy is 2 % higher than October's figure for the heavier cable, since the lift of the whole ring, 7.2 EJ, is now in it.
+
+**The hardware model.** The code's cable hardware does not scale with the cable's side: `lim_config.py` makes the four bearing plates 0.20 m by 1.4 m of iron (8,814 kg/m) and the two LIM reaction plates 0.20 m by 1.2 m of gamma-TiAl (1,872 kg/m), widths set by the coils, and `bearing_mass.py` and `final_bearing.py` size the bearing from the casing's weight (95.0 kN/m, unchanged) and check that the plates fit on the cable face. So m_hw stays 10,686 kg/m and there is nothing to iterate; the only question is whether the plates still fit on the 7.39 m face (they took 8.22 m before), which the bearing reruns below answer.
+
+**The scripts that follow.** Every script that imports `ring_altitude.py` sees the new design point. `run_all.py --no-lim` was rerun into `runs/rising_quadratic/all/` (the October logs stay in `runs/` and `tests/reference/`); the equation sources of `tools/generate_equations_latex.py` were written under both quadratics (no LaTeX on this machine, so `.tex` only; the book's SVGs are untouched). The outputs that change, from a diff of the headline lines against the October logs:
+
+| Output (log of `run_all.py`, or tool) | Changes under the rising quadratic | What changed |
+|---|---|---|
+| `ring_altitude_700`, `_700_prograde`, `_250`, `_800` | yes, 16 of 31 lines | the cable's mass, speed, area, tension, ring mass and deployment energy at every altitude and direction (the table above for 700 km; 800 km: structural 92,128 kg/m, 8,280.6 m/s, 677.4 GN against 113,809, 8,220.6, 836.8; 250 km: 96,543 kg/m, 8,571.0 m/s, 709.9 GN against 120,863, 8,506.3, 888.7) |
+| `anchor_700_i0` to `_i30` (`anchor_line_analysis.py`) | yes, 42 of 135 lines | the cable's speed and mass in the lateral force of the inclined ring: the total force per anchor 5.317 GN against 5.331 at 20 degrees, and the line angles, lengths, stresses and tapers that follow |
+| `anchor_lines_deployment` (`tools/anchor_lines_deployment.py` on the verification run's series) | yes (new series) | the casing's rate of slowing and net weight day by day, the pull on a stowed line and the tip speed through the air, from the 510-day deployment |
+| `bearing_design`, `bearing_mass`, `final_bearing` | yes, 84, 85 and 120 lines | the ring's row of each (cable 103,569 kg/m, speed past the casing 8,847 m/s, cable face 7.39 m) and everything that uses the face width: the bearing's plates still fit, 4.33 m of the 7.39 m underside and 1.90 m on top (`bearing_mass`), the plates' edges at 3.70 m from the centerline (`final_bearing`); the casing's weight, 95.0 kN/m, and so the track ratings, tape and the 114 dynamics cases are unchanged (smallest gap 50.2 mm in `final_bearing`) |
+| `bearing_fem_check`, `compensation_fields` | timing lines only | the solve times; every number the same |
+| `compensation_tracks` | yes, 156 of 480 lines | the ring's row and the cable's moment of inertia (`CABLE_SIDE`), so the track forces and timings of the lateral compensation |
+| `j2_retrograde_i5` to `_i30`, `j2_prograde_i5` to `_i30` | yes, 121 of 320 lines | the cable's mass per meter and speed in the J2 torque and the precession figures (the free precession rate at the J2 torque 6.58 deg/day against 6.50 at 20 degrees) |
+| `levitation` | yes, 37 of 204 lines | the eddy heating against the gap at the new relative speed, 8,847 m/s (the plate's service temperature reached at a 51.4 mm gap and melting at 33.4 mm, against 51.3 and 33.3 in October) |
+| `sled_passage`, `sled_passage_limits`, `sled_passage_pulsed`, `sled_passage_spread` | yes, 1,370, 29, 559 and 320 lines | the cable's mass, side and speed in the sled passage: the design-point line and the tables that follow |
+| `casing_6000` (`casing_6000.py --bearing` and `--table`) | yes | the Chapter 3 quadratic for the three hardware cases of the 6,000 kg/m casing (the ring rows); the deployment logs behind Table 16.2 are the October fixed-radius runs of `run_700_casing_6000.sh` and were not rerun |
+| `tools/generate_equations_latex.py` (`runs/rising_quadratic/all/equations/*.tex`) | yes, 11 of 26 equation sources | 2.5 (the lateral kinetic energy, through the ring mass), 3.6, 3.7 (now with v_mom, 7,412.2 m/s, in place of v_orbit; the new `eq03_05b_vmom_700` gives v_mom), 3.8 (683.0 GN), 3.9 and 3.10 (the second moment and L_char of the 7.39 m cable), 4.3 to 4.5 (the cable's centrifugal and net outward acceleration, 9.805 and 1.849 m/s^2, the gap time), 4.8 (the apogee of the released cable); no LaTeX on this machine, so `.tex` only and the book's SVGs untouched |
+| `power_deployment`, `power_ops`, `power_deployment_ring_mounted_8MW` and `_16MW` | no | the power model uses the ring's circumference and the array's altitude, not the cable |
+| `debris_orbits`, `debris_simulation`, `altitude_trade`, `md_simulation`, `md_trade_study`, `lsm_*`, `tether_stress`, `freefall`, `rendezvous`, `climber_descent`, `atmospheric_loading`, `ch4_numbers` | no | they take the altitude, the orbital speed or the circumference from `ring_altitude.py`, not the cable (`md_trade_study` differs by one path line) |
+
+The two LIM deployment runs of `run_all.py` (`lim_simulation`, `lim_simulation_16MW`, the fixed-radius ones) were not rerun: the deployment of the new cable is the rising-radius run of 13.2.
+
+### 13.2 The verification run: the deployment with the new cable
+
+`ORBITAL_RING_OUT=runs/rising_quadratic/verify python tools/ch14_thermal_series.py <csv> --rising` (the same run as `lim_simulation.py --rising-radius`, full time steps, with the thermal series written): 8 MW per site, 208 turns, two LIMs per site, the retrograde cable of the rising quadratic. Log, daily table, Figure 3.2 series, summary, hang table, figures and the thermal series in `runs/rising_quadratic/verify/`.
+
+**The end state.** The run ends on the design tension on day 510.23 with the three conditions met within the solver's precision: the ring at 700.000 km (14 m above the design radius), the casing at 516.146 m/s eastward (the ground-synchronous speed to the step), the cable at 8,330.817 m/s (0.003 m/s under the design 8,330.820) and the tension at 682.966 GN, 12.500 GPa (0.00005 GN over the design). The casing reached ground speed on day 510.2257 and the tension its design value on day 510.2263, one 10 s time step later, so the anchored phase lasted one step: the ring rose 0.00 km in it, the Earth supplied 1.8e16 kg m^2/s of angular momentum (7e-8 of the ring's 2.70e23) and did -1.3e-6 EJ of work. With the October cable the same run needed 146 days of anchored phase and 3.99e21 kg m^2/s from the Earth (Section 4). The total angular momentum at the build equals that at the design point to all printed digits (2.69656e23, +0.000 %), which is the quadratic's constraint.
+
+**The first-list set of the round-1 brief, for Chapters 3, 9, 11, 12 and 14** (October cable's rising-radius value in brackets):
+
+| Quantity | Value |
+|---|---|
+| Deployment time | 510.2 days, 16.8 months, 1.40 years (647.1 days) |
+| Phase 1, phase 2 | 510.2 days; none (one time step) (501.1 and 146.1 days) |
+| The casing at rest | day 442 at 679.2 km, 600.7 GN (day 436) |
+| The 100 kV coil limit arrives; thrust then | day 347.8, 364 N per LIM (day 353.2) |
+| The current cap, 183.1 A | the first 27.7 days (28.0) |
+| The 8 MW power cap | 338 days, day 26.8 to 364.7 (343 days, 27.1 to 370.4) |
+| Peak thrust per LIM | 1,934 N on day 27.3 (1,938 N on day 27.6) |
+| LIM work | 19.175 EJ, 215.6 TJ per site (23.864 EJ, 268.3 TJ) |
+| Its parts: cable kinetic, casing kinetic, lift, elastic | +26.900, -15.331, +7.236, +0.370 EJ; sum 19.175; the balance of the loop and the mechanical change 6e-6 EJ (+29.825, -15.331, +8.621, +0.459, minus the Earth's 0.291) |
+| The closed form, `ring_altitude.E_DEPLOY` | 19.1753 EJ (the run 19.1753; the 1e-5 EJ between them is `lim_config`'s 10,686.4 kg/m of hardware against `ring_altitude`'s 10,686) |
+| Altitude profile | 527.36 km at the build; 531.8 on day 30, 542.0 on day 60, 556.1 on day 100, 592.8 on day 200, 629.6 on day 300, 665.4 on day 400, 681.7 on day 450, 697.0 on day 500, 700.0 on day 510 |
+| Tension profile | 17 GN on day 30, 58 on day 60, 114 on day 100, 259 on day 200, 404 on day 300, 546 on day 400 (10.0 GPa), 601 at rest (day 442), 683 at the end |
+| The casing's net weight | half of its final 95.0 kN/m on day 51; peak 96.7 kN/m on day 391; 95.0 kN/m at the end; the cable's excess force 191.5 kN/m at the end (214.5 with the October cable) |
+| Thrust and site power at the end | 247 N per LIM, 6.77 MW, 44.5 Hz (251 N, 6.81 MW) |
+| Anchor reaction in the deployment | none: the LIM thrust at the end, 43.7 MN over the ring, is the cable's, not the anchors'; the anchors are attached at the end at 700 km (44.8 MN mean over 146 days) |
+
+**The hang table** (`tools/rising_radius_hanging.py --depths=100,377,550`; the 150 km floor of Section 11.1):
+
+| Day | Ring km | 100 km below | 377 km below | 550 km below (the spreader arm) | Longest hang above 150 km |
+|---|---|---|---|---|---|
+| 0 | 527.36 | 427.4 | 150.4 | -22.6 (below the ground) | 377 |
+| 30 | 531.8 | 431.8 | 154.8 | -18.2 | 382 |
+| 60 | 542.0 | 442.0 | 165.0 | -8.0 | 392 |
+| 100 | 556.1 | 456.1 | 179.1 | 6.1 | 406 |
+| 200 | 592.8 | 492.8 | 215.8 | 42.8 | 443 |
+| 300 | 629.6 | 529.6 | 252.6 | 79.6 | 480 |
+| 400 | 665.4 | 565.4 | 288.4 | 115.4 | 515 |
+| 500 | 697.0 | 597.0 | 320.0 | 147.0 | 547 |
+| 510.2 | 700.0 | 600.0 | 323.0 | 150.0 | 550 |
+
+A hang of 100 km is never below 427 km; 377 km is the longest hang that clears 150 km from day 0 (150.4 km); a 400 km hang clears it from day 83, 450 km from day 220, 500 km from day 356, and the 550 km spreader arm only at the end (it would be below the ground for the first 82 days).
+
+**The thermal history** (`ch14_thermal_series.csv`, 220,000 rows at 200 s; the figures drawn from it by `tools/fig14_figures.py` are in `figures_rising_radius/` for the record, not for the book yet). It is the October cable's history (the LIM model and its losses do not depend on the cable mass; the deployment is 137 days shorter): the cable peaks at 382.6 K on day 1, is 367.7 K at half a month and 309.5 K at one month, below 260 K from month 1.6, 256.5 K at two months, 257.8 at three, 258.7 at five, and 255.1 K at the end (month 16.8); the wall 7.3 K below it, 247.9 K at the end. The cold-side load starts at 16.2 kW, peaks at 26.35 kW (4.27 m of radiator) at 1.73 months, is 20.0 kW at five months and 17.5 kW, 2.84 m, at the end. The cryogenic power per site peaks at 2.20 MW on day 52 and ends at 1.46 MW; the peak hysteresis 5.06 kW per LIM.
+
+### 13.3 The site power sweep
+
+`tools/rising_radius_power_sweep.py --run` ran the eighteen cases of the brief at the full time steps (1 s on the first day, then 10 s; 4 to 45 minutes each, five at a time), each `lim_simulation.py --rising-radius` with the cable of the rising quadratic, 100 kV, and for the four-LIM cases `ORBITAL_RING_HW_KGM` set to the two-plates-per-side hardware so that the quadratic sizes that cable (12,558 kg/m of hardware: structural 92,451 kg/m, 105,010 kg/m with hardware, 4,670 Mt, 8,318.2 m/s, 679.8 GN; the LIM work of that ring is 19.148 EJ, the closed form again). `--table` made the table, the knees and the figure: `runs/rising_radius_sweep/rising_radius_power_sweep.md`, `.csv`, `.svg|png`, one folder per case. The 8 MW two-LIM case is the verification run of 13.2 to the digit (510.23 days). No case has an anchored phase: every run ends on the design tension at 700 km with the casing at ground speed, as the quadratic requires. "P cap last day" is the last day the site power cap binds, "100 kV from day" the first day from which the coil voltage stays at the limit (the definitions of Section 10.6); "never" in the first means the cap never binds (the voltage limit holds the draw under it), in the second that the limit is never reached. The panel width is 55 m at 8 MW scaled with the peak site power (Chapter 8, 291 W/m^2).
+
+| LIMs | Turns | MW/site | Days | Months | P cap last day | 100 kV from day | LIM work EJ | Peak site MW | Panel width m | Plate K | Cryo peak MW | Cryo end MW | Tape t/site | Thrust at the end N/LIM | Cable kg/m, Mt |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2 | 208 | 6 | 695.3 | 22.8 | 695.3 (the end) | never | 19.175 | 6.00 | 41 | 382.2 | 1.98 | 1.43 | 3.3 | 212 | 103,570; 4,606 |
+| 2 | 208 | 8 | 510.2 | 16.8 | 364.7 | 347.8 | 19.175 | 8.00 | 55 | 382.2 | 2.20 | 1.46 | 3.3 | 247 | 103,570; 4,606 |
+| 2 | 208 | 10 | 453.8 | 14.9 | 174.9 | 165.6 | 19.175 | 10.00 | 69 | 382.2 | 2.39 | 1.46 | 3.3 | 247 | 103,570; 4,606 |
+| 2 | 208 | 12 | 437.0 | 14.4 | 94.7 | 89.2 | 19.175 | 12.00 | 83 | 382.2 | 2.57 | 1.46 | 3.3 | 247 | 103,570; 4,606 |
+| 2 | 208 | 14 | 437.7 | 14.4 | 63.6 | 62.3 | 19.175 | 14.00 | 96 | 382.2 | 2.73 | 1.46 | 3.3 | 247 | 103,570; 4,606 |
+| 2 | 208 | 16 | 438.3 | 14.4 | 59.9 | 59.1 | 19.175 | 16.00 | 110 | 382.2 | 2.79 | 1.46 | 3.3 | 247 | 103,570; 4,606 |
+| 2 | 208 | 20 | 440.3 | 14.5 | never | 57.9 | 19.175 | 17.40 | 120 | 382.2 | 2.82 | 1.46 | 3.3 | 247 | 103,570; 4,606 |
+| 2 | 208 | 24 | 440.3 | 14.5 | never | 57.9 | 19.175 | 17.37 | 119 | 382.2 | 2.82 | 1.46 | 3.3 | 247 | 103,570; 4,606 |
+| 4 | 208 | 8 | 517.8 | 17.0 | 517.8 (the end) | never | 19.148 | 8.00 | 55 | 453.5 | 2.62 | 1.95 | 6.5 | 141 | 105,010; 4,670 |
+| 4 | 208 | 12 | 318.1 | 10.5 | 318.1 (the end) | never | 19.148 | 12.00 | 83 | 453.5 | 2.97 | 2.07 | 6.5 | 234 | 105,010; 4,670 |
+| 4 | 208 | 16 | 247.0 | 8.1 | 153.6 | 146.5 | 19.148 | 16.00 | 110 | 453.5 | 3.29 | 2.09 | 6.5 | 249 | 105,010; 4,670 |
+| 4 | 208 | 20 | 225.8 | 7.4 | 75.9 | 71.8 | 19.148 | 20.00 | 138 | 453.5 | 3.61 | 2.09 | 6.5 | 249 | 105,010; 4,670 |
+| 4 | 208 | 24 | 220.2 | 7.2 | 43.7 | 42.5 | 19.148 | 24.00 | 165 | 453.5 | 3.94 | 2.09 | 6.5 | 249 | 105,010; 4,670 |
+| 4 | 208 | 32 | 221.2 | 7.3 | 35.0 | 34.5 | 19.148 | 32.00 | 220 | 453.5 | 4.63 | 2.09 | 6.5 | 249 | 105,010; 4,670 |
+| 4 | 150 | 12 | 334.1 | 11.0 | 334.1 (the end) | never | 19.148 | 12.00 | 83 | 385.8 | 3.16 | 2.06 | 4.7 | 234 | 105,010; 4,670 |
+| 4 | 150 | 16 | 255.2 | 8.4 | 255.2 (the end) | never | 19.148 | 16.00 | 110 | 385.8 | 3.61 | 2.42 | 4.7 | 320 | 105,010; 4,670 |
+| 4 | 150 | 24 | 187.8 | 6.2 | 187.8 (the end) | 184.5 | 19.148 | 24.00 | 165 | 385.8 | 4.29 | 3.30 | 4.7 | 482 | 105,010; 4,670 |
+| 4 | 150 | 32 | 250.6 | 8.2 | never | 110.8 | 19.148 | 25.91 | 178 | 385.8 | 5.63 | 3.24 | 4.7 | 208 | 105,010; 4,670 |
+
+**The curves and the knees** (the knee: the lowest power within 2 % of the curve's floor):
+
+- **Two LIMs per site, 208 turns**: 695, 510, 454, 437, 438, 438, 440, 440 days at 6, 8, 10, 12, 14, 16, 20, 24 MW; the floor is 437.0 days at 12 MW. Days saved per MW: 92.5 from 6 to 8 MW, 28.2 from 8 to 10, 8.4 from 10 to 12, then nothing (the curve rises 0.3 to 0.5 days per MW to 24 MW: the earlier arrival at the voltage limit costs a little, since the voltage-limited thrust is lower than the power-limited one). The knee is **12 MW, 437.0 days (14.4 months)**: 100 kV from day 89, the power cap binding to day 95, LIM work 19.175 EJ, peak site 12.00 MW, panel 83 m, plate 382 K, cryogenic 2.57 MW peak and 1.46 MW at the end, 3.3 t of tape per site, 247 N per LIM at the end. 10 MW is 3.8 % above the floor (454 days) and misses the 2 % band; it saves 56 days over 8 MW for 2 MW. Above 16 MW the site never draws more than 17.4 MW.
+- **Four LIMs per site, 208 turns**: 518, 318, 247, 226, 220, 221 days at 8, 12, 16, 20, 24, 32 MW; floor 220.2 days at 24 MW. Days saved per MW: 49.9 from 8 to 12, 17.8 from 12 to 16, 5.3 from 16 to 20, 1.4 from 20 to 24, none to 32. The knee is **24 MW, 220.2 days (7.2 months)**: 100 kV from day 42.5, the power cap to day 43.7, LIM work 19.148 EJ, panel 165 m, plate 453.5 K on the first day, cryogenic 3.94 MW peak and 2.09 MW at the end, 6.5 t of tape per site, 249 N per LIM at the end; the cable 105,010 kg/m with hardware, 4,670 Mt (64 Mt more than the design's), 8,318.2 m/s, 679.8 GN. 20 MW is 2.5 % above the floor (225.8 days), just outside the band, with a 138 m panel and 3.61 MW of cryogenic plant. The knee is not above 24 MW; the 32 MW case buys nothing (221.2 days) and costs a 220 m panel and 4.63 MW of cryogenic plant per site.
+- **Four LIMs per site, 150 turns**: 334, 255, 188, 251 days at 12, 16, 24, 32 MW; floor 187.8 days at 24 MW, the shortest deployment of the sweep. Days saved per MW: 19.7 from 12 to 16, 8.4 from 16 to 24, and 7.8 lost per MW from 24 to 32. The knee is **24 MW, 187.8 days (6.2 months)**: the power cap binds from day 70 to the end and the coil reaches 100 kV only in the last 3 days, so the thrust per LIM stays high, 482 N at the end at 23.7 MW; LIM work 19.148 EJ, panel 165 m, plate 385.8 K, cryogenic 4.29 MW peak and 3.30 MW at the end, 4.7 t of tape per site. The 32 MW case is slower, 250.6 days: with the higher cap the coil draws its full 183.1 A for 112 days, reaches 100 kV on day 111 at 682 N, and from there runs voltage-limited, which for the 150-turn coil means 531 N at 173 A in month 4 and 211 N at 127 A in month 8, against 650 N at 148 A and 501 N at 129 A in the power-limited 24 MW run at the same months; the site draws 22 MW falling to 12.4 MW. The voltage-limited operating point of this coil pushes less per ampere than its power-limited one (the controller's slip at the limit), so that case is a control-strategy result, not a physical optimum, and the 150-turn curve has a true minimum at 24 MW only in the sense that more cap lets the controller reach the limit sooner. The same effect is the 0.3 to 0.5 days per MW rise of the two-LIM curve above 12 MW.
+
+**The two candidate optima**, as the brief asks, with Paul to pick:
+
+| | Two LIMs per site, 208 turns, 12 MW | Four LIMs per site, 208 turns, 24 MW | (Four LIMs, 150 turns, 24 MW) |
+|---|---|---|---|
+| Deployment | 437.0 days, 14.4 months | 220.2 days, 7.2 months | 187.8 days, 6.2 months |
+| 100 kV from day; power cap to day | 89; 95 | 42.5; 43.7 | 184.5; the end |
+| LIM work | 19.175 EJ (215.6 TJ per site) | 19.148 EJ | 19.148 EJ |
+| Peak site power; ring; panel width | 12.0 MW; 1,067 GW; 83 m | 24.0 MW; 2,135 GW; 165 m | 24.0 MW; 2,135 GW; 165 m |
+| Plate temperature, first day | 382.2 K | 453.5 K | 385.8 K |
+| Cryogenic plant per site (peak); at the end | 2.57 MW; 1.46 | 3.94 MW; 2.09 | 4.29 MW; 3.30 |
+| HTS tape per site | 3.3 t (764 km) | 6.5 t (1,528 km) | 4.7 t (1,102 km) |
+| Cable hardware; structural; with hardware; ring total | 10,686; 92,883; 103,570 kg/m; 4,606 Mt | 12,558; 92,451; 105,010 kg/m; 4,670 Mt (+64) | the same |
+| Design cable speed; tension | 8,330.8 m/s; 683.0 GN | 8,318.2 m/s; 679.8 GN | the same |
+| Thrust per LIM at the end; site power at the end | 247 N; 6.8 MW | 249 N; 12.7 MW | 482 N; 23.7 MW |
+| Anchored phase | none | none | none |
+
+Against the design of Section 13.2 (8 MW, two LIMs, 510 days), the two-LIM knee saves 73 days for 4 MW more per site and nothing on the ring; the four-LIM knee saves 290 days for 16 MW more per site, 3.3 t more tape and 3,100 m^2 more coil cryostat per site, 1.4 MW more cryogenic plant per site, a 165 m panel, 64 Mt more cable, and the 453 K first-day plate (47 K under the limit) and the layout questions of Section 10.4. The 150-turn four-LIM case at 24 MW is 32 days faster than the 208-turn one with 1.8 t less tape and a cooler plate, at 0.35 MW more cryogenic plant and a higher end-of-run draw.
+
+### 13.4 Files, and what this round supersedes
+
+- The options table of Section 11 and the study of Section 10.4 were made with the October cable and are superseded by the sweep of 13.3; they stay for the record. The deployment of Section 4 (647 days with 146 anchored) and the figures of Section 12 are the October cable's; the book's figures are not regenerated in this round (the brief: not yet).
+- Under `runs/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/`): `rising_quadratic/verify/` (the verification run: log, daily table, Figure 3.2 series, summary, hang table, the figures of `tools/fig_rising_radius.py`, `tools/fig03_02_deployment_tension.py --rising` and `tools/fig14_figures.py`, and the thermal series, in the copy decimated to one row per 10,000 s); `rising_quadratic/all/` (every log of `run_all.py --no-lim` under the rising quadratic, with the figures and CSV files the scripts write, and `equations/` with the `.tex` sources; `rising_quadratic/fixed_equations/` the same sources under the October quadratic for the diff); `rising_radius_sweep/` (the table, the figure, one folder per case).
+- Reproduce: `python ring_altitude.py` (the design point; `ORBITAL_RING_CABLE=prograde` for the prograde cable; `ORBITAL_RING_QUADRATIC=fixed` for October's); `ORBITAL_RING_OUT=runs/rising_quadratic/verify python tools/ch14_thermal_series.py runs/rising_quadratic/verify/ch14_thermal_series.csv --rising` (the verification run with the thermal series; `python lim_simulation.py --rising-radius` is the same run without it); `python tools/rising_radius_hanging.py <daily.csv> --depths=100,377,550`; `python tools/rising_radius_power_sweep.py --run --jobs=3` then `--table`; `ORBITAL_RING_OUT=runs/rising_quadratic/all python run_all.py --no-lim`; `python tools/generate_equations_latex.py`.
+- The October results: `ORBITAL_RING_QUADRATIC=fixed` before any script, including `run_all.py` and the two LIM runs; `python -m pytest tests` runs under it by itself.

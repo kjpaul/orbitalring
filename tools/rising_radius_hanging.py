@@ -27,11 +27,14 @@ import numpy as np
 import ring_altitude as ring
 
 FLOOR_KM = 150.0                      # Section 11.1: the lines are let down to about 150 km early, no lower
-DEPTHS_KM = [20.0, 50.0, 100.0]       # fixed distances below the casing
+DEPTHS_KM = [float(x) for x in os.environ.get('ORBITAL_RING_HANG_DEPTHS_KM', '20,50,100').split(',')]   # fixed distances below the casing
 ARM_HANG_KM = ring.ALTITUDE / 1e3 - FLOOR_KM   # the spreader arm as hung during the deployment: casing to 150 km from the 700 km ring
 
 
 def main():
+    depths = next((x[9:] for x in sys.argv if x.startswith("--depths=")), None)
+    if depths:
+        DEPTHS_KM[:] = [float(x) for x in depths.split(",")]
     src = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else os.path.join(ring.out_dir(), "rising_radius_daily.csv")
     rows = list(csv.DictReader(open(src, newline="")))
     day = np.array([float(r["day"]) for r in rows]); h = np.array([float(r["altitude_km"]) for r in rows]); phase = np.array([int(r["phase"]) for r in rows])

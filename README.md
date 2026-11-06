@@ -8,24 +8,26 @@ Anyone can clone this repository, install the listed packages, run one command p
 
 ## The design point
 
-Set in `ring_altitude.py`, which every script reads (values from its log, `ring_altitude_700.txt`):
+Set in `ring_altitude.py`, which every script reads (values from its log, `ring_altitude_700.txt`). Since 2026-11-06 the cable is sized by the quadratic with the build orbit: the ring is assembled unstressed on the circular orbit 172.6 km below the design altitude (527.4 km, R / (1 + 2.5 %)) and rises to 700 km as the cable is tensioned, conserving angular momentum, so the momentum constraint at 700 km uses v_mom = sqrt(GM r0) / R = 7,412.2 m/s in place of the circular velocity 7,504.3 m/s. The October 2026 design point (the fixed-radius quadratic: structural cable 115,005 kg/m, 8,270 m/s, 845.6 GN, 6,124 Mt, 18.8 EJ) comes back with `ORBITAL_RING_QUADRATIC=fixed`, and the reference tests run under it.
 
-| Quantity | Value |
-|---|---|
-| Ring altitude | 700 km, equatorial |
-| Cable direction | retrograde (westward) |
-| Ring circumference | 44,473 km |
-| Casing mass per meter | 12,000 kg/m |
-| Cable hardware per meter (motor plates and bearing plates) | 10,686 kg/m |
-| Cable mass per meter, structural | 115,005 kg/m |
-| Cable mass per meter, with hardware | 125,691 kg/m |
-| Cable speed | 8,270 m/s |
-| Cable speed relative to the casing | 8,786 m/s |
-| Cable tension | 845.6 GN |
-| Cable cross-section | 67.65 m² (8.22 m square) |
-| Ring mass | 6,124 million tonnes |
-| Deployment energy | 18.8 EJ |
-| Suspended solar array | 600 km, 100 km below the ring |
+| Quantity | Value (rising quadratic, the default) | October 2026 (`ORBITAL_RING_QUADRATIC=fixed`) |
+|---|---|---|
+| Ring altitude | 700 km, equatorial | same |
+| Build orbit | 527.4 km, circular velocity 7,597.5 m/s; rise 172.6 km | none |
+| Cable direction | retrograde (westward) | same |
+| Ring circumference | 44,473 km | same |
+| Casing mass per meter | 12,000 kg/m | same |
+| Cable hardware per meter (motor plates and bearing plates) | 10,686 kg/m | same |
+| Momentum velocity v_mom | 7,412.2 m/s | 7,504.3 m/s (the circular velocity) |
+| Cable mass per meter, structural | 92,883 kg/m | 115,005 kg/m |
+| Cable mass per meter, with hardware | 103,569 kg/m | 125,691 kg/m |
+| Cable speed | 8,330.8 m/s | 8,270 m/s |
+| Cable speed relative to the casing | 8,847 m/s | 8,786 m/s |
+| Cable tension | 683.0 GN | 845.6 GN |
+| Cable cross-section | 54.64 m² (7.39 m square) | 67.65 m² (8.22 m square) |
+| Ring mass | 5,140 million tonnes (cable with hardware 4,606) | 6,124 million tonnes |
+| Deployment energy | 19.18 EJ (kinetic 11.57, the lift 7.24, elastic 0.37) | 18.8 EJ |
+| Suspended solar array | 600 km, 100 km below the ring | same |
 
 ## Install
 
@@ -116,6 +118,7 @@ The bearing has four tracks of air-core superconducting coils: two support track
 | `tools/rising_radius_hanging.py`, `tools/fig_rising_radius.py`, `tools/fig03_02_deployment_tension.py --rising` | from the rising-radius run: the altitude of a point 20, 50, 100 km and a spreader arm's length below the casing day by day against the 150 km limit of Section 11.1, and the longest hang that clears it (`rising_radius_hanging.csv`); the figures of the run (altitude, tension, speeds, the phase 2 anchor reaction, the energy budget) in `runs/figures_rising_radius/`; Figure 3.2 redrawn from the rising series | 3, 11, 12 |
 | `tools/rising_radius_study.py` | the deployment study on the rising radius (round 2, 2026-11-06): site power 8 to 24 MW, 150 to 260 turns, 2 to 6 LIMs per site, one at a time and combined, each a quick-step `lim_simulation.py --rising-radius` run through `lim_config.configure` (`--run`), and the table of days, the binding limits, LIM work, thermal peaks and the hardware per site (`--table`; `runs/rising_radius_study/`); the 16 MW and prograde reruns are in `docs/deployment_rising_radius_2026-11.md`, Section 10 | 3, 9, 14 |
 | `tools/ch14_thermal_series.py --rising`, `tools/fig14_figures.py` | the thermal series of the rising-radius run and Figures 14.1 and 14.2 from it (2026-11-06; `runs/rising_radius_thermal/`); Figure 3.2 from the rising run is `Vol_III/figure_scripts_2026-11-06/gen_fig03_02_rising.py`; report Section 12 | 3, 14 |
+| `tools/rising_radius_power_sweep.py` | the site power sweep on the rising radius with the cable of the rising quadratic (round 4, 2026-11-06): two LIMs per site at 208 turns from 6 to 24 MW, four LIMs at 208 turns from 8 to 32 MW and at 150 turns from 12 to 32 MW, full-step `lim_simulation.py --rising-radius` runs (`--run`), the table with the binding limits, LIM work, thermal peaks, tape, panel width and the quadratic's cable, and the days-against-power curves with their knees (`--table`; `runs/rising_radius_sweep/`); report Section 13 | 8, 9, 14 |
 | `tools/rising_radius_options.py` | the deployment options table (round 3, 2026-11-06): the eight cases of the brief (8, 12, 16 MW per site with two LIMs; four LIMs at 8 and 16 MW, with 208 and 150 turns; six LIMs at 24 MW, 208 and 150 turns), each a full-step `lim_simulation.py --rising-radius` run (`--run`, hours each), and the table for Chapter 9's section on shortening the deployment (`--table`; `runs/rising_radius_options/`): days and phases, the 100 kV day, LIM work, peak site power with the ring total and the deployment panel width, the thermal peaks, the hardware on the cable with the quadratic's design point for it, the tape and cryogenic plant per site, the phase 2 anchor reaction, and the day a 450 and a 550 km hang clears 150 km; report Section 11 | 3, 9, 12 |
 | `tools/lim_tape_limit.py` | the deployment LIM coil on the measured tape limit: the field at every tape of its own winding, the worst tape's critical current at its own field and angle (Robinson 70 K data), the layers, the coil current limit, the hysteresis by layer and width, the turns trade; `--tables` reads the deployment logs into the forms of Tables 9.3 and 14.2 (log `lim_tape_limit.txt`) | 9 (Table 9.2, Sections 9.5 to 9.7), 14 (Table 14.2) |
 | `tools/fig09_01_traveling_wave.py`, `tools/fig09_02_load_angle.py` | Figures 9.1 and 9.2, in `runs/figures_ch09/` | 9 |
@@ -147,10 +150,11 @@ Kept and runnable, labelled in their first line. The bearing they describe is no
 | `ORBITAL_RING_ALT_KM` | ring altitude in km | 700 |
 | `ORBITAL_RING_CABLE` | `retrograde` or `prograde` | retrograde |
 | `ORBITAL_RING_HW_KGM` | cable hardware mass per meter, kg/m | 10686 |
+| `ORBITAL_RING_QUADRATIC` | `rising` (the cable sized from the build orbit, conserving angular momentum) or `fixed` (the October 2026 quadratic, everything starting at the circular speed of the design radius) | rising |
 | `ORBITAL_RING_ARRAY_OFFSET_KM` | how far below the ring the solar array hangs, km (0 puts the panels on the ring) | 100 |
 | `ORBITAL_RING_OUT` | the folder every script writes to | runs |
 
-Every script that imports `ring_altitude.py` reads the first four; each script's docstring says which it uses. For example, `ORBITAL_RING_ALT_KM=800 python ring_altitude.py` prints the 800 km reference table, and `ORBITAL_RING_CABLE=prograde python j2_simulation.py --inclination=20` runs the prograde ring.
+Every script that imports `ring_altitude.py` reads the first five; each script's docstring says which it uses. For example, `ORBITAL_RING_ALT_KM=800 python ring_altitude.py` prints the 800 km reference table, and `ORBITAL_RING_CABLE=prograde python j2_simulation.py --inclination=20` runs the prograde ring.
 
 ## Tests
 
