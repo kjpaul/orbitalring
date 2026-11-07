@@ -236,3 +236,34 @@ Every row changes. The peak is 17 % higher and comes at five months (the hystere
 | 9.8, "power alone saturates ... about 74 days ... 12 MW or 16" | the October cable with 208 turns | with 150 turns: 8 to 12 MW saves 153 days, 12 to 16 another 26, nothing beyond 20 MW; the knee of the 2 % rule is 16 MW (355 days); the 208-turn coil saturates at 12 MW (436, 428 days) | October | `tools/rising_radius_design_power.py` |
 | 9.7, the turns sweep at 12 MW | the book's 100 / 150 / 208 / 300 at 8 MW | 650, 448, 381, 402, 401, 437, 541, 719 days at 120 to 280 turns; minimum 150 | new | `tools/rising_radius_turns_sweep.py` |
 | Table 9.3 and 14.x, the cryogenic plant of the design | 2.49 MW peak at seven weeks, 1.53 MW after | 2.90 MW (the book's COP) at five months, 1.37 MW after; the simulation's own 2.57 and 1.21 MW | October | `tools/ch14_thermal_series.py --rising --set N_TURNS=150 --set MAX_SITE_POWER=12e6` |
+
+## Addendum (2026-11-07, round 6b): the loose ends
+
+From Section 16 of `deployment_rising_radius_2026-11.md`. The design is unchanged: 150 turns, 12 MW, two LIMs, the rising-quadratic cable.
+
+| Where | October (book) | New | Script |
+|---|---|---|---|
+| Table 4.8, prompt soot, 700 km row (beta 1.0 / 1.2 / 1.5 / 2.0 / 3.0) | 7.8 / 5.6 / 3.4 / 1.5 / 0.3 Mt | 6.5 / 4.6 / 2.8 / 1.2 / 0.2 Mt | `tools/ch4_extra.py` (5 % ejecta, 30 % soot, a tenth of the casing; `tools/ch4_numbers.py` now on the same share) |
+| Table 4.8, 550 / 600 / 650 / 800 / 1,000 km rows | 30.6 / 28.7 / 26.1 / 22.2 / 16.2; 15.4 / 12.6 / 9.3 / 5.6 / 2.1; 10.4 / 7.8 / 5.1 / 2.5 / 0.6; 5.3 / 3.5 / 1.9 / 0.7 / 0.1; 3.3 / 2.0 / 0.9 / 0.3 / 0.0 | 25.2 / 23.6 / 21.5 / 18.3 / 13.3; 12.7 / 10.4 / 7.7 / 4.6 / 1.7; 8.6 / 6.5 / 4.2 / 2.1 / 0.5; 4.4 / 2.9 / 1.6 / 0.6 / 0.1; 2.7 / 1.6 / 0.8 / 0.2 / 0.0 | the same |
+| Table 4.8, 250 km row | 82 Mt (the whole 5 % of the cable at 30 % soot, `ch4_numbers`) | 67 Mt on that basis; 33.9 Mt on the table's own rule (the retrograde half) | `tools/ch4_numbers.py`, `tools/ch4_extra.py` |
+| 4.7 text, "0.3 to 7.8 Mt" | 0.3 to 7.8 | 0.2 to 6.5 | `tools/ch4_extra.py` |
+| Figure 4.4 | the October curves | redrawn on 2026-11-07 with the 10 % share (it already used it) | `tools/ch4_figures.py` |
+| Table 4.7, 700 km slow half + kick: orbit; full section / 0.8 m / 8 cm | 587 x 2,300 km; 39,400 / 3,700 / 370 y | 602 x 2,585 km; rule A (mean atmosphere) 88,194 / 9,306 / 931; over the October factor 1.67: 52,700 / 5,560 / 556; over 1.5: 58,800 / 6,200 / 620; over 2: 44,100 / 4,650 / 465 | `tools/ch4_worst_orbits.py` (Paul rules on the rule) |
+| Table 4.7, + 1,200 kg/m roof | 560 x 1,960; 21,400 / 2,000 / 200 | 576 x 2,142; A 45,237 / 4,779 / 478; /1.67: 27,000 / 2,860 / 286; /1.5: 30,200 / 3,190 / 319; /2: 22,600 / 2,390 / 239 | the same |
+| Table 4.7, + 3,000 kg/m roof | 492 x 1,520; 5,800 / 550 / 54 | 506 x 1,585; A 10,026 / 1,053 / 105; /1.67: 5,990 / 629 / 63; /1.5: 6,680 / 702 / 70; /2: 5,010 / 527 / 53 | the same |
+| Table 4.7, 600 km slow half + kick | 489 x 2,150; 10,500 / 980 / 98 | 504 x 2,432; A 20,784 / 2,181 / 218; /1.44 (October's factor at 600): 14,500 / 1,520 / 152; /1.5: 13,900 / 1,450 / 145; /2: 10,400 / 1,090 / 109 | the same |
+| Table 4.7, 550 km slow half + kick; the floor sentence "fails on the 8 cm pieces, at 48 years" | 439 x 2,080; 5,100 / 480 / 48 | 455 x 2,356; A 9,424 / 990 / 99; /1.32 (October's factor at 550): 7,140 / 750 / 75; /1.5: 6,280 / 660 / 66; /2: 4,710 / 495 / 49.5. The 550 km ring passes the 50-year test on the 8 cm pieces by every rule but the factor 2; the floor by the lifetime test moves below 550 km unless that is the rule, and the soot keeps it at 600 | the same |
+| Table 4.12, lifetime of the released cable, full section (250 km / 700 km) | 6 to 900 years / 39,000 years or more | 250 km worst orbit 159 x 1,904 km: 12.8 y (A), 7.7 (/1.67); 700 km: 88,194 (A), 52,700 (/1.67) | the same |
+| Table 4.12, 8 cm pieces on the worst orbit (250 / 700 km) | 3 weeks / 370 years | 0.14 y, seven weeks (A) / 931 (A), 556 (/1.67) | the same |
+| Table 16.2, deployment: days (design; a; b; b with the 200 mm LIM plate; c kept; c halved) | 647 (then 381 at the design); 250.6; 278.1; 252.2; 250.8; 251.4 (8 MW, 208 turns, the fixed radius) | 381.1; 192.5; 198.7; 193.3; 192.6; 192.9 (12 MW, 150 turns, the rising radius) | `lim_simulation.py --m_load=6000 --rising-radius` with `configure(D_LEV, T_PLATE, N_TURNS=150, MAX_SITE_POWER=12e6)` |
+| Table 16.2, LIM peak thrust; first-day heating; cable temperature | 1,669 N; 157 kW; 382 K (the 100 mm LIM plate: 1,900 N; 286 kW; 437 K) | 1,012 N; 77.5 kW; 331 K in every case but the 100 mm LIM plate: 1,013 N; 142 kW; 374 K | the same |
+| Table 16.2, LIM work | 9.34 to 9.40 EJ (design 18.8) | 9.51 to 9.59 EJ (design 19.18) | the same |
+| 16.6 text, the halved reaction plate "nearly doubles the first-day heating ... adds days" | 286 against 157 kW; 278 against 251 days | 142 against 77.5 kW (1.8 times), 374 against 331 K; 100 kV on day 164, 427 N at the end; 198.7 against 192.5 to 193.3 days, 6 days | the same |
+| Table 9.4, four LIMs at 8 MW (208 / 150 turns), six LIMs at 24 MW (208 / 150) | 643 days (208, the October cable); six not run | four LIMs at 8 MW: 518.5 days (150 turns), 517.8 (208), the 8 MW cap binding to the end, 141 to 145 N per LIM at the end; six LIMs at 24 MW: 169.4 (150), 163.9 (208) days, cable 106,453 kg/m, 4,734 Mt, plate 426 / 492 K, tape 7.1 / 9.8 t | `tools/rising_radius_design_power.py` |
+| 11.1, the lowering spool: 550 km from the first day; after the deployment | 12,000 kWh, 260 kN; 60 MWh, 890 kN | 7,970 kWh (8.0 MWh), 177 kN; 59.6 MWh, 894 kN (7.5 times) | `tools/anchor_lines_deployment.py --length=550e3` on the design series |
+| 11.1, the 377 km first-day hang let down from day 0; after the deployment | not quoted | 2,265 kWh (2.3 MWh), 70.8 kN; 25.5 MWh, 537 kN | the same, `--length=377e3` |
+| Figure 2.4, the staged aerobraking | 1.02e17 J, 29 / 4.6 / 0.5 days | 8.56e16 J, 33.0 days, phases 28.1 / 4.5 / 0.4 days | `Vol_III/figure_scripts_2026-11-07/fig02_04_staged_aerobraking_700.py` |
+| Figure 8.1, the power around the ring | 8 MW, 55 m, 172 GW peak | 12 MW, 83 m, 24.0 kW/m demand, 257.3 GW peak | `power_simulation.py --power=12 --width=82.56 --save ring_profile` |
+| Equation 8.1 | 88,946 x 8 MW = 712 GW | 88,946 x 12 MW = 1,067 GW (`.tex` written; render the SVG as the others) | `tools/generate_equations_latex.py` |
+| Table 8.1, 8 MW / 55 m row | 172 GW, 17,200 A, 0.026 m^2, 4 cables, 43 kg/m, 9 GW | 171.5 GW, 17,153 A, 0.0254 m^2, 4, 43.2 kg/m, 8.58 GW (the tool at the book's 60 MS/m) | `tools/ch08_numbers.py` |
+| Table 8.1, 12 MW / 83 m row | 258 GW, 25,800 A, 0.039 m^2, 6, 65 kg/m, 13 GW | 257.3 GW, 25,730 A, 0.0381 m^2, 6, 64.8 kg/m, 12.87 GW; 0.54 % of the casing | the same |

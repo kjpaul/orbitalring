@@ -52,7 +52,7 @@ CABLE_DIAMETER = 0.10           # Individual cable diameter (m)
 # -----------------------------------------------------------------------------
 # 1.4 Conductor Material — Graphene-Enhanced CNT Fiber
 # -----------------------------------------------------------------------------
-SIGMA_CONDUCTOR = 30e6          # Electrical conductivity (S/m)
+SIGMA_CONDUCTOR = 60e6          # Electrical conductivity (S/m): the book's basis, CNT fiber taken at copper's 60 MS/m (Chapter 8; was 30e6 until 2026-11-07)
 RHO_CONDUCTOR = 1700.0          # Density (kg/m^3)
 
 # -----------------------------------------------------------------------------

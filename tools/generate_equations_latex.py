@@ -55,7 +55,8 @@ PC.R_ORBIT = PC.R_EARTH + R.ALTITUDE_KM * 1e3
 PC.ALBEDO_PEAK = PC.EARTH_ALBEDO * PC.SOLAR_CONSTANT * (PC.R_EARTH / PC.R_ORBIT) ** 2
 P_AVG_M2 = PP.compute_ring_power_profile(1.0)['p_avg_per_m2']   # W/m^2, 24 hour average
 N_SITES = round(R.L_RING / 500.0)
-P_DEPLOY = N_SITES * 8e6
+P_SITE_DESIGN = 12e6           # W per LIM site, the design since 2026-11-07 (two LIMs per site at 12 MW; was 8e6)
+P_DEPLOY = N_SITES * P_SITE_DESIGN
 P_SITE_400 = P_AVG_M2 * 400.0 * 500.0
 P_EXPANDED = N_SITES * P_SITE_400
 VALUES = dict(P_AVG_M2=P_AVG_M2, N_SITES=N_SITES, P_DEPLOY_GW=P_DEPLOY/1e9, P_SITE_400_MW=P_SITE_400/1e6, P_EXPANDED_TW=P_EXPANDED/1e12, a_cent=a_cent, a_net=a_net, a_rel=a_rel, t_gap=t_gap, v_radial=a_rel*t_gap, I_sec=I_sec, L_char=L_char,
@@ -120,7 +121,7 @@ EQS = {
  "eq09_02_lsm_thrust": r"""F &= \frac{B_{\mathrm{stator}}\, B_{\mathrm{sled}}\, \sin\delta}{2\, \mu_{0}}\; A_{\mathrm{active}}""",
  "eq09_03_back_emf": r"""\mathrm{EMF}_{\mathrm{peak}} &= 2\, N\, v\, B_{\mathrm{sled}}\, w_{\mathrm{coil}}""",
  f"eq08_01_deploy_power_{ALT}": rf"""P_{{\mathrm{{deploy}}}} &= N_{{\mathrm{{sites}}}} \times P_{{\mathrm{{site}}}}\\
-&= {c(N_SITES)} \times 8\ \mathrm{{MW}}\\
+&= {c(N_SITES)} \times {P_SITE_DESIGN/1e6:.0f}\ \mathrm{{MW}}\\
 &\approx {P_DEPLOY/1e9:.0f}\ \mathrm{{GW}}""",
  f"eq08_02_expanded_power_{ALT}": rf"""P_{{\mathrm{{expanded}}}} &= N_{{\mathrm{{sites}}}} \times P_{{\mathrm{{site,400}}}}\\
 &= {c(N_SITES)} \times {P_SITE_400/1e6:.1f}\ \mathrm{{MW}}\\

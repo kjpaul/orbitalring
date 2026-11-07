@@ -25,7 +25,8 @@ import lim_config as cfg
 import rising_radius_study as study
 import rising_radius_turns_sweep as turns
 
-GRID = {"L2_N150": (2, 150, [8, 12, 16, 20, 24]), "L2_N208": (2, 208, [12, 16]), "L4_N150": (4, 150, [16, 24]), "L4_N208": (4, 208, [16, 24])}
+GRID = {"L2_N150": (2, 150, [8, 12, 16, 20, 24]), "L2_N208": (2, 208, [12, 16]), "L4_N150": (4, 150, [8, 16, 24]), "L4_N208": (4, 208, [8, 16, 24]),
+        "L6_N150": (6, 150, [24]), "L6_N208": (6, 208, [24])}   # the 8 MW four-LIM and the 24 MW six-LIM cases added for Table 9.4 (round 6b)
 KNEE_TOL = 0.02
 
 CASES = {}
@@ -33,9 +34,9 @@ for key, (lims, N, powers) in GRID.items():
     for mw in powers:
         over = {"MAX_SITE_POWER": mw * 1e6, "N_TURNS": N}
         env = {}
-        if lims == 4:
-            over["N_PLATES_PER_SIDE"] = 2
-            env["ORBITAL_RING_HW_KGM"] = f"{study.hw_kgm(2):.1f}"
+        if lims > 2:
+            over["N_PLATES_PER_SIDE"] = lims // 2
+            env["ORBITAL_RING_HW_KGM"] = f"{study.hw_kgm(lims // 2):.1f}"
         CASES[f"{key}_P{mw}MW"] = (over, env)
 study.CASES.update(CASES)
 
@@ -96,7 +97,7 @@ def table():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(7.5, 4.6))
-    for key, col, mk in (("L2_N150", "#2b6ca3", "o-"), ("L2_N208", "#888888", "s--"), ("L4_N150", "#2e8b57", "^-"), ("L4_N208", "#b5451b", "v--")):
+    for key, col, mk in (("L2_N150", "#2b6ca3", "o-"), ("L2_N208", "#888888", "s--"), ("L4_N150", "#2e8b57", "^-"), ("L4_N208", "#b5451b", "v--"), ("L6_N150", "#2e8b57", "D:"), ("L6_N208", "#b5451b", "D:")):
         lims, N, powers = GRID[key]
         pts = [(mw, J) for mw in powers for J in [next((r for r in rows if r["name"] == f"{key}_P{mw}MW"), None)] if J]
         if pts:

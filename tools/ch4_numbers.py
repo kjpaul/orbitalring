@@ -53,7 +53,7 @@ out['c250']=c250
 p1=[]
 for h_km in [600,700,800,1000,1500,2000]:
     h=h_km*1e3
-    d=dict(h=h_km, **{f"b{b}":ds.particulate_from_pop1(h,beta=b)/1e9 for b in [1.0,1.2,1.5,2.0,3.0]})
+    d=dict(h=h_km, **{f"b{b}":ds.particulate_from_pop1(h,beta=b,casing_frac=0.1)/1e9 for b in [1.0,1.2,1.5,2.0,3.0]})
     p1.append(d); print({k:(round(v,2) if isinstance(v,float) else v) for k,v in d.items()})
 out['p1']=p1
 # 250 km prompt ejecta

@@ -193,7 +193,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
     # Calculate cable mass if m_load > 999 kg/m
     if m_load > 999:
-        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, m_hw=cfg.M_HARDWARE)
+        cfg.M_CABLE_STRUCTURAL = ring.cable_mass_structural(m_load, cfg.M_HARDWARE)   # the quadratic of ring_altitude (its momentum constraint; the same as lim_physics.calc_cable_mass under ORBITAL_RING_QUADRATIC=fixed)
         cfg.M_LOAD_M = m_load
     else:
         """Session proofing"""
@@ -815,7 +815,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     print(f"Time series ({len(data_time)} points computed; every {stride}th written with the initial and final states) in {_os.path.basename(csv_path)} in the output folder.")
     print("=" * 70)
     """
-        cfg.M_CABLE_STRUCTURAL = phys.calc_cable_mass(m_load, m_hw=cfg.M_HARDWARE)
+        cfg.M_CABLE_STRUCTURAL = ring.cable_mass_structural(m_load, cfg.M_HARDWARE)   # the quadratic of ring_altitude (its momentum constraint; the same as lim_physics.calc_cable_mass under ORBITAL_RING_QUADRATIC=fixed)
         cfg.M_LOAD_M = m_load
         cfg.M_CABLE_M = cfg.M_CABLE_STRUCTURAL + cfg.M_HARDWARE
         cfg.M_CABLE_TOTAL = cfg.M_CABLE_M * cfg.L_RING

@@ -30,8 +30,9 @@ GM, RE, W, r_r, G_NET = ring.GM, ring.R_EARTH_EQ, ring.OMEGA_SIDEREAL, ring.R_OR
 RHO, SIGMA, G0 = 1700.0, 12.5e9, 9.80665
 M_LOAD, M_TIP, L_LINE = 12000.0, 100e3, r_r - RE
 U_PAYOUT, L_PAYOUT, M_LINE_BOOK = 0.3, 550e3, 148e3
+L_PAYOUT = float(next((a[9:] for a in sys.argv if a.startswith("--length=")), L_PAYOUT))   # --length=377e3 for the first-day hang (2026-11-07)
 DAY = 86400.0
-src = sys.argv[1] if len(sys.argv) > 1 else _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..", "..", "Vol_III", "runs_700km_hw10686_2026-10-12", "deployment_tension_700_brandt_flat.csv")
+src = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..", "..", "Vol_III", "runs_700km_hw10686_2026-10-12", "deployment_tension_700_brandt_flat.csv")
 
 # ---- the run ----
 rows = list(csv.DictReader(open(src)))
