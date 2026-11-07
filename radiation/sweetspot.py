@@ -9,7 +9,13 @@ above the point. The room is a tube along the ring: half-width a north-south, fl
 and side walls of given areal density. Earth blocks cosmic rays within the limb; trapped protons arrive from all directions
 allowed by their pitch angle (their gyration circles are tens of km across, they do not come from the ground)."""
 import numpy as np
-W = 8.20; RHO_CABLE = 1.70; C_TO_WATER = 0.89     # g/cm3; carbon to water equivalence from PSTAR ranges (7.72/8.63 at 100 MeV)
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for ring_altitude
+import ring_altitude as _ring
+# the cable's side: ring_altitude.CABLE_SIDE (7.39 m with the rising quadratic, 2026-11-07); the October runs used 8.20 m, kept under
+# ORBITAL_RING_QUADRATIC=fixed so that sweetspot_gcr.txt and sweetspot_trapped.txt of 2026-10 reproduce
+W = _ring.CABLE_SIDE if _ring.QUADRATIC == "rising" else 8.20
+RHO_CABLE = 1.70; C_TO_WATER = 0.89     # g/cm3; carbon to water equivalence from PSTAR ranges (7.72/8.63 at 100 MeV)
 def sphere(n=60000):
     i = np.arange(n)+0.5; z = 1-2*i/n; ph = np.pi*(1+5**0.5)*i; r = np.sqrt(1-z*z)
     return np.stack([r*np.cos(ph), r*np.sin(ph), z], -1)

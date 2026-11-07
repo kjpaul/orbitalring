@@ -23,7 +23,10 @@ from matplotlib.patches import Rectangle, Wedge, Circle
 
 BLUE, RED, GREEN, GRAY = "#2b6ca3", "#b5451b", "#2e8b57", "gray"
 plt.rcParams.update({"font.size": 12, "font.family": "DejaVu Sans"})
-W_CABLE = 8.22          # m, the cable's side (Chapter 3; sweetspot.py uses 8.20 m in the direction sums)
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for ring_altitude
+import ring_altitude as _ring
+W_CABLE = round(_ring.CABLE_SIDE, 2)   # m, the cable's side from ring_altitude (8.22 m in October, 7.39 m with the rising quadratic)
 ROOM_W, ROOM_H, Z_POINT = 4.0, 2.0, 1.0   # m: room width, height, dose point above the floor; the ceiling is h - 1 m below the cable
 
 

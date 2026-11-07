@@ -266,21 +266,14 @@ def ring_state(h_ring, m_load=M_CASING_PER_M, m_hw=M_HARDWARE_PER_M,
     else:
         delta_v_load = v_orb - v_ground
 
-    m_struct = phys.calc_cable_mass(
-        load_mass=m_load, m_hw=m_hw, delta_v=delta_v_load,
-        v_orbit=v_orb, g_net=g_net, r_orbit=r,
-        rho_cnt=RHO_CNT, sigma_cable=SIGMA_OPERATING)
+    # The cable from ring_altitude.design (2026-11-07): the quadratic of the design point, with its momentum constraint
+    # (the build orbit's angular momentum, or the circular speed at r under ORBITAL_RING_QUADRATIC=fixed, which reproduces
+    # the October figures this function used to compute with lim_physics.calc_cable_mass and the fixed-radius momentum sum).
+    d = ring.design(altitude_km=h_ring / 1e3, retrograde=retrograde, m_load=m_load, m_hw=m_hw)
+    m_struct = d['m_struct']
     m_rotor = m_struct + m_hw
-
-    if retrograde:
-        # System COM at -v_orbit, casing at +v_ground, cable at -|v_cable|
-        v_cable_mag = ((m_rotor + m_load) * v_orb + m_load * v_ground) / m_rotor
-        v_cable = -v_cable_mag
-        v_rel = v_cable_mag + v_ground
-    else:
-        # System COM at +v_orbit, casing and cable both prograde
-        v_cable = ((m_rotor + m_load) * v_orb - m_load * v_ground) / m_rotor
-        v_rel = v_cable - v_ground
+    v_cable = -d['v_cable'] if retrograde else d['v_cable']     # signed: negative = retrograde
+    v_rel = d['v_rel']
 
     return {
         'r': r,

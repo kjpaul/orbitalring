@@ -670,3 +670,70 @@ At 8 MW the 150-turn coil is 24 days slower than 208 turns (the book's Section 9
 ### 14.5 Files
 
 Under `runs/rising_radius_turns/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/rising_radius_turns/`): `rising_radius_turns.md`, `.csv`, `.svg|png`, `_run_console.txt`, `_run_console2.txt`, and one folder per case (`N120` to `N280`, the `_own` cases, `N150_P8MW`, `N150_P16MW`) with the log, daily table, Figure 3.2 series and summary. Reproduce: `python tools/rising_radius_turns_sweep.py --run --jobs=4` then `--table`.
+
+## 15. Round 6a (2026-11-07): the slip rule at the voltage limit, and the reruns Section 9.8 needs
+
+Asked for in `Vol_III/Claude_Code_instructions_slip_rule_and_sheet_2026-11-07.md`. Paul's design after round 5: two LIMs per site, 12 MW, 150 turns, the cable of the rising quadratic, 381.1 days. Section 14.4 noted that a coil held at the 100 kV limit kept about 1.9 % slip where the same coil power-capped ran at 0.5 %, so every run that met the limit early was slower than the physics requires.
+
+### 15.1 The slip rule, traced
+
+`lim_simulation.py` sets the slip target from the site's power margin, 1 - P / P_max: at a margin of 15 % or more the target is `SLIP_RATIO_NORMAL` (2 %), at 5 % or less `SLIP_RATIO_REDUCED` (0.5 %), between them a blend; a current under 70 % of the cap also pulls the target toward the reduced value. The slip command then follows the target with a 15-day time constant. The three limits act on the current only: the voltage limit scales it by V_max / V, the power cap by sqrt(P_max / P), the plate temperature by 0.95 per iteration. So a coil that meets the voltage limit has its current cut until V = V_max, its site power falls well under the cap (12.4 MW of 32 at the end of the 150-turn 32 MW run of Section 13.3, 6.5 of 16 in the 150-turn 16 MW run of 14.4), the power margin is wide, and the rule holds the slip at 2 %: the voltage-limited coil sits at the high slip the rule reserves for a site with power to spare. At the same current and voltage the 0.5 % slip gives twice the thrust (468 N against 201 N at 125 A and 99 to 100 kV in the two 150-turn runs of 14.4), since in the plate's eddy-current model the thrust per ampere falls with the slip over this range, and the slip adds only its own small share to the supply frequency, so the voltage at a given current barely moves with it.
+
+What the physics allows: the induced voltage is omega N B A with omega from the supply frequency, f = (v_rel + v_slip) / (2 tau_p); lowering the slip lowers the frequency a little (v_slip is 0.5 to 2 % of v_rel) and raises the thrust per ampere, so at the voltage limit the controller can hold V = V_max with the reduced slip and the thrust of the power-capped case. The model only lacked the rule.
+
+The change (`lim_config.SLIP_RULE`, environment `ORBITAL_RING_SLIP_RULE`): with `both`, the default since this round, the margin that sets the slip target is the smaller of the power margin and the voltage margin, 1 - V / V_max, so a coil at the voltage limit goes to the reduced slip as a site at its power cap does; `power` is the October rule, the power cap alone. Nothing else in the controller changed. Under `power` the code's expressions are the October ones, and the fixed-radius quick run (log and tension series) is byte-identical to the run of the code before the change; `tests/conftest.py` sets `power` for the reference checks, with `fixed` for the quadratic, and the 29 tests pass. The design run, 150 turns at 12 MW, is unchanged by the rule to the digit (381.1 days: it never meets the voltage limit, and its slip was already at the reduced value from the power cap); the 150-turn 16 MW run goes from 520.3 days to 354.9 and ends at 0.5 % slip with 477 N per LIM (quick steps).
+
+### 15.2 The reruns Section 9.8 and Table 9.3 quote
+
+`tools/rising_radius_design_power.py --run` (eleven full-step runs with the corrected rule, four at a time, 12 to 28 minutes each; `--table` for the table, the curves and the figure `runs/rising_radius_design/rising_radius_design_power.md|csv|svg|png`, one folder per case). The columns are those of Section 14.2, with the slip at the end of the run added. Every run ends on the design tension at 700 km with the casing at ground speed and no anchored phase.
+
+| LIMs | Turns | MW/site | Days (months) | I cap to day | P cap, days | 100 kV from day | Thrust max N/LIM (day) | LIM work EJ | Hyst peak kW/LIM | Cryo peak / end MW | Plate K | Tape t/site | V, I, thrust, slip at the end | Cable kg/m, Mt |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2 | 150 | 8 | 534.5 (17.6) | 113.6 | 105 to the end | never | 1,013 (29.6) | 19.175 | 6.15 | 2.23 / 1.58 | 331.2 | 2.35 | 79.4 kV, 100.5 A, 300 N, 0.50 % | 103,570; 4,606 |
+| 2 | 150 | **12** | **381.1 (12.5)** | 132.9 | 130 to the end | never | 1,013 (79.6) | 19.175 | 8.15 | 2.57 / 2.03 | 331.2 | 2.35 | 98.9 kV, 125.3 A, 468 N, 0.49 % | 103,570; 4,606 |
+| 2 | 150 | 16 | 354.9 (11.7) | 210.2 | 209 to 256 | 249.6 | 1,013 (79.6) | 19.175 | 11.56 | 3.14 / 2.06 | 331.2 | 2.35 | 100 kV, 126.6 A, 477 N, 0.50 % | 103,570; 4,606 |
+| 2 | 150 | 20 | 352.6 (11.6) | 222.2 | never | 219.9 | 1,013 (79.6) | 19.175 | 12.13 | 3.23 / 2.06 | 331.2 | 2.35 | 100 kV, 126.6 A, 477 N, 0.50 % | 103,570; 4,606 |
+| 2 | 150 | 24 | 352.6 (11.6) | 222.2 | never | 219.9 | 1,013 (79.6) | 19.175 | 12.13 | 3.23 / 2.06 | 331.2 | 2.35 | 100 kV, 126.6 A, 477 N, 0.50 % | 103,570; 4,606 |
+| 2 | 208 | 12 | 436.0 (14.3) | 44.0 | 40 to 95 | 89.2 | 1,949 (36.1) | 19.175 | 7.29 | 2.57 / 1.46 | 382.2 | 3.26 | 100 kV, 65.8 A, 247 N, 0.50 % | 103,570; 4,606 |
+| 2 | 208 | 16 | 428.1 (14.1) | 59.2 | 52 to 60 | 59.1 | 1,949 (49.0) | 19.175 | 8.61 | 2.79 / 1.46 | 382.2 | 3.26 | 100 kV, 65.8 A, 247 N, 0.50 % | 103,570; 4,606 |
+| 4 | 150 | 16 | 255.2 (8.4) | 50.7 | 46 to the end | never | 1,013 (42.9) | 19.148 | 6.09 | 3.61 / 2.42 | 385.8 | 4.70 | 81.6 kV, 103.5 A, 320 N, 0.49 % | 105,010; 4,670 |
+| 4 | 150 | 24 | 187.8 (6.2) | 71.5 | 70 to the end | 184.5 | 1,013 (38.6) | 19.148 | 8.10 | 4.29 / 3.30 | 385.8 | 4.70 | 100 kV, 126.8 A, 482 N, 0.50 % | 105,010; 4,670 |
+| 4 | 208 | 16 | 247.0 (8.1) | 18.2 | 18 to 154 | 146.5 | 1,705 (18.2) | 19.148 | 4.25 | 3.29 / 2.09 | 453.5 | 6.52 | 100 kV, 65.9 A, 249 N, 0.50 % | 105,010; 4,670 |
+| 4 | 208 | 24 | 220.1 (7.2) | 24.7 | 24 to 44 | 42.5 | 1,856 (24.6) | 19.148 | 6.21 | 3.94 / 2.09 | 453.5 | 6.52 | 100 kV, 65.9 A, 249 N, 0.50 % | 105,010; 4,670 |
+
+What the corrected rule changed, against the runs of Sections 13.3 and 14 (the October rule): every voltage-limited run now ends at 0.5 % slip with the thrust of its power-capped equivalent, 477 N per LIM at 150 turns and 247 to 249 N at 208 (the 208-turn coil's thrust at 100 kV was already its reduced-slip value in the old runs, since those met the limit late enough for the current-ratio rule to have pulled the slip down). The design, 150 turns at 12 MW, is 381.1 days as before. 150 turns at 16 MW: 354.9 days against 520.3. 208 turns at 12 MW: 436.0 against 437.0; at 16 MW: 428.1 against 438.3. The four-LIM cases do not move (255.2, 187.8, 247.0, 220.1 against 255.2, 187.8, 247.0, 220.2): they never met the limit, or met it with the slip already reduced.
+
+**The design's power curve, 150 turns and two LIMs.** 534.5, 381.1, 354.9, 352.6, 352.6 days at 8, 12, 16, 20, 24 MW: 38.3 days per MW from 8 to 12, 6.6 from 12 to 16, 0.6 from 16 to 20, none beyond. The floor is 352.6 days and the knee by the 2 % rule is **16 MW, 354.9 days (11.7 months)**; 12 MW is 8 % above the floor. The coil meets 100 kV on day 250 at 16 MW, on day 220 at 20 and 24 MW, and from there the site never draws its cap (the 20 and 24 MW runs are the same run: the cap never binds). Against 12 MW, 16 MW buys 26 days for a 110 m panel in place of 83 m (1,423 GW against 1,067), 0.57 MW more cryogenic plant at the peak (3.14 against 2.57 MW) and 3.4 kW more hysteresis per LIM at the peak (11.56 against 8.15), with the same tape, plate temperature and end-of-run cryogenic power. Paul's 12 MW stands as the design; the curve is what Section 9.8 can print.
+
+**The 208-turn coil, for 9.7 and 9.8.** At 12 MW the 150-turn coil deploys in 381.1 days against 436.0 for 208 turns (55 days, 13 %), at 16 MW in 354.9 against 428.1 (73 days). The 208-turn coil's own power curve is flat from 12 MW up (436, 428 days) because it meets 100 kV on day 89 at 12 MW and day 59 at 16 MW and runs voltage-limited at 247 N per LIM from there; the 150-turn coil holds 12 MW to the end without meeting the limit and ends with 468 N.
+
+**The fast options, four LIMs per site.** 150 turns: 255.2 days at 16 MW, 187.8 at 24 MW; 208 turns: 247.0 and 220.1 days. The 150-turn four-LIM site at 24 MW is the shortest deployment in the set, 6.2 months, with 4.70 t of tape per site against 6.52 for 208 turns, a 386 K plate against 454 K, and 4.29 MW of cryogenic plant at the peak against 3.94.
+
+### 15.3 The thermal series of the design, for Figures 14.1, 14.2 and Table 14.2
+
+`tools/ch14_thermal_series.py runs/rising_radius_design/thermal/ch14_thermal_series_design.csv --rising --set N_TURNS=150 --set MAX_SITE_POWER=12e6` (the tool takes `lim_config.configure` overrides since this round; the same run as the design's, full steps, 164,600 rows at 200 s), the figures by `tools/fig14_figures.py` in `runs/rising_radius_design/thermal/figures/` and installed as the book's Figures 14.1 and 14.2 (the originals in `Vol_III/images/figures_backup_2026-11-06b/`).
+
+The history is different in shape from the 208-turn, 8 MW one the book describes. The 150-turn coil runs at its 183 A cap for 133 days and then at the 12 MW cap to the end, so its losses do not fall away after the first weeks: the cable peaks at 331 K on day 1 (not 382), falls to 278 K at 1.5 months, rises again to 313 K at four months while the coil is at its current cap, and from month 5 holds 270 K to the end (not 257 K), the wall 7 K below it; the end-of-run eddy loss is 20.6 kW per LIM at 468 N and 0.5 % slip. The cold-side load starts at 14.5 kW, is 17.5 kW at one month, 25.0 at three, peaks at 30.8 kW at 5.0 months (the hysteresis peak, 16.3 kW for the two LIMs, is at the same time, not at seven weeks), is 26.3 kW at eight months and 24.4 kW at the end (12.7 months), with the radiator 4.99 m at the peak and 3.95 m at the end.
+
+Table 14.2 of the book against the design (the compressor power by the book's rule, the cold-side load over the COP of 0.0106; the simulation's own `p_cryo` in brackets):
+
+| Row | Book (208 turns, 8 MW, October cable): peak at seven weeks / steady / after | Design: peak at 5.0 months / steady state, months 6 to 10 / after deployment |
+|---|---|---|
+| Hysteresis in the two LIMs | 10.2 / 1.8 / 0 kW | 16.3 / 12.0 / 0 kW |
+| Leak through the cryostat insulation | 6.2 kW | 4.5 kW (the 150-turn coil's cryostat is 2,236 m^2 per site against 3,101) |
+| Heat onto the levitation coils | 10.0 kW | 10.0 kW |
+| Cold-side load | 26.4 / 18.0 / 16.2 kW | 30.8 / 26.5 / 14.5 kW |
+| Compressor power | 2.49 / 1.70 / 1.53 MW | 2.90 (2.57) / 2.50 / 1.37 (1.21) MW |
+| Heat rejected at 400 K | 2.52 / 1.72 / 1.55 MW | 2.93 / 2.53 / 1.38 MW |
+| Cryogenic radiator area | 1,925 / 1,314 / 1,183 m^2 | 2,247 / 1,935 / 1,058 m^2 |
+| Radiator width over 450 m | 4.28 / 2.92 / 2.63 m | 4.99 / 4.30 / 2.35 m |
+
+Every row changes: the peak is 17 % higher and five months in, the steady state 47 % higher (the coil is at full power to the end), and the standing load after the deployment 10 % lower, 14.5 kW and 1.37 MW per site, 122 GW around the ring (Chapter 8's largest standing load, 136 GW in the book). The steady-state column is the mean of months 6 to 10, the plateau of the power-capped run; the book's "months 12 to 15" window no longer exists in a 12.5-month deployment. Table 14.3 (the warm loop) moves with the cable's temperature, 270 K in the steady state against 257.
+
+### 15.4 The numbers sheet
+
+Part 4 of the brief, `docs/design_point_numbers_2026-11.md` (copied to `Vol_III/`): one table per chapter, where in the book, the October value, the new value, what the chapter carries today, and the script. The hard-coded October cable found and fixed on the way: `debris_simulation.ring_state` (its own copy of the fixed quadratic, so the Chapter 4 orbits, lifetimes and soot had not followed the design point), `radiation/sweetspot.py` and `radiation/fig05_04_sky_under_cable.py` (the 8.20 and 8.22 m cable), `tools/ch03_direction_numbers.py` (the cable's direction from `DELTA_V_LOAD`), `tools/ch08_numbers.py` (8,786.2 m/s typed in; a 12 MW case added). The figures that carry the cable were redrawn from the new runs in their current layouts (1.1, 3.2, 4.1 to 4.4, 4.6, 4.7, 5.4, 7.4, 14.1, 14.2; originals in `images/figures_backup_2026-11-06b/`); the chapter files were not edited.
+
+### 15.5 Files
+
+Under `runs/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/`): `rising_radius_design/` (the eleven reruns, the table and figure, `thermal/` with the design's series and figures, `prograde/` with the prograde design run for Figure 3.2's dashed curve: 311.8 days, 14.902 EJ, no anchored phase); `rising_quadratic/all/` refreshed (the Chapter 4 numbers and figures, `debris_orbits`, `altitude_trade`, `debris_simulation`, `casing_6000`, `ch08_numbers`, `ch03_direction_numbers`, the radiation runs `radiation/` and Figure 5.4, the bearing figure); `design_point_sheet/` (the tools run under both quadratics). Reproduce: `python tools/rising_radius_design_power.py --run --jobs=4` then `--table`; the thermal series as above; `ORBITAL_RING_SLIP_RULE=power` for the October controller.

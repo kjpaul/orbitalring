@@ -49,6 +49,7 @@ def case(label, site_power):
     return width
 
 case("8 MW", 8e6)
+case("12 MW", 12e6)      # the design since 2026-11-07 (two LIMs per site at 12 MW)
 case("16 MW", 16e6)
 # expanded 400 m
 w = 400.0
@@ -73,4 +74,5 @@ for label, P in (("16 MW", 20*16e6), ("400 m", 20*ps)):
         label, P/1e6, I/1e3, A*1e4, m_res, tapes, 2*tapes*m_tape, m_res/(2*tapes*m_tape)))
 print("Export per anchor station (889): 8 MW case %.0f MW ; 16 MW case %.0f MW" % (658.52e3/889, 1361.51e3/889))
 print("Sled 10 km long at 30 km/s passes a point in %.2f s" % (10/30.0))
-print("LIM supply frequency: v_rel/(2 tau) = 8786.2/200 = %.1f Hz (lim_simulation.txt gives f_supply_max 44.15 Hz with slip)" % (8786.2/200))
+import ring_altitude as _ring
+print("LIM supply frequency: v_rel/(2 tau) = %.1f/200 = %.1f Hz (lim_simulation.txt gives the end-of-run f_supply with slip)" % (_ring.V_REL, _ring.V_REL/200))

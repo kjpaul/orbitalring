@@ -17,6 +17,9 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 # build orbit by default (ORBITAL_RING_QUADRATIC=rising).  The checks below run under the October quadratic unless the
 # caller sets the variable; the rising design point has its own test.
 os.environ.setdefault("ORBITAL_RING_QUADRATIC", "fixed")
+# The October deployment runs used the slip rule of the power cap alone; since 2026-11-07 the controller lowers the slip at the
+# coil voltage limit too (ORBITAL_RING_SLIP_RULE=both).  The reference checks run under the October rule.
+os.environ.setdefault("ORBITAL_RING_SLIP_RULE", "power")
 
 
 def run_script(args, env=None, timeout=600):

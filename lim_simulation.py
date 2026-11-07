@@ -215,6 +215,8 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
     # Print configuration
     print(f"VOLTS_MAX: {cfg.VOLTS_MAX/1000:.0f} kV")
+    if cfg.SLIP_RULE != "power":
+        print(f"SLIP_RULE: {cfg.SLIP_RULE} (the slip falls toward the reduced value at the voltage limit as at the power cap)")
     print(f"THRUST_MODEL: {thrust_model}", end=" ")
     model_names = {
         1: "(Narrow plate eddy current - geometry corrected)",
@@ -277,6 +279,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     v_slip_cmd = v_slip
     i_peak_prev = i_peak
     site_power = 0.0
+    volts = 0.0
 
     # Controller tuning
     CTRL_TAU = 15 * cfg.DAY
@@ -319,8 +322,13 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
         for _ in range(10):
             v_rel = phys.calc_relative_velocity(v_cable, v_casing)
 
-            # Predictive power control
+            # Predictive power control: the slip target falls from SLIP_RATIO_NORMAL to SLIP_RATIO_REDUCED as the site's margin
+            # to its limit closes.  SLIP_RULE "both" (2026-11-07) counts the margin to the coil voltage limit as well as to the
+            # power cap; "power" (the October rule) counts the power cap alone, so that a coil held at the voltage limit by its
+            # current kept the normal slip while the power margin was wide, and with it less thrust per ampere.
             power_margin = 1.0 - (site_power / cfg.MAX_SITE_POWER)
+            if cfg.SLIP_RULE == "both":
+                power_margin = min(power_margin, 1.0 - volts / cfg.VOLTS_MAX)
             MARGIN_COMFORTABLE = 0.15
             MARGIN_TIGHT = 0.05
 
@@ -749,7 +757,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     if rising is not None:                                    # the rising-radius report and files replace the fixed-radius tension block
         rising.sample(time / cfg.DAY, volts, i_peak, site_power, thrust, p_cryo)
         extra = dict(N_TURNS=cfg.N_TURNS, LIMS_PER_SITE=cfg.LIMS_PER_SITE, N_PLATES_PER_SIDE=cfg.N_PLATES_PER_SIDE, MAX_SITE_POWER=cfg.MAX_SITE_POWER,
-                     VOLTS_MAX=cfg.VOLTS_MAX, I_TARGET=cfg.I_TARGET, M_HARDWARE_kg_m=cfg.M_HARDWARE, M_CABLE_M_kg_m=cfg.M_CABLE_M,
+                     VOLTS_MAX=cfg.VOLTS_MAX, I_TARGET=cfg.I_TARGET, SLIP_RULE=cfg.SLIP_RULE, M_HARDWARE_kg_m=cfg.M_HARDWARE, M_CABLE_M_kg_m=cfg.M_CABLE_M,
                      M_CABLE_STRUCTURAL_kg_m=cfg.M_CABLE_STRUCTURAL, L_HTS_LIM_m=cfg.L_HTS_LIM, L_HTS_SITE_m=cfg.L_HTS_LIM * cfg.LIMS_PER_SITE,
                      COIL_SURFACE_AREA_PER_SITE_m2=cfg.COIL_SURFACE_AREA_PER_SITE, M_LIM_PLATE_kg_m=cfg.M_LIM_PLATE, retrograde=ring.RETROGRADE,
                      site_power_max_MW=max_min["site_power_max"][3] / 1e6, plate_t_max_K=max_min["plate_t_max"][3], cable_temp_max_K=max_min["cable_temp_max"][3],

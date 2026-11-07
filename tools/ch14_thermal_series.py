@@ -6,6 +6,7 @@ and the slip frequency, one row per SKIP steps.
 Book: Orbital Ring Engineering, Volume I: Chapter 14 (Figures 14.1 and 14.2, Table 14.1).
 Run: python tools/ch14_thermal_series.py <out.csv>     (about ten minutes, the same run as lim_simulation.py)
      python tools/ch14_thermal_series.py <out.csv> --rising     (the same from lim_simulation.py --rising-radius, 2026-11-06)
+     python tools/ch14_thermal_series.py <out.csv> --rising --set N_TURNS=150 --set MAX_SITE_POWER=12e6     (lim_config.configure overrides, 2026-11-07)
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT
 Copied from Vol_III/renumber_scripts_2026-10-12/ch18_thermal_series.py (written under the old numbering) on 2026-10-27.
 """
@@ -16,6 +17,14 @@ import lim_config as cfg
 import lim_simulation as sim
 
 out = sys.argv[1]
+overrides = {}
+for i, a in enumerate(sys.argv):
+    if a == "--set" and i + 1 < len(sys.argv):
+        k, v = sys.argv[i + 1].split("=", 1)
+        overrides[k] = type(getattr(cfg, k))(float(v)) if isinstance(getattr(cfg, k), (int, float)) else v
+if overrides:
+    cfg.configure(**overrides)
+    print("configure", overrides)
 v_slip = cfg.V_SLIP_MAX
 i_peak = cfg.I_MIN
 param_str, success, total_time = sim.run_deployment_simulation(v_slip, i_peak, cfg.THRUST_MODEL, cfg.EDDY_HEAT_TO_CABLE, False, 0.0, rising_radius="--rising" in sys.argv)

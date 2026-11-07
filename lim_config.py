@@ -96,6 +96,13 @@ V_SLIP_MIN = 5.0        # Minimum slip velocity (m/s)
 V_SLIP_MAX = 200.0      # Maximum slip velocity (m/s)
 SLIP_RATIO_NORMAL = 0.02    # Target slip ratio at full current (2%)
 SLIP_RATIO_REDUCED = 0.005  # Reduced slip when power-limited (0.5%)
+# The slip rule of the controller (2026-11-07): "both" (the default) lowers the slip toward SLIP_RATIO_REDUCED as the site
+# nears either its power cap or the coil voltage limit; "power" is the rule of the October runs, the power cap alone, under
+# which a coil held at the voltage limit by its current kept the normal slip and a third to a half of its thrust per ampere.
+# Environment ORBITAL_RING_SLIP_RULE=power restores the October results.
+SLIP_RULE = os.environ.get("ORBITAL_RING_SLIP_RULE", "both").strip().lower()
+if SLIP_RULE not in ("both", "power"):
+    raise SystemExit(f"ORBITAL_RING_SLIP_RULE must be 'both' or 'power', not '{SLIP_RULE}'")
 
 # -----------------------------------------------------------------------------
 # 1.6 Thrust Model Selection

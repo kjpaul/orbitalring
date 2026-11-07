@@ -16,7 +16,7 @@ print("cable", os.environ.get("ORBITAL_RING_CABLE", "retrograde"))
 print(" structural %.0f  with hw %.0f  ring %.0f kg/m ; structural:load %.2f" % (R.M_CABLE_STRUCTURAL, m_c, R.M_RING_M, R.M_CABLE_STRUCTURAL/m_l))
 print(" v_orbit %.1f v_cable %.1f v_geo %.1f dv_load %.1f dv_cable %.1f" % (R.V_ORBIT, R.V_CABLE, R.V_GROUND_SYNC, R.DELTA_V_LOAD, R.V_CABLE-R.V_ORBIT))
 vrel = getattr(R, "V_REL", None)
-sign = -1 if abs(R.DELTA_V_LOAD-(R.V_ORBIT-R.V_GROUND_SYNC)) < 1 else 1
+sign = -1 if not R.RETROGRADE else 1   # the direction from ring_altitude (2026-11-07; the test on DELTA_V_LOAD failed under the rising quadratic)
 vrel = R.V_CABLE + sign*R.V_GROUND_SYNC
 c = math.sqrt(R.CABLE_TENSION/m_c)
 print(" v_rel %.1f  tension %.1f GN  area %.2f m2  side %.2f m" % (vrel, R.CABLE_TENSION/1e9, R.CABLE_AREA, R.CABLE_SIDE))
