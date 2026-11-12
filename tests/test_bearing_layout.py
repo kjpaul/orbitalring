@@ -1,5 +1,6 @@
 """Checks of bearing_layout.py's circuit pieces that run in seconds: the vectorized pull-curve inverse, the demand read from a support
-force history, the frozen point model, the soldered coil's L / R scaling, the hot-spot integration and the leakage inductances."""
+force history, the frozen point model, the soldered coil's L / R scaling, the hot-spot integration and the leakage inductances; Stage B: the
+rate-limited support loop of both dynamics models and the switched bundle's circuit modes."""
 import math
 
 import numpy as np
@@ -104,3 +105,66 @@ def test_coil_end_heat_scales_with_the_coil_count():
     assert P2 / P1 == pytest.approx(10.0, rel=1e-6)
     Pe, _ = bl.coil_end_heat(1000.0, 10, sup, split=False)
     assert Pe > P1                                   # one full step heats more than ten steps of a tenth
+
+
+# ---- Stage B (2026-11-12): the switched support winding
+
+def test_rate_limited_support_loop_slews(rec):
+    """A lane at rest with the casing 5 mm off: the 1 Hz loop's correction is slewed at steady_rate, so the support force changes no faster than
+    that; without the limit it jumps."""
+    import sled_passage_pulsed as pz
+    import sled_passage_simulation as sp
+    tabs = dict(sp.limiter_tables(), F0=0.0, Q0=0.0)
+    lanes = [pz.lane(no_sled=True, cancel=False, steady_loop_hz=1.0, w0=0.005, steady_rate=2e3, label="slewed"),
+             pz.lane(no_sled=True, cancel=False, steady_loop_hz=1.0, w0=0.005, label="free")]
+    res, hist = pz.point_pulsed(lanes, 30000.0, tabs, t_settle=0.5)
+    dt = float(hist["t"][1] - hist["t"][0])
+    slope = np.abs(np.diff(hist["S"], axis=1)) / dt
+    assert slope[0].max() <= 2e3 * 1.001
+    assert slope[1].max() > 1e4
+    assert res[0]["max_exc_all"] >= res[1]["max_exc_all"]      # the slewed loop corrects the offset no better than the free one
+
+
+def test_rate_limited_beam_loop(rec):
+    import sled_passage_pulsed as pz
+    import sled_passage_simulation as sp
+    import compensation_tracks as ct
+    tabs = dict(sp.limiter_tables(), F0=0.0, Q0=0.0)
+    cases = [dict(label="false pull", no_sled=True, no_pulse=True, false_pull=(0.1, 20e-3, -50e3))]
+    r_free, _ = pz.beam_pulsed(30000.0, 100.0, [sp.truss(10.0, 0.1)], cases, tabs, tau=20e-3, L_win=4000.0, t_settle=0.5, prot=ct.prot(0.010, 1e-3, cap_up=1e5, cap_down=1e5))
+    r_slew, _ = pz.beam_pulsed(30000.0, 100.0, [sp.truss(10.0, 0.1)], cases, tabs, tau=20e-3, L_win=4000.0, t_settle=0.5, prot=ct.prot(0.010, 1e-3, cap_up=1e5, cap_down=1e5), loop_rate=1e3)
+    assert r_slew[0]["pk_steady"] <= r_free[0]["pk_steady"] + 1.0   # the slewed support cannot rise above the free one's peak
+    assert r_slew[0]["pk_steady"] < pz.W + 1e3 * 0.7                 # a 1 kN/m per s slew over the run's time
+
+
+def test_switched_circuit_modes(consts):
+    """The eigen-decomposition reproduces the common and differential time constants, and a coil opened at the supply voltage hands its
+    ampere-turns to the nine within the leakage share."""
+    sc = bl.switched_circuit(consts, 1000.0)
+    lam = np.linalg.eigvalsh(sc["L"])
+    assert lam.max() / bl.R_SW == pytest.approx(sc["tau_common"], rel=1e-9)
+    assert lam.min() / bl.R_SW == pytest.approx(sc["tau_diff"], rel=1e-9)
+    assert sc["tau_common"] > 20 * 86400 and sc["tau_diff"] < 2 * 3600
+    N = sc["N"]; I0 = sc["I0"]
+    t = np.linspace(0, 1.0, 1001)
+    I = bl.circuit_run(sc["L"], np.array([-bl.V_SUP] + [0.0] * (N - 1)), np.full(N, I0), t)
+    j = int(np.argmax(I[:, 0] <= 0.0))
+    assert 0.2 < t[j] < 0.5                                         # L_leak I / V, about 0.34 s for the 1 km coil
+    kept = (N - 1) * I[j, 1] / (N * I0)
+    assert 0.995 < kept <= 1.0005
+    # no power: the common mode decays with its own constant
+    I_d = bl.circuit_run(sc["L"], np.zeros(N), np.full(N, I0), np.array([sc["tau_common"]]))
+    assert I_d[0, 0] == pytest.approx(I0 / math.e, rel=1e-6)
+
+
+def test_takeover_time_matches_the_integral(consts):
+    sc = bl.switched_circuit(consts, 1000.0)
+    t_lin = sc["L_common"] * (sc["I_cap"] - sc["I0"]) / bl.V_SUP
+    t_int = consts["n_t"] * 2 * 1000.0 * bl.dphi(consts, consts["NI_s0"], consts["NI_cap"]) / bl.V_SUP
+    assert t_int == pytest.approx(t_lin, rel=0.05)
+    assert 100 < t_int < 200
+
+
+def test_hot_spot_history_is_consistent_with_the_time():
+    T = bl.hot_spot_T(lambda t: 51.0, bl.hot_spot_time(51.0, T_end=150.0), dt=2e-3)
+    assert T == pytest.approx(150.0, rel=0.02)

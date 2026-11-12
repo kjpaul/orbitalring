@@ -1,7 +1,7 @@
 """The support and load windings' layout, round 2 (2026-11-12): what the flux pumps are asked to do, what they can do, and
 whether a soldered persistent coil can be charged or protected at all.  Stage A of Vol_III/Claude_Code_instructions_bearing_layout_2026-11-12.md.
 
-Run: python bearing_layout.py [--part=demand|frozen|passages|pumps|solder|length|all] [--quick]
+Run: python bearing_layout.py [--part=demand|frozen|passages|pumps|solder|length|switched|layouts|mass|stageB|all] [--quick]
      (ORBITAL_RING_QUADRATIC=fixed for the October cable the Part 1 report used)
 
 A.1  demand    the volt-seconds, peak voltage and power the 1 Hz support loop asks of the flux pumps in each of final_bearing's
@@ -22,6 +22,16 @@ A.6  length    the support coil length as a free choice (10 m to 10 km, ten per 
                with a shared-loop load winding, the coil-end eddy heat in the plates (final_bearing Part C.3's model), the stored energy
                per coil, coils, pumps and joints per kilometre, the charging time through a layer that still bypasses a 10 cm normal zone,
                and the decay of a coil through such a zone into its neighbours
+
+Stage B (2026-11-12, Paul's decision: the decoupled load winding and the switched support winding, judged by how they work):
+B.1  switched  the ten support coils of a bundle each closed through a cold 1 milliohm switch with its own 1 kV supply: the circuit's
+               common and differential modes, the bundle's rate, the takeover of a parked spacecraft, the recovery of a lost coil and a
+               lost track, the decay with no power, a switch failing open or closed, a supply stuck on, and the quench protection by the
+               switch alone (the time, the switch voltage, the hot spot, whether heaters are still needed)
+B.2  layouts   final_bearing's 114 cases for three layouts: the decoupled load winding alone (support frozen, protection in every lane),
+               the switched support alone (no load winding, the support loop slewed at the supplies' rate), and both together; the
+               casing movement, the smallest gap, every failure case side by side
+B.3  mass      what each layout adds to the casing
 
 Nothing here changes a default of the existing scripts: the point models only record the support force (hist['S'], passage_point's
 S) and passage_point takes loop_hz = 1.0 as before.  Outputs go to runs/ (ORBITAL_RING_OUT).
@@ -189,11 +199,13 @@ def is_single(label):
     return not any(s in label for s in SINGLE_EXCLUDE) and not label.startswith("2.")
 
 
-def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False):
+def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, rate=None, no_up=False, head=""):
     """final_bearing's Part B at the rise tau, the support loop on or frozen in every lane (point and beam), recording every point
     lane's support force history.  prot_all: the lanes that final_bearing runs without the 10 mm gap protection (the F.1 passages and
     tolerances, which lean on the 1 Hz support loop to arrest the drift after the pass) get it, at their own track rating, as the F.2
-    cases have it; the 'no protection' what-ifs keep none.  Returns (all_gaps, records, text)."""
+    cases have it; the 'no protection' what-ifs keep none.  rate (2026-11-12 Stage B): N/m per s, the slow loop's correction slews no
+    faster than this in every lane (a switched support winding); no_up: no driven up-pulling winding at all (the switched support alone),
+    the up-pull caps of the planned pulse and of the protection set to zero.  Returns (all_gaps, records, text)."""
     import compensation_tracks as ct
     orig_point, orig_beam = pz.point_pulsed, pz.beam_pulsed
     records = []
@@ -208,6 +220,14 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False):
                     cap_up = ln["hu_width"] * bd.P12 if ln.get("hu_width") else 2 * fb.F_LOAD_TRACK
                     cap_down = ln["hd_width"] * bd.P12 if ln.get("hd_width") else 2 * fb.F_LIFT_TRACK
                     ln["prot"] = ct.prot(0.010, 1e-3, cap_up=cap_up, cap_down=cap_down)
+        if rate is not None:
+            for ln in lanes:
+                ln["steady_rate"] = rate
+        if no_up:
+            for ln in lanes:
+                ln["hu_width"] = 0.0
+                if ln.get("prot") is not None:
+                    ln["prot"] = dict(ln["prot"], cap_up=0.0)
         res, hist = orig_point(lanes, u, tabs_, **kw)
         for i, (ln, r) in enumerate(zip(lanes, res)):
             records.append((ln.get("label", "") or f"lane {i}", u, hist["t"], hist["S"][i].copy(), dict(exc=r["max_exc_all"], gap_b=r["min_gap_b"], gap_t=r["min_gap_t"], contact=r["contact"])))
@@ -216,6 +236,10 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False):
     def beam_wrapped(*args, **kw):
         if freeze:
             kw["loop_hz"] = 0.0
+        if rate is not None:
+            kw["loop_rate"] = rate
+        if no_up and kw.get("prot") is not None:
+            kw["prot"] = dict(kw["prot"], cap_up=0.0)
         return orig_beam(*args, **kw)
 
     tau0 = bd.TAU_HW, fb.TAU_HW
@@ -230,7 +254,8 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False):
         bd.TAU_HW, fb.TAU_HW = tau0
     txt = buf.getvalue()
     with open(os.path.join(ring.out_dir(), log_name), "w", encoding="utf-8") as f:
-        f.write(f"# final_bearing Part B, rise {tau*1e3:g} ms, support loop {'frozen (steady_loop_hz = 0, beam loop_hz = 0)' if freeze else 'on (1 Hz)'}{', the 10 mm gap protection in every lane' if prot_all else ''}\n")
+        f.write(f"# final_bearing Part B, rise {tau*1e3:g} ms, support loop {'frozen (steady_loop_hz = 0, beam loop_hz = 0)' if freeze else 'on (1 Hz)'}{', the 10 mm gap protection in every lane' if prot_all else ''}"
+                f"{f', the loop correction slewed at {rate/1e3:.2f} kN/m per s' if rate is not None else ''}{', no driven up-pulling winding (up caps zero)' if no_up else ''}{'  ' + head if head else ''}\n")
         f.write(txt)
     return gaps, records, txt
 
@@ -730,6 +755,278 @@ def part_A6(r_sup, c, quick=False):
 
 # =============================================================================
 
+# =============================================================================
+# B  STAGE B (2026-11-12): THE SWITCHED SUPPORT WINDING AND THE DECOUPLED LOAD WINDING
+# =============================================================================
+
+R_SW = 1e-3                 # ohm, the cold semiconductor switch each support coil is closed through (Paul, 2026-11-12: "about 1 milliohm")
+V_SUP = 1000.0              # V, each coil's own supply (Paul: "about 1 kV"), the path when the switch is open
+F_LEAK = dict(block=0.02713, interleaved=0.00719)   # a coil's leakage share of its own inductance against its nine neighbours (A.5, stride 3)
+L_COIL_B = 1000.0           # the book's coil length, Stage B's standard
+KVA_PER_KG = 18.0           # the specific power of a cryogenically cooled 1 MVA SiC inverter (Univ. of Tennessee / NASA Glenn, 18 kVA/kg) [search summary, not read in full]
+IC_12MM = 234.2             # A, the 12 mm support tape's critical current in the design (bearing_design records, ic12)
+
+
+def switched_circuit(c, L_c=L_COIL_B, f_leak=F_LEAK["block"]):
+    """The ten coils of a support bundle as a circuit: self inductance L1 = 2 n_t^2 L_c L' (both loops, the incremental L' at 141 kA),
+    mutual M = L1 (1 - f_leak), each coil closed through R_SW with its own supply.  Returns the matrices and the mode time constants."""
+    n_t = c["n_t"]; Lp = Lp_of(c, c["NI_s0"]); L1 = 2 * n_t**2 * L_c * Lp; M = L1 * (1 - f_leak); N = N_SUP_COILS
+    L = np.full((N, N), M); np.fill_diagonal(L, L1)
+    I0 = c["NI_s0"] / (N * n_t); I_cap = c["NI_cap"] / (N * n_t)
+    return dict(L=L, L1=L1, M=M, L_leak=L1 - M, L_common=L1 + (N - 1) * M, N=N, n_t=n_t, L_c=L_c, I0=float(I0), I_cap=float(I_cap),
+                tau_common=(L1 + (N - 1) * M) / R_SW, tau_diff=(L1 - M) / R_SW, tau_self=L1 / R_SW,
+                rate_NI=N * n_t * V_SUP / (L1 + (N - 1) * M))     # ampere-turns per second per track, all ten supplies at V_SUP
+
+
+def circuit_run(L, V, I0, t, R=R_SW, held=None):
+    """Currents of the coupled coils at the times t for constant supply voltages V (one per coil) and switch resistance R:
+    L dI/dt + R I = V, solved by the eigen-decomposition of L.  held: indices of coils whose current is held constant by their
+    supplies (their rows drop out; their mutual voltage is what the supplies must put up, returned as V_held)."""
+    L = np.asarray(L, float); V = np.asarray(V, float); I0 = np.asarray(I0, float); t = np.atleast_1d(np.asarray(t, float))
+    n = len(V); free = np.array([k for k in range(n) if held is None or k not in held])
+    Lf = L[np.ix_(free, free)]; lam, Q = np.linalg.eigh(Lf)
+    I_ss = V[free] / R
+    y0 = Q.T @ (I0[free] - I_ss)
+    out = np.tile(I0, (len(t), 1))
+    for j, tj in enumerate(t):
+        out[j, free] = I_ss + Q @ (y0 * np.exp(-R * tj / lam))
+    return out
+
+
+def hot_spot_T(I_of_t, t_end, dt=1e-3, T0=T_OP):
+    """Adiabatic temperature of a normal length of tape carrying the current history I_of_t(t) up to t_end."""
+    T = T0; t = 0.0
+    while t < t_end:
+        I = I_of_t(t); T += I**2 * tape_resistance_per_m(T) / tape_heat_capacity(T) * dt; t += dt
+        if T > 1000.0:
+            break
+    return T
+
+
+def part_B1(r_sup, c):
+    hr("B.1  THE SWITCHED SUPPORT WINDING: EACH COIL CLOSED THROUGH A COLD 1 MILLIOHM SWITCH WITH ITS OWN 1 KV SUPPLY")
+    N = N_SUP_COILS; n_t = c["n_t"]
+    print(f"  The circuit of each coil: the coil in series with the switch; the supply sits across the switch.  Switch closed: the coil is closed through")
+    print(f"  {R_SW*1e3:.0f} milliohm and holds its current.  Switch open: the coil's current runs through the supply, which puts up to {V_SUP:.0f} V in either direction")
+    print(f"  (charge, discharge, or zero volts to hold).  The ten coils of a bundle are coupled: self inductance L1 = 2 n_t^2 L_c L', mutual L1 (1 - f) with")
+    print(f"  f the leakage share of A.5 (block {F_LEAK['block']*100:.2f} percent, interleaved {F_LEAK['interleaved']*100:.2f}).  Tape {c['NI_s0']/(N*n_t):.1f} A at 141 kA, {c['NI_cap']/(N*n_t):.1f} A at the 322 kA cap, Ic {IC_12MM:.0f} A.")
+    out = {}
+    print()
+    print(f"  Circuit constants against the coil length (block leakage; the differential constant also for interleaved coils):")
+    print(f"  {'L_c':>6} {'L1 H':>9} {'L_common H':>10} {'L_leak H':>9} {'tau common':>11} {'tau diff':>10} {'(interleaved)':>13} {'rate At/s':>9} {'rate kN/m/s pair':>16} {'rate %W/s':>9} {'I^2R W/coil':>11} {'per km both':>11}")
+    dFdNI = (bo.F_of_NI(r_sup, c["NI_s0"] + 100) - bo.F_of_NI(r_sup, c["NI_s0"] - 100)) / 200.0
+    rows = []
+    for L_c in COIL_LENGTHS:
+        sc = switched_circuit(c, L_c); sci = switched_circuit(c, L_c, F_LEAK["interleaved"])
+        rate_F = 2 * dFdNI * sc["rate_NI"]                    # the pair, N/m per s, at the rest state (the curve steepens above it)
+        n_km = N * 1000.0 / L_c * 2                            # coils per km, both tracks
+        rows.append(dict(L_c=L_c, L1=sc["L1"], L_common=sc["L_common"], L_leak=sc["L_leak"], tau_common=sc["tau_common"], tau_diff=sc["tau_diff"], tau_diff_i=sci["tau_diff"],
+                         rate_NI=sc["rate_NI"], rate_F=rate_F, P_sw=sc["I0"]**2 * R_SW, P_sw_km=sc["I0"]**2 * R_SW * n_km))
+        print(f"  {L_c:6.0f} {sc['L1']:9.3f} {sc['L_common']:10.2f} {sc['L_leak']:9.4f} {fmt_t(sc['tau_common']):>11} {fmt_t(sc['tau_diff']):>10} {fmt_t(sci['tau_diff']):>13} {sc['rate_NI']:9.0f} {rate_F/1e3:16.2f} {rate_F/pz.W*100:9.2f} {sc['I0']**2*R_SW:11.2f} {sc['I0']**2*R_SW*n_km:11.0f}")
+    out["lengths"] = rows
+    print(f"  (dF/dNI {dFdNI:.3f} N/m per ampere-turn per track at the rest state; the rate in force is 2 x that x the ampere-turn rate; W = {pz.W/1e3:.1f} kN/m is final_bearing's")
+    print(f"  casing weight.  Every rate is the sum of the supplies' volts per kilometre: ten coils per kilometre at 1 kV give the same rate at any length.)")
+    # the standard case, 1 km
+    sc = switched_circuit(c); L = sc["L"]; I0 = sc["I0"]; I_cap = sc["I_cap"]; NI_s0 = c["NI_s0"]; NI_cap = c["NI_cap"]
+    print()
+    print(f"  The standard case, 1 km coils (L1 {sc['L1']:.1f} H, common mode {sc['L_common']:.0f} H, leakage {sc['L_leak']:.2f} H):")
+    # (a) takeover
+    t_take_lin = sc["L_common"] * (I_cap - I0) / V_SUP
+    t_take = n_t * 2 * sc["L_c"] * dphi(c, NI_s0, NI_cap) / V_SUP
+    E_take_m = energy_per_m(c, NI_cap) - energy_per_m(c, NI_s0)
+    print(f"  (a) Takeover of a parked spacecraft, 141 to 322 kA per track, all ten supplies at {V_SUP:.0f} V: {t_take:.0f} s with the saturating L' ({t_take_lin:.0f} s linear);")
+    print(f"      the supply power rises from {V_SUP*I0/1e3:.0f} to {V_SUP*I_cap/1e3:.0f} kW per coil; energy {E_take_m/1e6:.1f} MJ per metre of track, {2*E_take_m*1e3/1e9:.2f} GJ per km of casing (both tracks), mean {2*E_take_m*1e3/t_take/1e6:.1f} MW per km.")
+    out["takeover"] = dict(t=t_take, t_lin=t_take_lin, E_km=2 * E_take_m * 1e3, P_coil0=V_SUP * I0, P_coil_cap=V_SUP * I_cap)
+    # (b) no power
+    ts = np.array([3600.0, 86400.0, 10 * 86400.0, 30 * 86400.0, 100 * 86400.0])
+    I_t = circuit_run(L, np.zeros(N), np.full(N, I0), ts)
+    def F_pair(I_mean):
+        return 2 * bo.F_of_NI(r_sup, N * n_t * I_mean)
+    print(f"  (b) No power (every supply off, switches closed): the ten decay together on the common mode, tau {fmt_t(sc['tau_common'])}:")
+    print(f"      after " + ", ".join(f"{fmt_t(t)}: {I[0]:.1f} A ({F_pair(I[0])/pz.W*100:.1f} % of the weight)" for t, I in zip(ts, I_t)))
+    def t_force_loss(frac):
+        I_need = bo.NI_of_F(r_sup, (1 - frac) * pz.W / 2) / (N * n_t)
+        return sc["tau_common"] * math.log(I0 / I_need)
+    print(f"      the support force falls 1 percent in {fmt_t(t_force_loss(0.01))}, 10 percent in {fmt_t(t_force_loss(0.10))}, half in {fmt_t(t_force_loss(0.5))} (the pull curve, force about")
+    print(f"      the square of the current).  What this buys depends on what holds the gap meanwhile: an attractive track is unstable (Section 7.7; Part 1's")
+    k_pair = 2 * 0.33e6
+    print(f"      constant-flux stiffness -0.33 kN/m per mm per track), with e-folding time sqrt(MU / k) = sqrt({pz.MU:,.0f} / {k_pair/1e3:.0f} kN/m per m) = {math.sqrt(pz.MU/k_pair)*1e3:.0f} ms, so the gap")
+    print(f"      is lost in well under a second without a running gap loop whatever the coils hold; the coils' current is not the limit, the loops' power is.")
+    out["no_power"] = dict(tau=sc["tau_common"], t_1pct=t_force_loss(0.01), t_10pct=t_force_loss(0.10), t_half=t_force_loss(0.5), t_unstable=math.sqrt(pz.MU / k_pair))
+    # (c) lost track
+    t_track = n_t * 2 * sc["L_c"] * dphi(c, 0.0, NI_s0) / V_SUP
+    t_track_full = n_t * 2 * sc["L_c"] * dphi(c, 0.0, NI_cap) / V_SUP
+    print(f"  (c) A lost track recharged from zero by its ten supplies while the other track and the load windings carry the casing: {t_track:.0f} s to 141 kA,")
+    print(f"      {t_track_full:.0f} s to the 322 kA cap (the other track at its cap meanwhile).  A lost coil (one of ten) recharged by its own supply with the nine")
+    tt = np.linspace(0, 5.0, 501)
+    I_rec = circuit_run(L, np.array([V_SUP] + [0.0] * (N - 1)), np.array([0.0] + [I0 * N / (N - 1)] * (N - 1)), tt)
+    j_rec = int(np.argmax(I_rec[:, 0] >= I0))
+    print(f"      persistent (they hold the bundle's flux, so the coil sees its leakage inductance): {tt[j_rec]:.2f} s to {I0:.0f} A, the nine falling back from {I0*N/(N-1):.1f} A as it rises;")
+    tr = np.array([60.0, 600.0, 3600.0, 3 * 3600.0, 6 * 3600.0, 24 * 3600.0])
+    I_relax = circuit_run(L, np.zeros(N), np.array([0.0] + [I0 * N / (N - 1)] * (N - 1)), tr)
+    print(f"      with no supply at all (switch reclosed): the differential mode, tau {fmt_t(sc['tau_diff'])}: the coil at " + ", ".join(f"{I[0]:.1f} A after {fmt_t(t)}" for t, I in zip(tr, I_relax)) + ".")
+    out["recovery"] = dict(t_track=t_track, t_track_full=t_track_full, t_coil_supply=float(tt[j_rec]), tau_diff=sc["tau_diff"])
+    # (d) switch open on detection: the quench protection by the switch alone
+    print(f"  (d) Quench protection by the switch alone: on detection the coil's switch opens and the supply takes the current at -{V_SUP:.0f} V (the switch")
+    print(f"      sees the supply's {V_SUP:.0f} V, nothing more, since the supply is the path); the nine neighbours keep the bundle's flux and take the current:")
+    for lab, I_start in (("at 141 kA (51 A)", I0), ("at the 322 kA cap (117 A)", I_cap)):
+        tq = np.linspace(0, 2.0, 2001)
+        I_q = circuit_run(L, np.array([-V_SUP] + [0.0] * (N - 1)), np.full(N, I_start), tq)
+        j0 = int(np.argmax(I_q[:, 0] <= 0.0))
+        t0 = tq[j0]; I9 = I_q[j0, 1]
+        NI_before = N * n_t * I_start; NI_after = n_t * (N - 1) * I9
+        E_leak = 0.5 * sc["L_leak"] * I_start**2
+        print(f"      {lab:>26}: current to zero in {t0*1e3:.0f} ms ({sc['L_leak']:.2f} H x {I_start:.0f} A / {V_SUP:.0f} V); the nine rise to {I9:.1f} A ({I9/IC_12MM*100:.0f} % of Ic); the bundle keeps")
+        print(f"      {'':>26}  {NI_after/NI_before*100:.3f} % of its ampere-turns (loses {(1-NI_after/NI_before)*100:.3f} %, {(F_pair(I9*(N-1)/N)/F_pair(I_start)-1)*100:+.3f} % of force); {E_leak/1e3:.1f} kJ go into the supply.")
+        # the hot spot through the detection delay and the transfer
+        I_fun = lambda t, I_start=I_start, I_q=I_q, tq=tq: float(np.interp(t, tq, I_q[:, 0])) if t >= 0 else I_start
+        for delay in (0.01, 0.1, 1.0):
+            T_end = hot_spot_T(lambda t: I_start if t < delay else max(I_fun(t - delay), 0.0), delay + t0 + 0.01)
+            print(f"      {'':>26}  detection delay {delay*1e3:5.0f} ms: the normal spot ends at {T_end:5.1f} K (adiabatic, from {T_OP:.0f} K; {hot_spot_time(I_start):.1f} s at {I_start:.0f} A would reach 300 K)")
+        out[f"quench_{I_start:.0f}A"] = dict(t_transfer=t0, I9=I9, NI_kept=NI_after / NI_before, E_leak=E_leak)
+    V_det = tape_resistance_per_m(T_OP) * 0.1 * I0
+    print(f"      Detection: a 10 cm normal zone at {T_OP:.0f} K and {I0:.0f} A is {V_det*1e3:.1f} mV across 10 cm of tape; the coil's terminal voltage at rest is {I0*R_SW*1e3:.0f} mV (the switch drop), so a")
+    print(f"      millivolt-class detector per coil, or a pair of voltage taps per turn, is what the switch needs.  The transfer takes {out['quench_51A']['t_transfer']*1e3:.0f} ms against the {hot_spot_time(I0):.0f} s a bare")
+    print(f"      spot has before 300 K: no heaters are needed when the switch opens.  Heaters stay as the backup for a switch that fails closed ((f) below): the A.5")
+    print(f"      figure, 4.3 MJ for a tenth of a 1 km coil.  The supply must take {out['quench_51A']['E_leak']/1e3:.0f} to {out['quench_117A']['E_leak']/1e3:.0f} kJ in under a second: {V_SUP*I_cap/1e3:.0f} kW into the bus or a dump resistor.")
+    # (e) switch fails open, (f) switch fails closed, (g) supply stuck on
+    print(f"  (e) A switch that fails open with its supply alive is case (d): the supply is the path and holds the current at zero volts (its own conduction loss")
+    print(f"      instead of the switch's {I0**2*R_SW:.1f} W [the supply's loss is not known here]) and the coil goes on working.  A switch that fails open with the supply dead")
+    print(f"      has no path: the coil's current must stop, and without a clamp the voltage rises until something breaks down.  A clamp (a varistor or a")
+    print(f"      free-wheel path at about the supply voltage) across the switch is the standard dump circuit and turns it into case (d): the current goes to the nine in")
+    print(f"      {out['quench_51A']['t_transfer']*1e3:.0f} ms, the bundle keeps {out['quench_51A']['NI_kept']*100:.2f} percent of its ampere-turns, the nine run at {out['quench_51A']['I9']:.0f} A.  Without the clamp the coil arcs.")
+    # (f) stuck closed: the shorted turn
+    tt = np.linspace(0, 20.0, 4001)
+    I_st = circuit_run(L, np.array([0.0] + [V_SUP] * (N - 1)), np.full(N, I0), tt)
+    NI_b = n_t * I_st.sum(axis=1)
+    j_q = int(np.argmax(I_st[:, 0] <= -IC_12MM)); j_c = int(np.argmax(I_st[:, 1] >= I_cap))
+    rate_b = (NI_b[10] - NI_b[0]) / (tt[10] - tt[0]); rate_9 = (I_st[10, 1] - I_st[0, 1]) / (tt[10] - tt[0])
+    L_eff9 = V_SUP / rate_9
+    print(f"  (f) A switch that fails closed (or a supply that dies with the switch closed) leaves that coil persistent: a shorted turn around the other nine,")
+    print(f"      like a transformer with a shorted secondary.  Nine supplies ramping at {V_SUP:.0f} V with one coil stuck: the stuck coil keeps its flux, so its current")
+    print(f"      runs the other way as the nine rise; the nine see only {L_eff9:.0f} H each (10 f L1) and climb at {rate_9:.1f} A/s instead of {V_SUP/sc['L_common']:.2f}, reaching the {I_cap:.0f} A cap in {tt[j_c]:.1f} s")
+    print(f"      with the stuck coil at {I_st[j_c,0]:.0f} A; the bundle's ampere-turns rise at {rate_b:.0f} At/s ({rate_b/sc['rate_NI']*100:.0f} percent of the normal rate: the leakage share of a ramp")
+    print(f"      37 times faster), but the stuck coil reaches -Ic ({IC_12MM:.0f} A) after {tt[j_q]:.1f} s, when the bundle has gained {(NI_b[j_q]-NI_b[0])/1e3:.1f} kA ({(NI_b[j_q]-NI_b[0])/NI_s0*100:.1f} percent), and")
+    print(f"      quenches with no switch to dump it.  So a stuck coil must be seen (its current is measured) and the bundle's ramp held to what its {R_SW*1e3:.0f} milliohm lets")
+    print(f"      through: steps of about a percent, or the differential mode's pace, tau {fmt_t(sc['tau_diff'])} (block) or {fmt_t(switched_circuit(c, L_COIL_B, F_LEAK['interleaved'])['tau_diff'])} (interleaved).")
+    print(f"      The persistent layout has the same shorted turn in a coil whose flux pump has died, with a joint resistance of nanohms instead of a milliohm:")
+    print(f"      the nine others can move their bundle by about a percent before that coil quenches, and the differential mode then takes years to relax.")
+    out["stuck_closed"] = dict(rate_frac=rate_b / sc["rate_NI"], t_quench=float(tt[j_q]), I_stuck_at_cap=float(I_st[j_c, 0]), dNI_before_quench=float(NI_b[j_q] - NI_b[0]), L_eff9=L_eff9)
+    # (g) a supply stuck at +V with the nine holding
+    L1 = sc["L1"]; M = sc["M"]
+    didt = V_SUP / L1
+    print(f"  (g) A supply stuck at +{V_SUP:.0f} V with the other nine holding their currents: the stuck coil sees its own L1 and rises at {didt:.2f} A/s, the bundle at")
+    print(f"      {n_t*didt:.0f} At/s (the full normal rate), reaching the {I_cap:.0f} A cap in {(I_cap-I0)/didt:.0f} s and Ic in {(IC_12MM-I0)/didt:.0f} s; holding costs the nine {M*didt:.0f} V each, within their")
+    print(f"      {V_SUP:.0f} V.  The gap loop sees a {n_t*didt*2*dFdNI/pz.W*100:.2f} percent-per-second force rise and the nine can cancel it at a tenth of their rate; the stuck coil must be opened")
+    print(f"      (case (d)) within {(IC_12MM-I0)/didt:.0f} s, which its current measurement gives.")
+    out["supply_stuck"] = dict(didt=didt, t_cap=(I_cap - I0) / didt, t_ic=(IC_12MM - I0) / didt, V_hold=M * didt)
+    out["circuit"] = {k: v for k, v in sc.items() if k not in ("L",)}
+    return out
+
+
+def part_B2(r_sup, c, quick=False):
+    hr("B.2  FINAL_BEARING'S 114 CASES FOR THE THREE LAYOUTS")
+    theva = bd.read_theva(); sup, lift = fb.load_air()
+    tabs = dict(sp.limiter_tables(), F0=0.0, Q0=0.0)
+    with contextlib.redirect_stdout(io.StringIO()):
+        A = fb.part_A(theva, sup, lift)
+    dFdNI = (bo.F_of_NI(r_sup, c["NI_s0"] + 100) - bo.F_of_NI(r_sup, c["NI_s0"] - 100)) / 200.0
+    rate = {L_c: 2 * dFdNI * switched_circuit(c, L_c)["rate_NI"] for L_c in (10.0, 100.0, 1000.0)}
+    print(f"  Casing {A['m_top']:,.0f} kg/m, cable {A['top']['m_cable']:,.0f} kg/m (final_bearing's on-top version).  The switched support's loop: the 1 Hz loop of the book,")
+    print(f"  its correction slewed at the supplies' rate, " + ", ".join(f"{r/1e3:.1f} kN/m per s ({r/pz.W*100:.1f} % of W per s) with {L_c:.0f} m coils" for L_c, r in rate.items()) + ".")
+    print(f"  Decoupled load winding alone: the support frozen, the driven windings' 10 mm protection in every lane (Stage A's standard model).")
+    print(f"  Switched support alone: no driven up-pulling winding (the planned up-pull and the protection's up cap are zero), the lift tracks as before.")
+    print(f"  Together: the slewed support loop and the protection in every lane.")
+    configs = [("decoupled alone", 20e-3, dict(freeze=True, prot_all=True)),
+               ("switched alone, 1 km", 20e-3, dict(freeze=False, prot_all=True, rate=rate[1000.0], no_up=True)),
+               ("together, 1 km", 20e-3, dict(freeze=False, prot_all=True, rate=rate[1000.0])),
+               ("decoupled alone", 2e-3, dict(freeze=True, prot_all=True)),
+               ("together, 1 km", 2e-3, dict(freeze=False, prot_all=True, rate=rate[1000.0]))]
+    if not quick:
+        configs += [("switched alone, 100 m", 20e-3, dict(freeze=False, prot_all=True, rate=rate[100.0], no_up=True)),
+                    ("switched alone, 10 m", 20e-3, dict(freeze=False, prot_all=True, rate=rate[10.0], no_up=True)),
+                    ("together, 100 m", 20e-3, dict(freeze=False, prot_all=True, rate=rate[100.0]))]
+    runs = {}
+    for name, tau, kw in configs:
+        key = f"{name}, {tau*1e3:g} ms"
+        t0 = time.time()
+        fname = "bearing_layout_B_" + key.replace(", ", "_").replace(" ", "").replace("/", "") + ".txt"
+        gaps, records, txt = run_cases(tau, A=A, theva=theva, sup=sup, lift=lift, tabs=tabs, log_name=fname, head=f"[Stage B layout: {name}]", **kw)
+        runs[key] = dict(gaps=gaps, summary=parse_summary(txt), tau=tau, name=name, seconds=time.time() - t0)
+        print(f"  ran {key}: {len(gaps)} cases, {time.time()-t0:.0f} s -> {fname}", flush=True)
+    out = dict(summaries={k: dict(r["summary"], seconds=r["seconds"], tau=r["tau"]) for k, r in runs.items()})
+    print()
+    print(f"  Summary (the pair's casing movement at 1 and 30 km/s, one track at 30 km/s, the smallest single-failure gap, the contact cases):")
+    print(f"  {'layout':<28} {'1 km/s pair mm':>14} {'30 km/s pair mm':>15} {'30 km/s one mm':>14} {'smallest single-failure gap mm':>30} {'in':<48} {'contacts':<90}")
+    for key, r in runs.items():
+        s = r["summary"]
+        print(f"  {key:<28} {s['e1']:>14} {s['e30']:>15} {s['o30']:>14} {s['gap']:>30} {s['case'][:48]:<48} {s['contacts'][:90]:<90}")
+    # every case side by side at 20 ms
+    keys20 = [k for k in runs if k.endswith("20 ms")]
+    print()
+    print(f"  Every case at 20 ms, smallest gap in mm (C = contact), the layouts side by side:")
+    print(f"  {'case':<78} " + " ".join(f"{runs[k]['name'][:22]:>22}" for k in keys20))
+    base = runs[keys20[0]]["gaps"]
+    table = []
+    for i, g in enumerate(base):
+        row = [g[0], g[1]]
+        for k in keys20:
+            gg = runs[k]["gaps"][i]; row.append((min(gg[2], gg[3]), gg[4]))
+        table.append(row)
+        print(f"  {g[0][:78]:<78} " + " ".join(f"{v*1e3:20.1f}{' C' if cflag else '  '}" for v, cflag in row[2:]))
+    out["table20"] = [dict(case=r[0], model=r[1], gaps=[dict(gap=v, contact=cf) for v, cf in r[2:]]) for r in table]
+    out["keys20"] = keys20
+    # the comparisons
+    for a, b in (("decoupled alone, 20 ms", "together, 1 km, 20 ms"), ("together, 1 km, 20 ms", "switched alone, 1 km, 20 ms"), ("decoupled alone, 2 ms", "together, 1 km, 2 ms")):
+        if a in runs and b in runs:
+            print()
+            print(f"  {a} against {b}:")
+            out[f"compare|{a}|{b}"] = compare_cases(runs[a]["gaps"], runs[b]["gaps"], a.split(",")[0], b.split(",")[0])
+    # the failure cases by layout: single failures, worst gap, and the cases that fail
+    print()
+    print(f"  Single-failure cases (the book's definition: not 'no per-side', 'no protection', 'support lost too', or case 2) per layout at 20 ms:")
+    for k in keys20:
+        singles = [g for g in runs[k]["gaps"] if is_single(g[0])]
+        worst = sorted(singles, key=lambda g: min(g[2], g[3]))[:5]
+        cs = [g[0] for g in singles if g[4]]
+        print(f"    {runs[k]['name']:<24}: {len(cs)} single-failure contacts" + (f" ({'; '.join(cs)[:200]})" if cs else "") + "; the five smallest gaps: " + "; ".join(f"{g[0][:40]} {min(g[2], g[3])*1e3:.1f}" for g in worst))
+    return out
+
+
+def part_B3(r_sup, c, A_masses=None):
+    hr("B.3  WHAT EACH LAYOUT ADDS TO THE CASING")
+    theva = bd.read_theva(); sup, lift = fb.load_air()
+    with contextlib.redirect_stdout(io.StringIO()):
+        A = fb.part_A(theva, sup, lift)
+    dm = A["dm_top"]
+    sc = switched_circuit(c)
+    N = N_SUP_COILS
+    n_coils_km = N * 1000.0 / L_COIL_B * 2                        # both tracks
+    P_sup = V_SUP * sc["I_cap"]                                     # the supply's rating at the cap
+    m_sup = P_sup / 1e3 / KVA_PER_KG
+    E_take_km = 2 * (energy_per_m(c, c["NI_cap"]) - energy_per_m(c, c["NI_s0"])) * 1e3
+    print(f"  The book's casing (final_bearing's on-top version): tape {dm['tape']:.0f} kg/m (12 mm support {dm['t_sup']['mass']:.1f}, 3 mm load {dm['t_load']['mass']:.1f}, lift {dm['t_lift']['mass']:.1f} kg/m per track),")
+    print(f"  casing side with formers and cryostats {dm['casing_side']:.0f} kg/m, casing {A['m_top']:,.0f} kg/m in all.")
+    print(f"  Decoupled load winding: the Part 1 figure, 63 percent more load tape by quadratic scaling (the saturating-plate solve of Section 2 is still open):")
+    print(f"    +{0.63*dm['t_load']['mass']:.0f} kg/m per track, +{2*0.63*dm['t_load']['mass']:.0f} kg/m of tape on the casing, +{2*0.63*dm['t_load']['mass']*(1+fb.CRYO_FACTOR):.0f} kg/m with formers and cryostat at the same factor ({2*0.63*dm['t_load']['mass']*(1+fb.CRYO_FACTOR)/A['m_top']*100:.1f} % of the casing).")
+    print(f"    Its support coils stay persistent: {108:.0f} flux pumps per km per track for 1 percent per day (A.6) [pump mass not published in the papers read], a detector")
+    print(f"    and heaters per coil (4.3 MJ for a tenth of a 1 km coil, A.5).")
+    print(f"  Switched support winding, 1 km coils, {n_coils_km:.0f} coils per km of casing (both tracks): a {V_SUP:.0f} V, {sc['I_cap']:.0f} A supply per coil ({P_sup/1e3:.0f} kW at the cap), at {KVA_PER_KG:.0f} kVA/kg")
+    print(f"    (a cryogenically cooled 1 MVA SiC inverter, UTK/NASA Glenn [search summary]) {m_sup:.1f} kg each, {n_coils_km*m_sup:.0f} kg per km ({n_coils_km*m_sup/1e3:.2f} kg/m, {n_coils_km*m_sup/1e3/A['m_top']*100:.3f} % of the casing);")
+    print(f"    the switch: a {V_SUP:.0f} V, {sc['I_cap']:.0f} A cold module at {R_SW*1e3:.0f} milliohm [mass not estimated: dies in parallel, well under the supply's mass]; a clamp per switch; a current")
+    print(f"    sensor and a millivolt detector per coil; no flux pumps, no heaters as the first line.  Cold loss at rest {sc['I0']**2*R_SW:.1f} W per coil, {n_coils_km*sc['I0']**2*R_SW:.0f} W per km of casing")
+    print(f"    ({n_coils_km*sc['I0']**2*R_SW/1e3/82:.3f} of the 82 W/m LIM heat of Table 14.3 per metre), {n_coils_km*sc['I_cap']**2*R_SW:.0f} W per km under a parked spacecraft.  The takeover draws {E_take_km/1e9:.2f} GJ per km from the bus")
+    print(f"    over {n_t_time(c, sc):.0f} s; no store is needed for it while the bus is up.  The energy stores of the driven windings are Parts 2 to 4's business.")
+    print(f"  Together: both of the above; the switched support carries no extra tape.  The one mass that counts against the cable is the decoupled winding's")
+    print(f"    tape, +{2*0.63*dm['t_load']['mass']*(1+fb.CRYO_FACTOR):.0f} kg/m on a casing of {A['m_top']:,.0f}; the electronics are {n_coils_km*m_sup/1e3:.1f} kg/m.")
+    return dict(tape_decoupled=2 * 0.63 * dm["t_load"]["mass"], casing_decoupled=2 * 0.63 * dm["t_load"]["mass"] * (1 + fb.CRYO_FACTOR), m_supply=m_sup, m_supplies_km=n_coils_km * m_sup,
+                P_switch_km=n_coils_km * sc["I0"]**2 * R_SW, E_take_km=E_take_km, m_casing=A["m_top"])
+
+
+def n_t_time(c, sc):
+    return c["n_t"] * 2 * sc["L_c"] * dphi(c, c["NI_s0"], c["NI_cap"]) / V_SUP
+
+
 def main():
     part = "all"; quick = False
     for arg in sys.argv[1:]:
@@ -742,7 +1039,7 @@ def main():
         else:
             print(f"Unknown option {arg}"); return
     t_all = time.time()
-    hr("THE SUPPORT AND LOAD WINDINGS' LAYOUT, STAGE A (2026-11-12)")
+    hr("THE SUPPORT AND LOAD WINDINGS' LAYOUT (2026-11-12)")
     print(f"  Ring at {ring.ALTITUDE_KM:.0f} km: casing {ring.M_LOAD_M:,.0f} kg/m, cable {ring.M_CABLE_M:,.0f} kg/m{' (quick)' if quick else ''}.")
     r_sup, r_lift = be.load_records()
     c = part1_constants(r_sup); curve = SupportCurve(r_sup)
@@ -765,6 +1062,12 @@ def main():
         res["A3"] = part_A3(r_sup, curve, c, quick); save()
     if part in ("demand", "frozen", "all"):
         res["A2"] = part_A2(curve, c, quick); save()
+    if part in ("switched", "stageB", "all"):
+        res["B1"] = part_B1(r_sup, c); save()
+    if part in ("mass", "stageB", "all"):
+        res["B3"] = part_B3(r_sup, c); save()
+    if part in ("layouts", "stageB", "all"):
+        res["B2"] = part_B2(r_sup, c, quick); save()
     hr(f"DONE ({time.time()-t_all:.0f} s)")
 
 

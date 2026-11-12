@@ -141,7 +141,9 @@ def lane(**kw):
              false_pull=None,                 # (t0, duration, force): a pull commanded with no cause, force up positive
              pull_scale=None,                 # [(t0, t1, factor), ...]: the commanded pull is multiplied by factor between t0 and t1
              cmd_ramp=0.0,                    # s: the planned pull command is smoothed with a moving average of this width (a slow ramp by command)
-             steady_cap=None)                 # N/m: ceiling of the casing support force for this lane (one track out), default F_STEADY_CAP
+             steady_cap=None,                 # N/m: ceiling of the casing support force for this lane (one track out), default F_STEADY_CAP
+             steady_rate=None)                # N/m per s: the slow loop's correction of the support force can change no faster than this
+                                              # (2026-11-12, a switched support coil whose supply slews its current); None = no limit, as before
     d.update(kw)
     return d
 
@@ -353,6 +355,9 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
     loop_om = 2 * math.pi * np.array([ln["steady_loop_hz"] for ln in lanes])
     steady_cap = np.array([ln["steady_cap"] if ln["steady_cap"] is not None else F_STEADY_CAP for ln in lanes])
     S = np.minimum(S, steady_cap[:, None])
+    steady_rate = np.array([ln.get("steady_rate") if ln.get("steady_rate") is not None else np.inf for ln in lanes], dtype=float)
+    rate_limited = np.isfinite(steady_rate).any()
+    S_corr = np.zeros(n)                                    # the slewed correction the slow loop has put on the support (rate-limited lanes)
     t_pass_end = L_SLED / u + max(ln["T_spread"] or 0 for ln in lanes) + 0.1
     gap_dep = np.array([ln["gap_dep"] for ln in lanes])
     gap_err = np.array([ln["gap_err"] for ln in lanes])
@@ -416,7 +421,13 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         F_lt = F0 * np.exp(-k2 * np.maximum(gap_t, 0.0))
         Sj = S[:, j]
         if loop_om.any():
-            Sj = np.clip(Sj - MU * (2 * loop_om * (v - vc) + loop_om**2 * rel), 0.0, steady_cap)
+            Sj_des = np.clip(Sj - MU * (2 * loop_om * (v - vc) + loop_om**2 * rel), 0.0, steady_cap)
+            if rate_limited:
+                # the loop's correction is slewed at the coil supply's rate; the base S (a failure step, a planned reduction) is not
+                S_corr += np.clip(Sj_des - Sj - S_corr, -steady_rate * dt, steady_rate * dt)
+                Sj = np.clip(Sj + S_corr, 0.0, steady_cap)
+            else:
+                Sj = Sj_des
         a_cas = (-W + Sj - q[:, j] - F_hd - F_pd + F_hu - F_lb + F_lt) / MU
         a_cab = np.where(cable_free, (W - Sj + F_hd + F_pd - F_hu + F_lb - F_lt) / MU_C, 0.0)
         v += a_cas * dt
@@ -507,11 +518,13 @@ def point_table(rows, title, cols=("u", "L_sc", "pos", "tau", "L_section", "dt_e
 
 def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6000.0, t_settle=1.0,
                 match=MATCH_RING, dx=None, parked=False, F_steady_cap=None, loop_hz=1.0, T_spread=None, snap=False,
-                n_coils=1, L_coil=None, track_width=None, prot=None):
+                n_coils=1, L_coil=None, track_width=None, prot=None, loop_rate=None):
     """2026-10-11 options: n_coils staggered coils of length L_coil (a new one every L_coil / n_coils) instead of
     sections; track_width (m per face) sets the force cap at 1.2 T; prot = dict(trigger, delay, hz, cap_up, cap_down,
     sensor_err) switches on the gap protection on every node (a latched position loop on the compensation tracks
     after the measured offset passes the trigger).  Case keys added: no_sled, support_fail_t, false_pull=(t0, dur, F).
+    loop_rate (2026-11-12): N/m per s, the slow loop's correction of the support force slews no faster than this (a switched
+    support coil whose supply slews its current); None = no limit, as before.
     """
     if n_coils > 1:
         L_section = L_coil or L_section
@@ -645,6 +658,7 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
     om = 2 * math.pi * sp.PD_FREQ_HZ
     min_gb = np.full(n, GAP0); min_gt = np.full(n, GAP0); max_exc = np.zeros(n)
     pk_lim = np.zeros(n); pk_steady = np.zeros(n); contact = np.zeros(n, dtype=bool)
+    S_corr = np.zeros((n, N))                                 # the slewed loop correction (loop_rate set)
     v_pk = np.zeros(n)
     profile = None
     for j in range(nt):
@@ -730,6 +744,9 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
             S = np.clip(W + q[None, :] - MU * (2 * om * (v - vcb) + om * om * rel), 0.0, F_steady_cap)
         else:
             S = np.clip(W - MU * (2 * om_loop * (v - vcb) + om_loop * om_loop * rel), 0.0, F_STEADY_CAP)
+            if loop_rate is not None:
+                S_corr += np.clip(S - W - S_corr, -loop_rate * dt, loop_rate * dt)
+                S = np.clip(W + S_corr, 0.0, F_STEADY_CAP)
             S = np.where(S_fail, 0.0, S)
         q_cas = q[None, :] * np.ones((n, 1))
         if spurious.any():
