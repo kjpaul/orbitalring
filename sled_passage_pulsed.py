@@ -377,7 +377,7 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
     J_hd = np.zeros(n)
     J_hu = np.zeros(n)
     contact = np.zeros(n, dtype=bool)
-    hist = dict(t=t, w=np.zeros((n, nt)), wc=np.zeros((n, nt)), F=np.zeros((n, nt)))
+    hist = dict(t=t, w=np.zeros((n, nt)), wc=np.zeros((n, nt)), F=np.zeros((n, nt)), S=np.zeros((n, nt)))   # S: the support force history (2026-11-12)
 
     for j in range(nt):
         cmd = F_cmd[:, j].copy()
@@ -448,6 +448,7 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         hist["w"][:, j] = w
         hist["wc"][:, j] = wc
         hist["F"][:, j] = F_hu - F_hd - F_pd
+        hist["S"][:, j] = Sj
 
     out = []
     for i, ln in enumerate(lanes):

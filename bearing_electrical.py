@@ -804,7 +804,7 @@ def stiffness(rows, g0, NI):
 
 
 def passage_point(u, L_coil, F_pair, kind, kernel=None, L_c=None, coupled=False, prot=True, t_settle=2.0, support_scale=None,
-                  gap_dep=None, cap_up=None, cap_down=None, prot_factor=1.0, r_sup=None):
+                  gap_dep=None, cap_up=None, cap_down=None, prot_factor=1.0, r_sup=None, loop_hz=1.0):
     """Point model of a sled passage: one meter of casing (m_c) and cable (m_k) free, the support tracks at the casing weight,
     the spread pull of the driven pair over T = max(50 ms, L_sc/u) in 20 staggered coils of length L_coil with the 20 ms command
     ramp and the 2 ms lag (sled_passage_pulsed's point model, the impulse matched so that casing and cable end up moving together),
@@ -864,7 +864,7 @@ def passage_point(u, L_coil, F_pair, kind, kernel=None, L_c=None, coupled=False,
     lag = 1.0 - math.exp(-dt / TAU_HW)
     cap_u = cap_up if cap_up is not None else 2 * F_LOAD; cap_d = cap_down if cap_down is not None else 2 * F_LIFT
     steady_cap = 2 * r_sup["F_req"]
-    om_p = 2 * math.pi * 5.0; om_l = 2 * math.pi * 1.0
+    om_p = 2 * math.pi * 5.0; om_l = 2 * math.pi * loop_hz                # loop_hz = 0: the support current frozen (bearing_layout, 2026-11-12)
     delay_n = int(round(1e-3 / dt)); k_win = max(int(round(pz.PROT_V_WINDOW / dt)), delay_n, 1)
     buf = np.zeros(delay_n + k_win + 2)
     F_ref_hu = max(cmd.max(), cap_u, 1.0) if kind == "load" else max(cap_u, 1.0)
@@ -872,7 +872,7 @@ def passage_point(u, L_coil, F_pair, kind, kernel=None, L_c=None, coupled=False,
     I_hu = I_hd = 0.0; I_pu = I_pd = 0.0
     w = v = wc = vc = 0.0
     exc = 0.0; gap_b_min = GAP; gap_t_min = GAP; contact = False; t_contact = float("nan"); engaged = False
-    S_min = W
+    S_min = W; S_hist = np.zeros(nt)
     for i in range(nt):
         rel = w - wc
         buf = np.roll(buf, 1); buf[0] = rel
@@ -883,7 +883,7 @@ def passage_point(u, L_coil, F_pair, kind, kernel=None, L_c=None, coupled=False,
         if gap_dep is not None:
             S_c *= gap_dep(GAP - rel)
         Sj = min(max(S_c - m_c * (2 * om_l * (v - vc) + om_l**2 * rel), 0.0), steady_cap)
-        S_min = min(S_min, Sj)
+        S_min = min(S_min, Sj); S_hist[i] = Sj
         # the planned command through the lag
         c_plan = cmd[i]
         I_hu += (math.sqrt(max(c_plan, 0.0) / F_ref_hu) - I_hu) * lag; I_hd += (math.sqrt(max(-c_plan, 0.0) / F_ref_hd) - I_hd) * lag
@@ -913,7 +913,7 @@ def passage_point(u, L_coil, F_pair, kind, kernel=None, L_c=None, coupled=False,
         rel = w - wc
         exc = max(exc, abs(rel)); gap_b_min = min(gap_b_min, GAP - rel); gap_t_min = min(gap_t_min, GAP + rel)
     return dict(u=u, exc=exc, gap_b=gap_b_min, gap_t=gap_t_min, contact=contact, t_contact=t_contact, dNI_min=float(dNI.min()), dNI_max=float(dNI.max()),
-                S_min=S_min, engaged=engaged, t=t, cmd=cmd, dNI=dNI)
+                S_min=S_min, engaged=engaged, t=t, cmd=cmd, dNI=dNI, S=S_hist)
 
 
 def part_1d(h, theva, theva77, r_sup, r_lift, a1, quick=False):
