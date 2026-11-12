@@ -142,8 +142,10 @@ def lane(**kw):
              pull_scale=None,                 # [(t0, t1, factor), ...]: the commanded pull is multiplied by factor between t0 and t1
              cmd_ramp=0.0,                    # s: the planned pull command is smoothed with a moving average of this width (a slow ramp by command)
              steady_cap=None,                 # N/m: ceiling of the casing support force for this lane (one track out), default F_STEADY_CAP
-             steady_rate=None)                # N/m per s: the slow loop's correction of the support force can change no faster than this
+             steady_rate=None,                # N/m per s: the slow loop's correction of the support force can change no faster than this
                                               # (2026-11-12, a switched support coil whose supply slews its current); None = no limit, as before
+             bias=0.0)                        # N/m: a standing pull held by both faces against each other (the load winding up, the lift tracks down),
+                                              # so that a net command moves the windings from a working current instead of from zero (Stage B, 2026-11-12)
     d.update(kw)
     return d
 
@@ -343,6 +345,9 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
             F_ref_hu[i] = max(F_ref_hu[i], cap_hu[i])
             F_ref_hd[i] = max(F_ref_hd[i], cap_hd[i])
     false_pull = [ln["false_pull"] for ln in lanes]
+    bias = np.array([ln.get("bias", 0.0) or 0.0 for ln in lanes], dtype=float)
+    if bias.any():
+        F_ref_hu = np.maximum(F_ref_hu, bias + F_ref_hu); F_ref_hd = np.maximum(F_ref_hd, bias + F_ref_hd)   # the references hold the bias plus the command
     engaged = np.zeros(n, dtype=bool)
     t_engaged = np.full(n, np.nan)
     k_win = max(int(round(PROT_V_WINDOW / dt)), int(prot_delay.max()), 1)   # velocity estimate over at least the sensor delay
@@ -403,9 +408,15 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         for i_fp, fp in enumerate(false_pull):
             if fp is not None and fp[0] <= t[j] < fp[0] + fp[1]:
                 cmd[i_fp] += fp[2]
-        # commanded currents (force goes as current squared), first-order lag with time constant tau
-        I_cmd_hd = np.sqrt(np.clip(-cmd, 0, None) / F_ref_hd)
-        I_cmd_hu = np.sqrt(np.clip(cmd, 0, None) / F_ref_hu)
+        # commanded currents (force goes as current squared), first-order lag with time constant tau; with a bias both faces hold it
+        # and a net command c moves them to bias + c/2 and bias - c/2 while both stay positive, else one face alone carries c
+        if bias.any():
+            hu_c = np.where(cmd > 2 * bias, cmd, np.where(cmd < -2 * bias, 0.0, bias + cmd / 2))
+            hd_c = np.where(cmd < -2 * bias, -cmd, np.where(cmd > 2 * bias, 0.0, bias - cmd / 2))
+        else:
+            hu_c = np.clip(cmd, 0, None); hd_c = np.clip(-cmd, 0, None)
+        I_cmd_hd = np.sqrt(hd_c / F_ref_hd)
+        I_cmd_hu = np.sqrt(hu_c / F_ref_hu)
         I_hd += (I_cmd_hd - I_hd) * lag_step
         I_hu += (I_cmd_hu - I_hu) * lag_step
         rel = w - wc
@@ -518,13 +529,14 @@ def point_table(rows, title, cols=("u", "L_sc", "pos", "tau", "L_section", "dt_e
 
 def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6000.0, t_settle=1.0,
                 match=MATCH_RING, dx=None, parked=False, F_steady_cap=None, loop_hz=1.0, T_spread=None, snap=False,
-                n_coils=1, L_coil=None, track_width=None, prot=None, loop_rate=None):
+                n_coils=1, L_coil=None, track_width=None, prot=None, loop_rate=None, bias=0.0):
     """2026-10-11 options: n_coils staggered coils of length L_coil (a new one every L_coil / n_coils) instead of
     sections; track_width (m per face) sets the force cap at 1.2 T; prot = dict(trigger, delay, hz, cap_up, cap_down,
     sensor_err) switches on the gap protection on every node (a latched position loop on the compensation tracks
     after the measured offset passes the trigger).  Case keys added: no_sled, support_fail_t, false_pull=(t0, dur, F).
     loop_rate (2026-11-12): N/m per s, the slow loop's correction of the support force slews no faster than this (a switched
-    support coil whose supply slews its current); None = no limit, as before.
+    support coil whose supply slews its current); None = no limit, as before.  bias (Stage B): N/m, a standing pull both faces
+    hold against each other, so that the protection's and the false pulls' net force moves the windings from a working current.
     """
     if n_coils > 1:
         L_section = L_coil or L_section
@@ -645,6 +657,8 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
     engaged = np.zeros((n, N), dtype=bool)
     I_prot = np.zeros((n, N))
     F_ref_prot = max(cap, (prot or {}).get("cap_up", 0.0), (prot or {}).get("cap_down", 0.0), 1.0)
+    F_ref_bias = F_ref_prot + bias
+    I_bu = np.full((n, N), math.sqrt(bias / F_ref_bias)) if bias else None; I_bd = I_bu.copy() if bias else None
     t_eng = np.full(n, np.nan)
     rel_meas_prev = np.zeros((n, N))
 
@@ -724,9 +738,16 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
             for ic, fp in enumerate(false_pull):
                 if fp is not None and fp[0] <= t < fp[0] + fp[1]:
                     F_extra[ic * n_s:(ic + 1) * n_s] += fp[2]
-            I_cmd_p = np.sign(F_extra) * np.sqrt(np.abs(F_extra) / F_ref_prot)
-            I_prot += (I_cmd_p - I_prot) * lag_step
-            F_on_casing = F_on_casing + np.sign(I_prot) * F_ref_prot * I_prot**2
+            if bias:
+                # both faces hold the bias; the net extra force splits as in the point model, each face's current lagged on its own
+                up_c = np.where(F_extra > 2 * bias, F_extra, np.where(F_extra < -2 * bias, 0.0, bias + F_extra / 2))
+                dn_c = np.where(F_extra < -2 * bias, -F_extra, np.where(F_extra > 2 * bias, 0.0, bias - F_extra / 2))
+                I_bu += (np.sqrt(up_c / F_ref_bias) - I_bu) * lag_step; I_bd += (np.sqrt(dn_c / F_ref_bias) - I_bd) * lag_step
+                F_on_casing = F_on_casing + F_ref_bias * (I_bu**2 - I_bd**2)
+            else:
+                I_cmd_p = np.sign(F_extra) * np.sqrt(np.abs(F_extra) / F_ref_prot)
+                I_prot += (I_cmd_p - I_prot) * lag_step
+                F_on_casing = F_on_casing + np.sign(I_prot) * F_ref_prot * I_prot**2
         if snap and (snapshot is None) and t >= t_snap:
             snapshot = dict(x=x - x[N // 2], rel=(w - wc).copy(), F=F_on_casing.copy())
         # beam internal

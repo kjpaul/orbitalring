@@ -199,7 +199,7 @@ def is_single(label):
     return not any(s in label for s in SINGLE_EXCLUDE) and not label.startswith("2.")
 
 
-def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, rate=None, no_up=False, head=""):
+def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, rate=None, no_up=False, head="", bias=0.0):
     """final_bearing's Part B at the rise tau, the support loop on or frozen in every lane (point and beam), recording every point
     lane's support force history.  prot_all: the lanes that final_bearing runs without the 10 mm gap protection (the F.1 passages and
     tolerances, which lean on the 1 Hz support loop to arrest the drift after the pass) get it, at their own track rating, as the F.2
@@ -228,6 +228,9 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
                 ln["hu_width"] = 0.0
                 if ln.get("prot") is not None:
                     ln["prot"] = dict(ln["prot"], cap_up=0.0)
+        if bias:
+            for ln in lanes:
+                ln["bias"] = bias
         res, hist = orig_point(lanes, u, tabs_, **kw)
         for i, (ln, r) in enumerate(zip(lanes, res)):
             records.append((ln.get("label", "") or f"lane {i}", u, hist["t"], hist["S"][i].copy(), dict(exc=r["max_exc_all"], gap_b=r["min_gap_b"], gap_t=r["min_gap_t"], contact=r["contact"])))
@@ -240,6 +243,8 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
             kw["loop_rate"] = rate
         if no_up and kw.get("prot") is not None:
             kw["prot"] = dict(kw["prot"], cap_up=0.0)
+        if bias:
+            kw["bias"] = bias
         return orig_beam(*args, **kw)
 
     tau0 = bd.TAU_HW, fb.TAU_HW
@@ -255,7 +260,7 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
     txt = buf.getvalue()
     with open(os.path.join(ring.out_dir(), log_name), "w", encoding="utf-8") as f:
         f.write(f"# final_bearing Part B, rise {tau*1e3:g} ms, support loop {'frozen (steady_loop_hz = 0, beam loop_hz = 0)' if freeze else 'on (1 Hz)'}{', the 10 mm gap protection in every lane' if prot_all else ''}"
-                f"{f', the loop correction slewed at {rate/1e3:.2f} kN/m per s' if rate is not None else ''}{', no driven up-pulling winding (up caps zero)' if no_up else ''}{'  ' + head if head else ''}\n")
+                f"{f', the loop correction slewed at {rate/1e3:.2f} kN/m per s' if rate is not None else ''}{', no driven up-pulling winding (up caps zero)' if no_up else ''}{f', a standing bias of {bias/1e3:.0f} kN/m per face' if bias else ''}{'  ' + head if head else ''}\n")
         f.write(txt)
     return gaps, records, txt
 
