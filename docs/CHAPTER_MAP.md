@@ -106,6 +106,7 @@ The adopted bearing: four tracks of air-core superconducting coils (two support 
 | Section 7.7, the sled passage: 12.6 g radial load, the neutral speed, the casing's momentum | `sled_passage_simulation.py` | `sled_passage.txt` |
 | The rejected options (Halbach limiters, LIM limiters, 200 m coils) | `compensation_tracks.py`, `sled_passage_limits.py` (design history) | `compensation_tracks.txt`, `sled_passage_limits.txt` |
 | Figure 7.4, the bearing cross section | `tools/generate_fig_bearing_cross_section.py` | `figures_ch07/fig07_04_bearing_cross_section.svg` |
+| The driven coils' voltage, insulation, current sharing and leads; the coupling of the load winding and the persistent support winding (the 2026-11-12 proof-read questions) | `bearing_electrical.py` (Parts 1a to 1d, `--part=sweep` for the protection-rise and lift-coil-length sweep) | `bearing_electrical.txt`, `bearing_electrical_sweep.txt` |
 
 ## Chapter 6, Sections 6.10 to 6.13: AC, DC, and Three-Phase Currents
 
