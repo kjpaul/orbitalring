@@ -181,6 +181,7 @@ COIL_MLI_EFFECTIVENESS = 0.001   # MLI transmission for LIM coils (0.1%)
 # They absorb heat from the warm cable above through their MLI insulation.
 LEV_COIL_WIDTH = D_LEV_COIL * N_LEV_PLATES # Combined width of levitation coil rings (m)
 LEV_COIL_MLI_HEAT_FLUX_REF = 5.0  # MLI heat flux at 300K reference (W/m²)
+Q_COLD_EXTRA_PER_SITE = 0.0        # W per site of standing cold load added to the coils' leak (the bearing's lead heat, round 5); 0 = the book
 
 # Note: Environmental heat (Q_ABSORBED_PER_M, calculated in Section 4) is added to the
 # cable's heat budget when EDDY_HEAT_TO_CABLE = True. This represents solar and earth
@@ -393,7 +394,7 @@ def _derive():
     V_REL_MIN_FUDGE = 10
 
     # Coil environmental heat leak (LIM coils only)
-    Q_COIL_ENVIRONMENT = (Q_SUN + Q_EARTH_ALBEDO) * COIL_SURFACE_AREA_PER_SITE * COIL_MLI_EFFECTIVENESS
+    Q_COIL_ENVIRONMENT = (Q_SUN + Q_EARTH_ALBEDO) * COIL_SURFACE_AREA_PER_SITE * COIL_MLI_EFFECTIVENESS + Q_COLD_EXTRA_PER_SITE
 
     # Levitation coil area per site (for heat load calculation)
     LEV_COIL_AREA_PER_SITE = LEV_COIL_WIDTH * LIM_SPACING  # m²
