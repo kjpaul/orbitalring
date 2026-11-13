@@ -51,7 +51,8 @@ CABLE_PER_CASING_KG = 8.6                        # a kilogram on the casing coun
 LAUNCHES_PER_DAY = 500
 Q_STANDING_W_PER_M = 29.0                        # Chapter 14's standing cold load, 14.5 kW per 500 m site
 
-SPACING_MIN = 0.2                                # m between a support plate's edge and the load plate's beside it (Stage B S2.2)
+SPACING_MIN = 0.2                                  # m between a support plate's edge and the load plate's beside it (Stage B S2.2)
+CONVERGE = 0.01                                    # the solved pull within 1 percent of the requirement before the turns are set
 
 # the grids of the search: plate width (m), plate thickness (m), loop width (m)
 GRIDS = {
@@ -111,6 +112,13 @@ def solve_point(kind, Wp, T, Wl, h, ks=(1.5,), verbose=False):
         g2, s2 = tr.solve(tr.NI_design(NI2))
         NI_req = math.exp(math.log(NI1) + (math.log(F_req) - math.log(s1["F"])) * (math.log(NI2) - math.log(NI1)) / (math.log(s2["F"]) - math.log(s1["F"])))
         g3, s3 = tr.solve(tr.NI_design(NI_req))
+        # the log-log step assumes the pull is a power of the ampere-turns, which a saturating plate breaks: iterate (secant in the logs on the
+        # last two solves) until the solved pull is within CONVERGE of the requirement, at most 3 more solves (round 5 found 11 and 46 percent errors)
+        NIa, Fa, NIb, Fb = NI2, s2["F"], NI_req, s3["F"]; n_iter = 0
+        while abs(Fb - F_req) / F_req > CONVERGE and n_iter < 3:
+            NI_new = math.exp(math.log(NIb) + (math.log(F_req) - math.log(Fb)) * (math.log(NIb) - math.log(NIa)) / (math.log(Fb) - math.log(Fa)))
+            g3, s3 = tr.solve(tr.NI_design(NI_new))
+            NIa, Fa, NIb, Fb = NIb, Fb, NI_new, s3["F"]; NI_req = NI_new; n_iter += 1
         wt, lim = be.worst_tape(g3, tr, tr.NI_design(NI_req), w_tape, theva, theva77)
         ic_req = wt[0]; I50 = 0.5 * ic_req
         n_legs = len(tr.legs); turns_leg = NI_req / I50
@@ -133,7 +141,7 @@ def solve_point(kind, Wp, T, Wl, h, ks=(1.5,), verbose=False):
     res = dict(kind=kind, Wp=Wp, T=T, Wl=Wl, h=h, NI_req=NI_req, F_req=F_req, F_solved=s3["F"], ic_req=ic_req, B=wt[1], th=wt[2], face=wt[3],
                turns_leg=turns_leg, n_legs=n_legs, tape=tape, sat=s3["sat"], B_plate=s3["B_plate"], W_mag=s3["W"], plate_m=bd.RHO_PLATE * Wp * T,
                curve=[list(c) for c in curve], share=share.tolist(), NI70=NI70, F70=F70, NI100=NI100, F100=F100, F_last=float(Fs[-1]),
-               margin=F70 / F_req if F70 == F70 else float("nan"), seconds=time.time() - t0, ks=list(ks))
+               margin=F70 / F_req if F70 == F70 else float("nan"), seconds=time.time() - t0, ks=list(ks), n_iter=n_iter)
     if verbose:
         print(f"    {kind:>7} plate {Wp:.2f} m x {T*1e3:.0f} mm, loop {Wl:.2f} m, h {h*1e3:g} mm: {NI_req/1e3:.0f} kA for {F_req/1e3:.1f} kN/m (solved {s3['F']/1e3:.1f}); worst {w_tape*1e3:.0f} mm tape {wt[1]:.2f} T at {wt[2]:.0f} deg, {ic_req:.0f} A;")
         print(f"            {turns_leg:,.0f} turns per leg, {tape:.1f} kg/m; plate {s3['sat']*100:.1f} % saturated, {s3['B_plate']:.2f} T, {bd.RHO_PLATE*Wp*T:,.0f} kg/m; rating {F70/1e3:.0f} kN/m ({F70/F_req:.2f} x), cap {F100/1e3:.0f} ({time.time()-t0:.0f} s)", flush=True)
@@ -331,7 +339,7 @@ def plate_heat_launch(rl, tau=TAU, L_coil=L_FAST):
 
 
 def part_final(points, h=0.0025):
-    """The chosen points at the design's resolution with the full curve; for the pair labelled 'opt135' the coupling, the plate heat, the hardware."""
+    """The chosen points at the design's resolution with the full curve; for the pair labeled 'opt135' the coupling, the plate heat, the hardware."""
     hr(f"S2  THE OPTIMUM PLATES AT {h*1e3:g} mm CELLS")
     cache = load_cache(); results = {}
     for kind, Wp, T, Wl, label in points:
@@ -358,9 +366,9 @@ def part_final(points, h=0.0025):
         print(f"  Hardware {hw:,.0f} kg/m (LIM plates {fb.M_LIM_PLATES:,.0f}, two support plates {rs['plate_m']:,.0f}, four fast plates {rl['plate_m']:,.0f}); the book's 10,686.  Tape per meter of casing")
         print(f"  (two support {rs['tape']:.1f}, two load {tape_load:.1f}, two lift {rl['tape']:.1f}): {tape_casing:.0f} kg/m; the bearing's casing side (tape x 2, Part 3b) {2*tape_casing:,.0f} kg/m; tape around the")
         print(f"  ring {tape_casing*ring.L_RING/1e9:.2f} Mt.  The plates on the {side:.2f} m underside: {fit:.2f} m of plate and spacing ({'fits' if fit <= side else 'DOES NOT FIT'}); loop widths {2*rs['Wl']:.2f} m inside a")
-        print(f"  {rs['Wp']:.2f} m support plate ({(rs['Wp']-2*rs['Wl'])*1e3/2:.0f} mm of plate past each outer leg's centre) and {rl['Wl']:.2f} m inside a {rl['Wp']:.2f} m fast plate ({(rl['Wp']-rl['Wl'])*1e3/2:.0f} mm).")
+        print(f"  {rs['Wp']:.2f} m support plate ({(rs['Wp']-2*rs['Wl'])*1e3/2:.0f} mm of plate past each outer leg's center) and {rl['Wl']:.2f} m inside a {rl['Wp']:.2f} m fast plate ({(rl['Wp']-rl['Wl'])*1e3/2:.0f} mm).")
         cp = coupling(rs, rl)
-        print(f"  Coupling at {cp['d_edge']:.1f} m edge spacing (load plate centre {cp['xl']:.2f} m from the support's): the load loop's flux through the support's figure-eight {cp['M']*1e6:.4f} uWb/m per At")
+        print(f"  Coupling at {cp['d_edge']:.1f} m edge spacing (load plate center {cp['xl']:.2f} m from the support's): the load loop's flux through the support's figure-eight {cp['M']*1e6:.4f} uWb/m per At")
         print(f"  against the support's own {cp['L_s']*1e6:.3f}: {cp['k']*100:.2f} percent; at the load track's {fb.F_LOAD_TRACK/1e3:.0f} kN/m ({cp['NI_l_full']/1e3:.0f} kA) flux conservation moves the support's {cp['NI_s_op']/1e3:.0f} kA by {cp['dNI']/1e3:.2f} kA,")
         print(f"  {cp['dF']*100:.2f} percent of its force (Stage B S2.1: 0.9 percent at 0.5 m with 1.4 m and 1.2 m plates).")
         ph = plate_heat_launch(rl)
@@ -745,7 +753,7 @@ def part_charging():
     V_d = 1.0
     t_close = (1.0, 10.0, 60.0)
     print(f"  The coil: {I0:.0f} A normal, {v['I_cap']:.0f} A at the cap; {Lc:.1f} H with the ten coils of the bundle charged together (the common mode), {Ll:.3f} H for one coil trimmed")
-    print(f"  alone against nine persistent neighbours (its leakage).  Charging at 1 percent per second: {V_ch:.0f} V across the coil (ten together).  The strip's normal")
+    print(f"  alone against nine persistent neighbors (its leakage).  Charging at 1 percent per second: {V_ch:.0f} V across the coil (ten together).  The strip's normal")
     print(f"  resistance by Stage B's rule, 1 percent of the coil current through it while charging: {R_s:.1f} ohm ({V_ch/R_s:.1f} A, {V_ch**2/R_s:.0f} W into the cold while the charge lasts).")
     print(f"  The free-wheel diode D2: {V_d:.1f} V at 70 K.  The strip's closing time: about 1 s with its own thermal link, 10 to 60 s for MRI-type switches (Ogawa 2014).")
     print()

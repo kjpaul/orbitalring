@@ -32,7 +32,7 @@ def arithmetic(hw):
         elif "PROGRADE" in line: block = "pro"
         m = re.match(r"\s+(.+?)\s{2,}([\d,.\-]+)\s+([\d,.\-]+)\s*(\S*)\s*$", line)
         if m and block == "retro":
-            rows[m.group(1).strip()] = (m.group(3).replace(",", ""), m.group(4))
+            rows[m.group(1).strip()] = (m.group(3), m.group(4))
     return rows
 
 
@@ -77,28 +77,28 @@ def main():
     for k, where in keys:
         if k in A_book and k in A_new:
             b, u = A_book[k]; n, _ = A_new[k]
-            L.append(f"| {where} | {float(b):,.{3 if abs(float(b)) < 100 else 1 if abs(float(b)) < 10000 else 0}f} {u} | {float(n):,.{3 if abs(float(n)) < 100 else 1 if abs(float(n)) < 10000 else 0}f} {u} | `tools/design_point_numbers.py` (arithmetic on `ring_altitude.py`) |")
+            L.append(f"| {where} | {b} {u} | {n} {u} | `tools/design_point_numbers.py` (arithmetic on `ring_altitude.py`) |")
     L.append("\n## Chapter 7: the bearing\n")
     L.append("| Where | Book | Round 5 | Script |\n|---|---|---|---|")
     tape_load = fin["tape_load"]; tape_casing = fin["tape_casing"]
     c10 = cold["leads"]["10"]; c14 = cold["leads"]["14"]
     rows7 = [
-        ("Table 7.3 and 7.6, the plates: support", "1.4 m x 200 mm, 2,204 kg/m each", f"{rs['Wp']:.2f} m x {rs['T']*1e3:.0f} mm, {rs['plate_m']:,.0f} kg/m each", "`bearing_round5.py --part=final`"),
-        ("the plates: lift and load", "1.4 m x 200 mm (the book's four plates; six plates since Stage B)", f"{rl['Wp']:.2f} m x {rl['T']*1e3:.0f} mm, {rl['plate_m']:,.0f} kg/m each, four", "the same"),
-        ("the support loops", "two of 0.5 m", f"two of {rs['Wl']:.2f} m", "the same"),
-        ("the lift and load loops", "one of 0.8 m (Part 3b) / 1.0 m (the book's lift track)", f"one of {rl['Wl']:.2f} m", "the same"),
-        ("cable hardware", "10,686 kg/m", f"{hw:,.0f} kg/m", "the same"),
-        ("support track: ampere-turns per leg at 245.5 kN/m", "322,000", f"{rs['NI_req']:,.0f}", "the same"),
-        ("support track: worst 12 mm tape, its limit", "234 A at 1.64 T, 54 deg", f"{rs['ic_req']:.0f} A at {rs['B']:.2f} T, {rs['th']:.0f} deg", "the same"),
-        ("support track: tapes per leg, tape per track", "2,753; 94.0 kg/m", f"{rs['turns_leg']:,.0f}; {rs['tape']:.1f} kg/m", "the same"),
+        ("7.3, the plates ('each plate is 1.4 m wide ... and is 200 mm thick'): support", "1.4 m x 200 mm, 2,204 kg/m each", f"{rs['Wp']:.2f} m x {rs['T']*1e3:.0f} mm, {rs['plate_m']:,.0f} kg/m each", "`bearing_round5.py --part=final`"),
+        ("7.3 and 7.7, the plates: lift and load", "1.4 m x 200 mm (the book's four plates; six plates since Stage B)", f"{rl['Wp']:.2f} m x {rl['T']*1e3:.0f} mm, {rl['plate_m']:,.0f} kg/m each, four", "the same"),
+        ("7.3, the support loops", "two of 0.5 m", f"two of {rs['Wl']:.2f} m", "the same"),
+        ("7.7, the lift and load loops", "one of 0.8 m (Part 3b) / 1.0 m (the book's lift track)", f"one of {rl['Wl']:.2f} m", "the same"),
+        ("Table 7.1, Chapters 1 and 3: cable hardware", "10,686 kg/m", f"{hw:,.0f} kg/m", "the same"),
+        ("Equation 7.2, Tables 7.3, 7.4 and 7.6: the support winding's cap, ampere-turns per leg", "322,000", f"{rs['NI_req']:,.0f}", "the same"),
+        ("Table 7.3: the worst 12 mm tape's limit (117 A at half)", "234 A at 1.64 T, 54 deg", f"{rs['ic_req']:.0f} A at {rs['B']:.2f} T, {rs['th']:.0f} deg", "the same"),
+        ("Equation 7.2, 7.3, Table 7.6: tapes per leg; tape per track", "2,753; 94 kg/m", f"{rs['turns_leg']:,.0f}; {rs['tape']:.1f} kg/m", "the same"),
         ("support track: rating (70 percent) and cap (100 percent)", "336 and 476 kN/m (round 4 on the book's plate)", f"{rs['F70']/1e3:.0f} and {rs['F100']/1e3:.0f} kN/m ({rs['margin']:.2f} x the requirement)", "the same"),
         ("support plate: saturation and peak field at the requirement", "12.6 percent, 2.10 T", f"{rs['sat']*100:.1f} percent, {rs['B_plate']:.2f} T", "the same"),
-        ("lift track: ampere-turns per leg at 196.5 kN/m", "421,000", f"{rl['NI_req']:,.0f}", "the same"),
-        ("lift track: worst 3 mm tape, its limit", "60 A at 1.51 T, 60 deg", f"{rl['ic_req']:.0f} A at {rl['B']:.2f} T, {rl['th']:.0f} deg", "the same"),
-        ("lift track: tapes per leg, tape per track", "14,002 (the book's 28,003 over two legs); 59.7 kg/m", f"{rl['turns_leg']:,.0f}; {rl['tape']:.1f} kg/m", "the same"),
+        ("7.7: the lift track's ampere-turns per leg at 196.5 kN/m", "421,000", f"{rl['NI_req']:,.0f}", "the same"),
+        ("7.7: the worst 3 mm tape's limit (30 A at half)", "60 A at 1.51 T, 60 deg", f"{rl['ic_req']:.0f} A at {rl['B']:.2f} T, {rl['th']:.0f} deg", "the same"),
+        ("the lift track's tapes per leg; tape per track (Part 3b)", "14,002; 59.7 kg/m", f"{rl['turns_leg']:,.0f}; {rl['tape']:.1f} kg/m", "the same"),
         ("lift track: rating and cap", "288 and 415 kN/m", f"{rl['F70']/1e3:.0f} and {rl['F100']/1e3:.0f} kN/m ({rl['margin']:.2f} x)", "the same"),
         ("lift plate: saturation and peak field at the requirement", "0.1 percent, 1.53 T", f"{rl['sat']*100:.1f} percent, {rl['B_plate']:.2f} T", "the same"),
-        ("load track (the lift design at 198 kN/m): tape per track", "60 kg/m", f"{tape_load:.1f} kg/m", "the same"),
+        ("Tables 7.4 and 7.6: the load winding (12,197 turns of 3 mm on the support loops in the book; the load track of the lift design since Stage B): tape per track", "60 kg/m (Stage B)", f"{tape_load:.1f} kg/m", "the same"),
         ("tape per meter of casing, six tracks; the bearing's casing side (x 2)", "424 kg/m; 933 kg/m (Stage B 6.4, four tracks)", f"{tape_casing:.0f} kg/m; {2*tape_casing:,.0f} kg/m", "the same"),
         ("tape around the ring", "", f"{tape_casing*44473.246e3/1e9:.2f} Mt", "the same"),
         ("the load track's coupling to the support track beside it", "0.9 percent at 0.5 m (Stage B 3)", f"{fin['coupling']['dF']*100:.2f} percent of the support force at {fin['coupling']['d_edge']:.1f} m", "the same"),
@@ -115,10 +115,10 @@ def main():
         L.append(f"| {where} | {b} | {n} | {s} |")
     L.append("\n## Chapter 8: the stores and the switches\n")
     L.append("| Where | Book | Round 5 | Script |\n|---|---|---|---|")
-    L.append(f"| 8.1: the store for the sled's passage | SMES named; 'the storage on the ring is there for the fast transients' | film capacitors, warm, at every coil (0.150 MJ) or shared by a site's four tracks (half); SMES excluded on its cold loss | `bearing_round5.py --part=stores` |")
-    L.append(f"| 8.1: the pulse power of the pulled zone at 30 km/s | | 3.6 GW per lift track at the front, 7.2 for the pair, returned 2.25 km behind; 601 times a site's 12 MW for 17 ms | the same |")
-    L.append(f"| the section bus if it carried the pulses (way b) | 11,600 A at 100 kV, 18 tapes each way | 72 kA, 111 tapes each way | the same |")
-    L.append(f"| the switches per coil | | 10 turns: 6 StakPaks in series per position, 103 kg per coil, 330 kg/m; 14 turns: 8, 138 kg, 440 kg/m | `bearing_round5.py --part=switches` |")
+    L.append(f"| 8.1: the store for the sled's passage | SMES named; 'the storage on the ring is there for the fast transients' | film capacitors, warm, at every coil (0.155 MJ, 330 kg/m) or shared by a site's four tracks (half, 165 kg/m); SMES excluded on its cold loss | `bearing_round5.py --part=stores` |")
+    L.append(f"| 8.1: the pulse power of the pulled zone at 30 km/s | | 3.7 GW per lift track at the front, 7.4 for the pair, returned 2.25 km behind; 619 times a site's 12 MW for 17 ms (the log `bearing_round5_all.txt`, S3.1) | the same |")
+    L.append(f"| the section bus if it carried the pulses (way b) | 11,600 A at 100 kV, 18 tapes each way | 74 kA, 114 tapes each way, 6.4 times the bus's rating | the same |")
+    L.append(f"| the switches per coil | | 10 turns: 5 StakPaks in series per position, 86 kg per coil, 275 kg/m; 14 turns: 7, 120 kg, 385 kg/m (the log, S4) | `bearing_round5.py --part=switches` |")
     L.append("\n## Chapter 14: the cold loop\n")
     L.append("| Where | Book | Round 5 | Script |\n|---|---|---|---|")
     L.append(f"| Table 14.2, after the deployment: cold-side load per site | 14.5 kW | {14.5 + c10['idle_site']/1e3:.1f} kW at 10 turns, {14.5 + c14['idle_site']/1e3:.1f} at 14 (the fast coils' leads idle) | `bearing_round5.py --part=coldload` |")
@@ -128,7 +128,7 @@ def main():
     L.append("| Where | Book | Round 5 | Script |\n|---|---|---|---|")
     def dd(d, k, f):
         return f.format(d[k]) if d and d.get(k) is not None else "(not run)"
-    L.append(f"| days at 12 MW, 150 turns | {dd(dep_book, 'days', '{:.1f}')} | {dd(dep['opt_0'], 'days', '{:.1f}')} (plates alone, 5.2 m of cold width), {dd(dep['opt_10'], 'days', '{:.1f}')} with the leads at 10 turns, {dd(dep['opt_14'], 'days', '{:.1f}')} at 14 | `tools/round5_deployment.py` |")
+    L.append(f"| days at 12 MW, 150 turns | {dd(dep_book, 'days', '{:.1f}')} | {dd(dep['opt_0'], 'days', '{:.1f}')} (plates alone, the loops' 4.0 m of cold width), {dd(dep['opt_10'], 'days', '{:.1f}')} with the leads at 10 turns, {dd(dep['opt_14'], 'days', '{:.1f}')} at 14 | `tools/round5_deployment.py` |")
     L.append(f"| cryogenic plant, peak | {dd(dep_book, 'p_cryo', '{:.2f} MW')} | {dd(dep['opt_0'], 'p_cryo', '{:.2f}')} / {dd(dep['opt_10'], 'p_cryo', '{:.2f}')} / {dd(dep['opt_14'], 'p_cryo', '{:.2f} MW')} | the same |")
     L.append(f"| cold load, peak | {dd(dep_book, 'q_cold', '{:.1f} kW')} | {dd(dep['opt_0'], 'q_cold', '{:.1f}')} / {dd(dep['opt_10'], 'q_cold', '{:.1f}')} / {dd(dep['opt_14'], 'q_cold', '{:.1f} kW')} | the same |")
     L.append(f"| LIM work | {dd(dep_book, 'EJ', '{:.3f} EJ')} | {dd(dep['opt_0'], 'EJ', '{:.3f}')} / {dd(dep['opt_10'], 'EJ', '{:.3f}')} / {dd(dep['opt_14'], 'EJ', '{:.3f} EJ')} | the same |")
