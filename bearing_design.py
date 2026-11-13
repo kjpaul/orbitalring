@@ -54,6 +54,7 @@ P12 = pz.P_SAT[1.2]
 CABLE_FACE = ring.CABLE_SIDE                    # 8.24 m
 L_SC = 100.0
 TAU_HW = 2e-3                                   # s, the hardware rise the protection needs
+N_FAM_F = 20                                    # staggered coil families in part_F's lanes (bearing_round4 varies it; the default is the book's 20)
 MATCH = pz.MATCH_RING
 SWEEP_JSON = os.path.join(ring.DATA_DIR, "bearing_sweep.json")   # Part B sweep cache (42 min to redo): --resweep recomputes it
 # Part F reads the pull at each speed from the compensation_tracks.py Part A log of 2026-10-11 (cable hardware 4,076 kg/m),
@@ -617,7 +618,7 @@ def part_F(C, D, tabs):
     ramp = D["lift"]["ramp"]
     S1 = C["F_one_cap"]
     print(f"  Caps: lift {lift1/1e3:.0f} kN/m per track ({lift2/1e3:.0f} pair), load {load1/1e3:.0f} ({load2/1e3:.0f}); support one track alone {S1/1e3:.0f} kN/m at half Ic, pair {2*S1/1e3:.0f}.")
-    print(f"  Coils {L_lift:.0f} m (lift) and {L_load:.0f} m (load) staggered in 20 families; planned pull ramped over {ramp*1e3:.0f} ms plus the {TAU_HW*1e3:.0f} ms hardware rise; protection")
+    print(f"  Coils {L_lift:.0f} m (lift) and {L_load:.0f} m (load) staggered in {N_FAM_F} families; planned pull ramped over {ramp*1e3:.0f} ms plus the {TAU_HW*1e3:.0f} ms hardware rise; protection")
     print(f"  at 10 mm of drift, 1 ms sensor delay, 5 Hz, 2 ms rise, per face and per side.  Point model unless stated; beam = 10 m truss.")
     w_hd, w_hu = lift2 / P12, load2 / P12
     all_gaps = []
@@ -627,7 +628,7 @@ def part_F(C, D, tabs):
 
     def lane(u, **kw):
         L = L_load if u < 7000 else L_lift
-        d = dict(L_sc=L_SC, tau=TAU_HW, L_section=L / 20, gap_dep=False, steady_loop_hz=1.0, T_spread=max(0.05, L_SC / u), B_sat=1.2, n_coils=20, L_coil=L,
+        d = dict(L_sc=L_SC, tau=TAU_HW, L_section=L / N_FAM_F, gap_dep=False, steady_loop_hz=1.0, T_spread=max(0.05, L_SC / u), B_sat=1.2, n_coils=N_FAM_F, L_coil=L,
                  hd_width=w_hd, hu_width=w_hu, cmd_ramp=ramp, steady_cap=2 * S1)
         d.update(kw)
         return pz.lane(**d)
@@ -709,13 +710,13 @@ def part_F(C, D, tabs):
                dict(label="both support tracks lost at rest", no_sled=True, no_pulse=True, support_fail_t=0.0),
                dict(label="false full lift pull 20 ms, no sled", no_sled=True, no_pulse=True, false_pull=(5000.0 / u30, 20e-3, -lift2))]
     t0 = time.time()
-    res, _ = pz.beam_pulsed(u30, L_SC, [sp.truss(10.0, 0.1)], cases_b, tabs, tau=TAU_HW, L_win=10000.0, T_spread=0.05, n_coils=20, L_coil=L_lift,
+    res, _ = pz.beam_pulsed(u30, L_SC, [sp.truss(10.0, 0.1)], cases_b, tabs, tau=TAU_HW, L_win=10000.0, T_spread=0.05, n_coils=N_FAM_F, L_coil=L_lift,
                             track_width=w_hd, prot=P(u30))
     for r in res:
         note(f"{r['case']}, beam", "beam", r)
         print(f"  {r['case']:>62} {r['max_exc']*1e3:7.1f} {r['min_gap_b']*1e3:6.1f} {r['min_gap_t']*1e3:6.1f} {r['t_engaged']*1e3:10.1f}{'  CONTACT' if r['contact'] else ''}")
     res, _ = pz.beam_pulsed(u30, L_SC, [sp.truss(10.0, 0.1)], [dict(label="normal, one lift track alone"), dict(label="one coil dead, one lift track alone", fail_coil=(0, 5000.0))],
-                            tabs, tau=TAU_HW, L_win=10000.0, T_spread=0.05, n_coils=20, L_coil=L_lift, track_width=lift1 / P12, prot=P(u30, cap_down=lift1))
+                            tabs, tau=TAU_HW, L_win=10000.0, T_spread=0.05, n_coils=N_FAM_F, L_coil=L_lift, track_width=lift1 / P12, prot=P(u30, cap_down=lift1))
     for r in res:
         note(f"{r['case']}, beam", "beam", r)
         print(f"  {r['case']:>62} {r['max_exc']*1e3:7.1f} {r['min_gap_b']*1e3:6.1f} {r['min_gap_t']*1e3:6.1f} {r['t_engaged']*1e3:10.1f}{'  CONTACT' if r['contact'] else ''}")
