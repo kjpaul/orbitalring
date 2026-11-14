@@ -827,3 +827,93 @@ After the deployment nothing changes (the line and the casing's weight are the s
 ### 16.8 Files
 
 Under `runs/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/`): `rising_quadratic/all/ch4_numbers.txt`, `ch4_worst_orbits.txt`, `ch08_numbers.txt`, `anchor_lines_deployment_377km.txt`, `_550km.txt`, `equations/`, `power_12MW/`; `design_point_sheet/fixed/ch4_worst_orbits.txt`; `rising_radius_design/casing_6000/<case>/` and the four Table 9.4 cases in `rising_radius_design/`. Reproduce: `python tools/ch4_extra.py`, `python tools/ch4_worst_orbits.py`, `bash runs/rising_radius_design/casing_6000/_run.sh` (the five lighter-casing runs), `python tools/rising_radius_design_power.py --run --only=L4_N150_P8MW,L4_N208_P8MW,L6_N150_P24MW,L6_N208_P24MW` then `--table`, `python tools/anchor_lines_deployment.py <design series> --length=377e3`, `python Vol_III/figure_scripts_2026-11-07/fig02_04_staged_aerobraking_700.py`, `ORBITAL_RING_ARRAY_OFFSET_KM=0 python power_simulation.py --power=12 --width=82.56`, `python tools/ch08_numbers.py`.
+
+## 17. The turns sweep rerun with the corrected slip rule (2026-11-14)
+
+Asked for in `Vol_III/Claude_Code_instructions_turns_sweep_rerun_2026-11-14.md`. Section 14's sweep (2026-11-07) was run under the October slip rule; round 6a corrected the rule (`SLIP_RULE = both`, Section 15.1) and reran only the 150 and 208-turn cases of the power table. The 165-turn case of Section 14 showed why this matters: it ended at 1.04 percent slip with 275 N per LIM after 131 days at the voltage limit, where the corrected rule gives the reduced slip and about 394 N at that N. This section reruns the sweep under the corrected rule. `tools/rising_radius_turns_rerun.py --run --jobs=6` ran 21 cases at the full time steps (6.5 to 43 minutes each, six at a time) and copied in the four that already exist under the corrected rule (`rising_radius_design/`: 150 turns at 8, 12 and 16 MW, 208 at 12 MW; 381.1 and 436.0 days at 12 MW, as Section 15.2 has them); `--table` made the table, the curves, the checks and the figure: `runs/rising_radius_turns_rerun/rising_radius_turns_rerun.md`, `.csv`, `.json`, `fig09_03_turns_candidate.png|svg`, one folder per case. Every run: the rising quadratic, the rising radius, two LIMs per site, 100 kV, the 183.1 A cap as `configure()` leaves it, `SLIP_RULE = both`. The 16 MW cases were run because the 12 MW minimum moved (17.1 below). Nothing in the book was re-keyed; whether the design moves is Paul's ruling (17.6).
+
+### 17.1 The runs
+
+The columns of Section 14.2 with the slip at the end, the days at the power cap and at 100 kV, and the cryogenic power by the simulation's own COP (0.0120: Carnot between 77.4 and 400 K at 5 percent) and by the book's 0.0106 (Chapter 14; the cold-side load over 0.0106). The peak hysteresis is per LIM, the cryogenic power per site, the tape per site (two LIMs, two layers of 3 mm tape). The LIM work is 19.175 EJ in every case, as it must be with one cable and no anchored phase.
+
+| Turns | MW | Days (months) | I cap to day | P cap, days (first to last) | 100 kV from day (days at it) | Thrust max N/LIM (day) | At the end: N/LIM, A, kV, slip | Hyst peak kW/LIM | Cryo peak MW (sim / COP) | Cryo end MW (sim / COP) | Plate K | Tape t/site |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 120 | 12 | 628.3 (20.6) | 604.1 | 25 (603 to 628) | never | 649 (117.5) | 446, 153.0, 77.4, 0.50 % | 13.54 | 3.39 / 3.84 | 2.43 / 2.75 | 304.5 | 1.88 |
+| 135 | 12 | 448.4 (14.7) | 278.1 | 171 (277 to 448) | never | 821 (95.3) | 459, 137.9, 88.2, 0.49 | 10.76 | 2.96 / 3.35 | 2.20 / 2.49 | 317.8 | 2.12 |
+| 140 | 12 | 415.7 (13.7) | 203.6 | 213 (202 to 416) | never | 883 (89.5) | 462, 133.4, 91.8, 0.49 | 9.34 | 2.74 / 3.10 | 2.14 / 2.42 | 322.3 | 2.19 |
+| 145 | 12 | 395.2 (13.0) | 159.5 | 237 (158 to 395) | never | 947 (84.3) | 465, 129.2, 95.4, 0.49 | 8.39 | 2.60 / 2.94 | 2.08 / 2.36 | 326.7 | 2.27 |
+| **150** | 12 | **381.1 (12.5)** | 132.9 | 251 (131 to 381) | never | 1,013 (79.6) | 468, 125.3, 98.9, 0.49 | 8.15 | 2.57 / 2.90 | 2.03 / 2.30 | 331.2 | 2.35 |
+| 155 | 12 | 371.2 (12.2) | 123.0 | 244 (112 to 356) | 345.0 (26) | 1,082 (29.9) | 447, 118.6, 100, 0.50 | 8.14 | 2.58 / 2.92 | 1.92 / 2.18 | 335.6 | 2.43 |
+| 160 | 12 | 365.8 (12.0) | 116.4 | 217 (99 to 316) | 305.1 (61) | 1,153 (71.4) | 419, 111.3, 100, 0.50 | 8.11 | 2.58 / 2.93 | 1.81 / 2.05 | 340.1 | 2.51 |
+| **165** | 12 | **363.8 (12.0)** | 106.3 | 192 (88 to 280) | 270.3 (94) | 1,226 (85.6) | 394, 104.6, 100, 0.50 | 8.05 | 2.59 / 2.93 | 1.73 / 1.95 | 344.5 | 2.59 |
+| 170 | 12 | 364.8 (12.0) | 97.2 | 169 (80 to 249) | 239.7 (125) | 1,302 (64.4) | 371, 98.6, 100, 0.50 | 7.98 | 2.59 / 2.93 | 1.66 / 1.88 | 349.0 | 2.66 |
+| 175 | 12 | 368.3 (12.1) | 89.2 | 149 (72 to 221) | 212.4 (156) | 1,379 (31.1) | 350, 93.0, 100, 0.50 | 7.91 | 2.59 / 2.93 | 1.60 / 1.81 | 353.4 | 2.74 |
+| 180 | 12 | 373.9 (12.3) | 81.9 | 130 (66 to 196) | 187.9 (186) | 1,459 (31.6) | 331, 87.9, 100, 0.50 | 7.83 | 2.59 / 2.93 | 1.56 / 1.77 | 357.8 | 2.82 |
+| 190 | 12 | 390.7 (12.8) | 68.6 | 98 (55 to 153) | 146.0 (245) | 1,626 (32.8) | 296, 78.9, 100, 0.50 | 7.66 | 2.59 / 2.93 | 1.51 / 1.70 | 366.6 | 2.98 |
+| 208 | 12 | 436.0 (14.3) | 44.0 | 55 (39 to 95) | 89.2 (347) | 1,949 (36.1) | 247, 65.8, 100, 0.50 | 7.29 | 2.57 / 2.91 | 1.46 / 1.66 | 382.2 | 3.26 |
+| 240 | 12 | 550.6 (18.1) | 25.9 | 19 (25 to 44) | 43.5 (507) | 2,535 (25.7) | 185, 49.5, 100, 0.50 | 6.18 | 2.46 / 2.79 | 1.48 / 1.67 | 409.4 | 3.76 |
+| 280 | 12 | 730.7 (24.0) | 17.4 | 12 (17 to 29) | 28.2 (702) | 3,033 (17.3) | 136, 36.3, 100, 0.50 | 4.91 | 2.35 / 2.66 | 1.55 / 1.75 | 442.2 | 4.39 |
+| 150 | 8 | 534.5 (17.6) | 113.6 | 429 (105 to 534) | never | 1,013 (29.6) | 300, 100.5, 79.4, 0.50 | 6.15 | 2.23 / 2.53 | 1.58 / 1.79 | 331.2 | 2.35 |
+| 170 | 8 | 512.3 (16.8) | 78.5 | 448 (64 to 512) | never | 1,302 (30.7) | 303, 89.1, 90.3, 0.50 | 5.91 | 2.24 / 2.54 | 1.53 / 1.74 | 349.0 | 2.66 |
+| **190** | 8 | **500.1 (16.4)** | 42.0 | 464 (36 to 500) | 480.4 (20) | 1,626 (32.3) | 296, 78.9, 100, 0.50 | 5.61 | 2.24 / 2.54 | 1.51 / 1.70 | 366.6 | 2.98 |
+| 208 | 8 | 510.2 (16.8) | 27.7 | 338 (27 to 365) | 347.8 (162) | 1,934 (27.3) | 247, 65.8, 100, 0.50 | 5.06 | 2.20 / 2.49 | 1.46 / 1.66 | 382.2 | 3.26 |
+| 230 | 8 | 554.2 (18.2) | 21.0 | 223 (21 to 244) | 229.8 (324) | 2,205 (20.9) | 202, 53.9, 100, 0.50 | 4.43 | 2.15 / 2.43 | 1.46 / 1.66 | 401.0 | 3.60 |
+| 250 | 8 | 616.9 (20.3) | 17.0 | 145 (17 to 162) | 150.1 (467) | 2,396 (17.2) | 171, 45.6, 100, 0.50 | 3.90 | 2.11 / 2.39 | 1.49 / 1.69 | 417.7 | 3.92 |
+| 135 | 16 | 431.5 (14.2) | 351.5 | 73 (350 to 423) | 414.9 (17) | 821 (95.3) | 590, 156.3, 100, 0.50 | 12.83 | 3.31 / 3.75 | 2.74 / 3.10 | 317.8 | 2.12 |
+| 150 | 16 | 354.9 (11.7) | 210.2 | 47 (209 to 256) | 249.6 (105) | 1,013 (79.6) | 477, 126.6, 100, 0.50 | 11.56 | 3.14 / 3.55 | 2.06 / 2.33 | 331.2 | 2.35 |
+| **165** | 16 | **339.5 (11.2)** | 135.1 | 27 (134 to 160) | 155.8 (184) | 1,226 (30.4) | 394, 104.6, 100, 0.50 | 10.42 | 2.98 / 3.38 | 1.73 / 1.95 | 344.5 | 2.59 |
+
+Every voltage-limited run now ends at 0.50 percent slip with the thrust of its power-capped equivalent, as round 6a's rule intends; every run ends on the design tension at 700 km with the casing at ground speed.
+
+**What the corrected rule changed, against Section 14.** The cases that met 100 kV in the middle of the run are the ones that moved: 165 turns from 401.8 to 363.8 days, 180 from 400.8 to 373.9, 120 from 650.1 to 628.3 (never at 100 kV, but at 94 kV its voltage margin of 6 percent is under the rule's 15 percent, so the new rule took its slip to 0.5 percent and its end thrust from 269 to 446 N), 135 and 150 unchanged (they never leave the power cap, where the slip was already reduced), 208 from 437.0 to 436.0. The 240 and 280-turn cases went the other way, 541.1 to 550.6 and 719.4 to 730.7 days (1.7 and 1.6 percent slower). Their histories are identical to the day the limit arrives (day 43.5 and 28.2) and at the end (185 and 136 N at 0.50 percent slip); in between, the new rule has less thrust for the first 60 to 80 days at the limit (240 turns: 213 against 229 MN around the ring on day 50, 146 against 166 on day 80) and more thereafter (90.5 against 86.3 on day 150, 35.6 against 35.0 on day 500). The old rule held the slip near 2 percent until the current-ratio rule pulled it down, and early at the limit, at low relative speed and high current, the 2 percent slip gave more thrust per ampere than the reduced 0.5 percent: the plate's eddy-current thrust per ampere rises with the slip frequency up to a peak and falls past it, and at low supply frequency the peak lies above 0.5 percent slip. So the corrected rule's fixed reduced target is not the thrust-optimal slip at every point; a rule that tracked the plate's peak slip frequency would beat both, by about the 1.7 percent seen here at 240 and 280 turns and by less where the limit arrives later. The ordering of the sweep does not turn on it.
+
+### 17.2 The curves at 12 MW and 8 MW, the minimum and its width
+
+**12 MW.** 628, 448, 416, 395, 381, 371, 366, 364, 365, 368, 374, 391, 436, 551, 731 days at 120, 135, 140, 145, 150, 155, 160, 165, 170, 175, 180, 190, 208, 240, 280 turns. **The minimum is at 165 turns, 363.8 days (12.0 months)**, not at 150: the 150-turn design is 17.3 days (4.8 percent) slower than the minimum, and the 208-turn coil 72 days (20 percent). The minimum is broad, not narrow: 160, 165, 170 and 175 turns are within 2 percent of it (365.8, 363.8, 364.8, 368.3), 155 and 180 within 3 percent, and the band within 2 percent is about 155 to 177 turns by the slopes on either side (0.7 days per turn from 155 to 165, 0.5 from 165 to 175 and 1.1 from 175 to 180). The brief's hand integration of the 165-turn case (day 365) was right to within two days. The book's sentences "the minimum is at 150 turns, and it is narrow" and "402 days at 165, 401 at 180" rest on the old rule and are not what the model gives now.
+
+Why the minimum moved. The 150-turn coil is the largest that never reaches 100 kV at 12 MW (98.9 kV at the end); above it the coil meets the limit before the end and, under the old rule, sat there at a high slip with half the thrust per ampere, which made every voltage-limited coil slower than it is. Under the corrected rule a coil at 100 kV pushes with the reduced slip, and the extra turns are worth more thrust early (1,226 N per LIM at the peak at 165 turns against 1,013 at 150, reached on day 86 against 80) than the voltage limit takes away late (394 N against 468 at the end, over the last 94 days). From 170 turns up the limit arrives early enough (day 240 at 170, 188 at 180, 89 at 208) that the late loss outweighs the early gain.
+
+**8 MW.** 534.5, 512.3, 500.1, 510.2, 554.2, 616.9 days at 150, 170, 190, 208, 230, 250 turns. **The minimum is at 190 turns, 500.1 days (16.4 months)**; 208 turns is 10 days (2.0 percent) above it, at the edge of the 2 percent band, and 170 is 2.4 percent above; the band is about 174 to 208 turns by the slopes (0.6 days per turn either side). The largest N that never reaches 100 kV at 8 MW is 170 (90.3 kV at the end); 190 meets the limit on day 480, 20 days before the end. The book says that at 8 MW the 208-turn coil is 24 days faster than 150 "because the voltage limit never binds at that power": the 24 days hold (534.5 against 510.2, the same numbers under either rule since neither case moved by more than a day), but the reason does not: the 208-turn coil at 8 MW reaches 100 kV on day 348 and sits at it for 162 days. What makes 208 faster than 150 at 8 MW is the thrust the extra turns give at the current cap before the power cap binds (1,934 N per LIM against 1,013 at the peak) and that the 8 MW cap binds the 150-turn coil from day 105 to the end.
+
+**16 MW** (run because the 12 MW minimum moved): 431.5, 354.9, 339.5 days at 135, 150, 165 turns; every coil reaches 100 kV (day 415, 250, 156); 165 turns is 15.4 days faster than 150. The minimum at 16 MW is at 165 turns or above; the grid has no point past it.
+
+**The figure.** `fig09_03_turns_candidate.png|svg`: days against turns at 12 and 8 MW, filled markers where the coil reaches 100 kV and open where it never does, the voltage-limited part of each curve thereby marked; two curves, two labels, 13 point axis titles and 12 point ticks on a 6.5 by 4.4 inch frame, the numbers left to the table and a caption. A caption for it: "Deployment time against the number of turns per phase coil, at 12 MW and 8 MW per site, two LIMs per site, 100 kV. Filled points: the coil reaches the 100 kV limit before the end of the deployment. The minimum is at 165 turns at 12 MW and 190 at 8 MW; the band within 2 percent of it runs from about 155 to 177 turns at 12 MW."
+
+### 17.3 The fastest N and the largest N that never reaches 100 kV, and the N sqrt(P) rule
+
+Two numbers for each power, stated separately because they are not the same N:
+
+| Power | The fastest N (days) | The largest N whose coil never reaches 100 kV (its voltage at the end) |
+|---|---|---|
+| 8 MW | 190 (500.1) | 170 (90.3 kV) |
+| 12 MW | 165 (363.8) | 150 (98.9 kV) |
+| 16 MW | 165 or above (339.5) | none of 135, 150, 165 |
+
+The check: at the power cap the thrust is P / v_rel, the thrust goes as (N I)² at a fixed slip, and the voltage as N (N I) at a fixed frequency, so the voltage at the end should go as N sqrt(P). Across the seven runs that end power-capped (never at 100 kV) the ratio V_end / (N sqrt(P in MW)) is 186 to 190 V: 187.0 and 187.9 V at 150 and 170 turns at 8 MW; 186.1, 188.6, 189.3, 189.9 and 190.4 V at 120, 135, 140, 145 and 150 turns at 12 MW (every one at 44.5 Hz and 0.49 to 0.50 percent slip). The relation holds to 2 percent across the sweep, and it says where the 100 kV limit falls: N_max = 100,000 / (188 sqrt(P)), 188 turns at 8 MW, 154 at 12, 133 at 16, which the runs confirm (170 never, 190 just; 150 never, 155 just; none at 16 MW). Section 9.7 could print it as V_end ≈ 190 V × N × sqrt(P / 1 MW), with the 2 percent and the slow rise with N (186 to 190 V from 120 to 150 turns, the current cap's share of the run) said.
+
+### 17.4 What 165 turns costs against 150, at 12 MW
+
+| | 150 turns | 165 turns | Difference |
+|---|---|---|---|
+| Days (months) | 381.1 (12.5) | 363.8 (12.0) | 17.3 days faster, 4.5 percent |
+| Days at 100 kV | none (98.9 kV at the end) | 94 (from day 270) | the coil sits at the insulation limit for the last quarter of the run |
+| Insulation margin at the end | 1.1 percent of 100 kV | none | |
+| Tape per site (two LIMs) | 2.35 t, 551 km | 2.59 t, 606 km | 10 percent more tape |
+| Peak hysteresis per LIM | 8.15 kW | 8.05 kW | 1 percent less (the coil runs less current for longer) |
+| Cryogenic plant per site, peak (sim / by the book's COP) | 2.57 / 2.90 MW | 2.59 / 2.93 MW | the same |
+| Cryogenic plant per site, at the end | 2.03 / 2.30 MW | 1.73 / 1.95 MW | 0.3 MW less at the end (the coil is voltage-limited then, not at full power) |
+| Plate temperature, the first day's peak | 331.2 K | 344.5 K | 13 K hotter (the thrust peak 1,226 against 1,013 N per LIM) |
+| Thrust per LIM at the end | 468 N | 394 N | |
+| Coil width, inductance at the end | 0.609 m, 2.83 H | 0.670 m, 3.42 H | |
+
+The price of the 17 days is the tape (10 percent) and the insulation margin: the 165-turn coil spends its last 94 days at 100 kV, where the 150-turn coil never arrives. Everything else is a wash or in 165's favor.
+
+### 17.5 The hysteresis of the design coil on the 2025 book's loss factor
+
+`N150_P12MW_bookhyst`: the design run (150 turns, 12 MW, two LIMs, the corrected slip rule) with `HYSTERESIS_MODEL = "book"`, the 2025 book's loss factor (B_coil × I × w × sin 20° per meter of turn per cycle, `lim_physics.calc_hysteresis_power`), in place of the Brandt-Indenbom model of every tape at its own field. Its hysteresis peak is **16.85 kW per LIM**, against 8.15 kW on the Brandt-Indenbom model in the design run. The 18 kW the book prints beside its 8 kW is the 208-turn, 8 MW run of 2026-10-27 on the book's factor; on the design coil the same factor gives 16.9 kW. (The book-factor run is not a design: with its hysteresis heat in the LIM's power budget the deployment would take 435.8 days, with 4.02 MW of cryogenic plant at the peak; it is run only for the loss figure.)
+
+### 17.6 For Paul to rule on, and files
+
+The 12 MW minimum has moved from 150 to 165 turns (17 days, 4.5 percent) under the corrected slip rule, and it is broad (155 to 177 turns within 2 percent) where the book calls it narrow. The 8 MW minimum is at 190 turns, and the book's reason for 208 being faster than 150 at 8 MW (the voltage limit never binding) is wrong, though the 24 days hold. Nothing is re-keyed. The ruling is Paul's: stay at 150 turns (the largest N that never reaches 100 kV at 12 MW, 1.1 percent of insulation margin at the end, the least tape of the candidates near the minimum, 4.8 percent off the fastest) or move to 165 (the fastest at 12 MW and at 16 MW, 94 days at the insulation limit, 10 percent more tape), and in either case Section 9.7's sentences on the minimum and its width, and Table 9.4's rows if the design moves (the 16 MW column is in 17.1).
+
+Files under `runs/rising_radius_turns_rerun/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/rising_radius_turns_rerun/`): `rising_radius_turns_rerun.md`, `.csv`, `.json`, `fig09_03_turns_candidate.png|svg`, `_run_console.txt`, `_table_console.txt`, one folder per case with the log, the daily table, the Figure 3.2 series and the summary. Reproduce: `python tools/rising_radius_turns_rerun.py --run --jobs=6` then `--table`. The round 5 sweep of Section 14 stays in `runs/rising_radius_turns/` for the record.
