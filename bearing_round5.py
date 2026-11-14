@@ -370,7 +370,7 @@ def part_final(points, h=0.0025):
         cp = coupling(rs, rl)
         print(f"  Coupling at {cp['d_edge']:.1f} m edge spacing (load plate center {cp['xl']:.2f} m from the support's): the load loop's flux through the support's figure-eight {cp['M']*1e6:.4f} uWb/m per At")
         print(f"  against the support's own {cp['L_s']*1e6:.3f}: {cp['k']*100:.2f} percent; at the load track's {fb.F_LOAD_TRACK/1e3:.0f} kN/m ({cp['NI_l_full']/1e3:.0f} kA) flux conservation moves the support's {cp['NI_s_op']/1e3:.0f} kA by {cp['dNI']/1e3:.2f} kA,")
-        print(f"  {cp['dF']*100:.2f} percent of its force (Stage B S2.1: 0.9 percent at 0.5 m with 1.4 m and 1.2 m plates).")
+        print(f"  {cp['dF']*100:.2f} percent of its normal force (Stage B S3: 5.2 percent of the force, 0.87 of the flux, at 0.5 m with 1.4 m and 1.2 m plates; corrected 2026-11-14).")
         ph = plate_heat_launch(rl)
         print(f"  Plate heat of a launch in the fast plates ({rl['Wp']:.2f} m x {rl['T']*1e3:.0f} mm, the solved peak field at each pass's ampere-turns, 25 m coils, the 10 ms rise):")
         print(f"  {'u km/s':>7} {'winding':>7} {'pull/track kN/m':>15} {'kA':>5} {'plate peak T':>12} {'hold ms':>7} {'hyst J/m':>8} {'eddy J/m':>8} {'per m of ring J/m':>17}")

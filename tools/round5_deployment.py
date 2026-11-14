@@ -42,7 +42,12 @@ def runs():
     for tag, extra in (("opt_0", 0.0), ("opt_10", cold["leads"]["10"]["idle_site"]), ("opt_14", cold["leads"]["14"]["idle_site"])):
         out[tag] = dict(hw=hw, m_sup=m_s, m_lift=m_l, w_mean=w_mean, t_eff=t_eff, cold_width=cold_width, extra=extra,
                         sup=(rs["Wp"], rs["T"], rs["Wl"]), fast=(rl["Wp"], rl["T"], rl["Wl"]))
+    for tag, extra in CUSTOM:                                            # round 6a: --custom=tag:extra_W (a subset of the fast coils connected)
+        out[tag] = dict(out["opt_0"], extra=extra)
     return out
+
+
+CUSTOM = []
 
 
 def launch(tag, cfg):
@@ -65,6 +70,9 @@ def main():
     for a in sys.argv[1:]:
         if a.startswith("--run="): what = a[6:].split(",")
         elif a.startswith("--jobs="): jobs = int(a[7:])
+        elif a.startswith("--custom="):
+            for item in a[9:].split(","):
+                tag, extra = item.split(":"); CUSTOM.append((tag, float(extra)))
         elif a in ("-h", "--help"): print(__doc__); return
     R = runs()
     if what is None:

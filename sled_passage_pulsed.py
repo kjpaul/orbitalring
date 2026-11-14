@@ -144,8 +144,11 @@ def lane(**kw):
              steady_cap=None,                 # N/m: ceiling of the casing support force for this lane (one track out), default F_STEADY_CAP
              steady_rate=None,                # N/m per s: the slow loop's correction of the support force can change no faster than this
                                               # (2026-11-12, a switched support coil whose supply slews its current); None = no limit, as before
-             bias=0.0)                        # N/m: a standing pull held by both faces against each other (the load winding up, the lift tracks down),
+             bias=0.0,                        # N/m: a standing pull held by both faces against each other (the load winding up, the lift tracks down),
                                               # so that a net command moves the windings from a working current instead of from zero (Stage B, 2026-11-12)
+             couple=None)                     # (c, F_full): the load tracks' coupling to the persistent support beside them (round 6, 2026-11-14): while the
+                                              # floor tracks pull F_hu the support force is multiplied by 1 - c sqrt(F_hu / F_full) (flux conservation,
+                                              # the support's ampere-turns falling with the load winding's); c is dF/F at F_full, F_full the pull at full current
     d.update(kw)
     return d
 
@@ -360,6 +363,8 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
     loop_om = 2 * math.pi * np.array([ln["steady_loop_hz"] for ln in lanes])
     steady_cap = np.array([ln["steady_cap"] if ln["steady_cap"] is not None else F_STEADY_CAP for ln in lanes])
     S = np.minimum(S, steady_cap[:, None])
+    cpl_c = np.array([(ln.get("couple") or (0.0, 1.0))[0] for ln in lanes], dtype=float)        # round 6: the load-support coupling
+    cpl_F = np.array([(ln.get("couple") or (0.0, 1.0))[1] for ln in lanes], dtype=float)
     steady_rate = np.array([ln.get("steady_rate") if ln.get("steady_rate") is not None else np.inf for ln in lanes], dtype=float)
     rate_limited = np.isfinite(steady_rate).any()
     S_corr = np.zeros(n)                                    # the slewed correction the slow loop has put on the support (rate-limited lanes)
@@ -439,6 +444,10 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
                 Sj = np.clip(Sj + S_corr, 0.0, steady_cap)
             else:
                 Sj = Sj_des
+        if cpl_c.any():
+            # the coupling: the persistent support's ampere-turns fall by k x the load winding's, its force by 2k NI_l / NI_s, and NI_l goes as the
+            # square root of the floor tracks' pull; the loop (if on) has already set Sj for this step, so the deficit is what the loop has not yet seen
+            Sj = Sj * (1.0 - cpl_c * np.sqrt(np.minimum(F_hu / cpl_F, 4.0)))
         a_cas = (-W + Sj - q[:, j] - F_hd - F_pd + F_hu - F_lb + F_lt) / MU
         a_cab = np.where(cable_free, (W - Sj + F_hd + F_pd - F_hu + F_lb - F_lt) / MU_C, 0.0)
         v += a_cas * dt

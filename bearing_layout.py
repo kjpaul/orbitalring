@@ -199,7 +199,7 @@ def is_single(label):
     return not any(s in label for s in SINGLE_EXCLUDE) and not label.startswith("2.")
 
 
-def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, rate=None, no_up=False, head="", bias=0.0):
+def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, rate=None, no_up=False, head="", bias=0.0, couple=None):
     """final_bearing's Part B at the rise tau, the support loop on or frozen in every lane (point and beam), recording every point
     lane's support force history.  prot_all: the lanes that final_bearing runs without the 10 mm gap protection (the F.1 passages and
     tolerances, which lean on the 1 Hz support loop to arrest the drift after the pass) get it, at their own track rating, as the F.2
@@ -231,6 +231,12 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
         if bias:
             for ln in lanes:
                 ln["bias"] = bias
+        if couple:
+            # round 6 (2026-11-14): the load tracks' coupling to the support beside them, c = dF/F of one support track at one load track's full
+            # pull; a lane with one load track alone moves one support track (c/2 of the pair's force at F_LOAD_TRACK), the pair both (c at 2 F_LOAD_TRACK)
+            for ln in lanes:
+                one = ln.get("hu_width") is not None and ln["hu_width"] < 0.75 * (2 * fb.F_LOAD_TRACK / bd.P12)
+                ln["couple"] = (couple / 2, fb.F_LOAD_TRACK) if one else (couple, 2 * fb.F_LOAD_TRACK)
         res, hist = orig_point(lanes, u, tabs_, **kw)
         for i, (ln, r) in enumerate(zip(lanes, res)):
             records.append((ln.get("label", "") or f"lane {i}", u, hist["t"], hist["S"][i].copy(), dict(exc=r["max_exc_all"], gap_b=r["min_gap_b"], gap_t=r["min_gap_t"], contact=r["contact"])))
@@ -260,7 +266,8 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
     txt = buf.getvalue()
     with open(os.path.join(ring.out_dir(), log_name), "w", encoding="utf-8") as f:
         f.write(f"# final_bearing Part B, rise {tau*1e3:g} ms, support loop {'frozen (steady_loop_hz = 0, beam loop_hz = 0)' if freeze else 'on (1 Hz)'}{', the 10 mm gap protection in every lane' if prot_all else ''}"
-                f"{f', the loop correction slewed at {rate/1e3:.2f} kN/m per s' if rate is not None else ''}{', no driven up-pulling winding (up caps zero)' if no_up else ''}{f', a standing bias of {bias/1e3:.0f} kN/m per face' if bias else ''}{'  ' + head if head else ''}\n")
+                f"{f', the loop correction slewed at {rate/1e3:.2f} kN/m per s' if rate is not None else ''}{', no driven up-pulling winding (up caps zero)' if no_up else ''}{f', a standing bias of {bias/1e3:.0f} kN/m per face' if bias else ''}"
+                f"{f', the load-support coupling carried (c = {couple*100:.2f} percent of a support track at one load track at full pull)' if couple else ''}{'  ' + head if head else ''}\n")
         f.write(txt)
     return gaps, records, txt
 
