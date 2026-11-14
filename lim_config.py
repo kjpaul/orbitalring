@@ -100,9 +100,13 @@ SLIP_RATIO_REDUCED = 0.005  # Reduced slip when power-limited (0.5%)
 # nears either its power cap or the coil voltage limit; "power" is the rule of the October runs, the power cap alone, under
 # which a coil held at the voltage limit by its current kept the normal slip and a third to a half of its thrust per ampere.
 # Environment ORBITAL_RING_SLIP_RULE=power restores the October results.
-SLIP_RULE = os.environ.get("ORBITAL_RING_SLIP_RULE", "both").strip().lower()
-if SLIP_RULE not in ("both", "power"):
-    raise SystemExit(f"ORBITAL_RING_SLIP_RULE must be 'both' or 'power', not '{SLIP_RULE}'")
+# "optimal" (2026-11-14): like "both", but the slip it lowers toward when a limit binds (the power cap or the voltage limit) is the
+# plate's thrust-optimal slip, the slip speed at which the eddy-current plate gives the most thrust per ampere squared (model 1:
+# about 40 m/s for the gamma-TiAl plate, nearly independent of the relative speed, so a slip ratio that falls as the cable speeds up),
+# in place of the fixed SLIP_RATIO_REDUCED; lim_physics.optimal_slip_speed finds it for the plate's temperature.
+SLIP_RULE = os.environ.get("ORBITAL_RING_SLIP_RULE", "optimal").strip().lower()   # the default since 2026-11-14 (was "both")
+if SLIP_RULE not in ("both", "power", "optimal"):
+    raise SystemExit(f"ORBITAL_RING_SLIP_RULE must be 'both', 'power' or 'optimal', not '{SLIP_RULE}'")
 
 # -----------------------------------------------------------------------------
 # 1.6 Thrust Model Selection

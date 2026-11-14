@@ -215,8 +215,12 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
 
     # Print configuration
     print(f"VOLTS_MAX: {cfg.VOLTS_MAX/1000:.0f} kV")
-    if cfg.SLIP_RULE != "power":
+    if cfg.SLIP_RULE == "both":
         print(f"SLIP_RULE: {cfg.SLIP_RULE} (the slip falls toward the reduced value at the voltage limit as at the power cap)")
+    elif cfg.SLIP_RULE == "optimal":
+        print(f"SLIP_RULE: {cfg.SLIP_RULE} (at the voltage limit or the power cap the slip goes to the plate's thrust-optimal slip speed, "
+              f"{phys.optimal_slip_speed(300.0, cfg.get_physics_params(), cfg.V_SLIP_MIN, cfg.V_SLIP_MAX, thrust_model):.1f} m/s at 300 K, instead of the fixed {cfg.SLIP_RATIO_REDUCED*100:.1f} percent)")
+    v_slip_opt_cache = {}
     print(f"THRUST_MODEL: {thrust_model}", end=" ")
     model_names = {
         1: "(Narrow plate eddy current - geometry corrected)",
@@ -327,24 +331,33 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             # power cap; "power" (the October rule) counts the power cap alone, so that a coil held at the voltage limit by its
             # current kept the normal slip while the power margin was wide, and with it less thrust per ampere.
             power_margin = 1.0 - (site_power / cfg.MAX_SITE_POWER)
-            if cfg.SLIP_RULE == "both":
+            if cfg.SLIP_RULE in ("both", "optimal"):
                 power_margin = min(power_margin, 1.0 - volts / cfg.VOLTS_MAX)
             MARGIN_COMFORTABLE = 0.15
             MARGIN_TIGHT = 0.05
+            # the slip the rule lowers toward when a limit binds: the fixed SLIP_RATIO_REDUCED (power, both), or the plate's thrust-optimal
+            # slip speed over the relative speed ("optimal", 2026-11-14; the speed is found for the plate's temperature, cached per 2 K)
+            s_reduced = cfg.SLIP_RATIO_REDUCED
+            if cfg.SLIP_RULE == "optimal":
+                t_key = round((cable_temp if eddy_to_cable else plate_temp) / 2.0)
+                if t_key not in v_slip_opt_cache:
+                    v_slip_opt_cache[t_key] = phys.optimal_slip_speed(2.0 * t_key, params, cfg.V_SLIP_MIN, cfg.V_SLIP_MAX, thrust_model)
+                v_slip_opt = v_slip_opt_cache[t_key]
+                s_reduced = max(1e-4, min(cfg.SLIP_RATIO_NORMAL, v_slip_opt / max(v_rel + v_slip_opt, 1.0)))
 
             if power_margin >= MARGIN_COMFORTABLE:
                 s_target = cfg.SLIP_RATIO_NORMAL
             elif power_margin <= MARGIN_TIGHT:
-                s_target = cfg.SLIP_RATIO_REDUCED
+                s_target = s_reduced
             else:
                 t = (power_margin - MARGIN_TIGHT) / (MARGIN_COMFORTABLE - MARGIN_TIGHT)
-                s_target = cfg.SLIP_RATIO_REDUCED + t * (cfg.SLIP_RATIO_NORMAL - cfg.SLIP_RATIO_REDUCED)
+                s_target = s_reduced + t * (cfg.SLIP_RATIO_NORMAL - s_reduced)
 
             # Current headroom factor
             current_ratio = i_peak / cfg.I_TARGET
             if current_ratio < 0.7:
                 blend = min(1.0, max(0.0, (0.7 - current_ratio) / 0.2))
-                s_target = s_target + blend * (cfg.SLIP_RATIO_REDUCED - s_target)
+                s_target = s_target + blend * (s_reduced - s_target)
 
             s_target = max(1e-6, min(0.999, s_target))
 

@@ -733,3 +733,28 @@ def calc_radiator_width_direct(p_heat, T_radiator, em_heatsink, radiator_length)
 def get_ke(mass_m, v_init, v_final):
     """Calculate kinetic energy change."""
     return 0.5 * mass_m * (v_final**2 - v_init**2) * L_RING
+
+
+def optimal_slip_speed(temp_K, params, v_min, v_max, model=1):
+    """The slip speed (m/s) at which the plate gives the most thrust per ampere squared at the temperature temp_K, by a golden-section
+    search of calc_thrust over [v_min, v_max] (2026-11-14, SLIP_RULE "optimal").  In model 1 the thrust at a fixed current depends on
+    the slip speed alone (through the slip frequency), not on the relative speed, so the optimum is one speed for the plate: about
+    40 m/s for the gamma-TiAl plate, rising a little with its temperature."""
+    tau_p = params['tau_p']
+
+    def F(v):
+        return calc_thrust(v / (2 * tau_p), 1.0, 100.0, temp_K, params, model)
+    phi = (math.sqrt(5.0) - 1.0) / 2.0
+    a, b = float(v_min), float(v_max)
+    c, d = b - phi * (b - a), a + phi * (b - a)
+    fc, fd = F(c), F(d)
+    for _ in range(60):
+        if fc > fd:
+            b, d, fd = d, c, fc
+            c = b - phi * (b - a); fc = F(c)
+        else:
+            a, c, fc = c, d, fd
+            d = a + phi * (b - a); fd = F(d)
+        if b - a < 0.05:
+            break
+    return 0.5 * (a + b)

@@ -48,17 +48,21 @@ def runs():
 
 
 CUSTOM = []
+N_TURNS = 150                                                            # --turns=165 (2026-11-14: the design moved to 165 turns)
+SLIP_RULE = None                                                         # --slip=both|optimal, else the environment's
 
 
 def launch(tag, cfg):
-    out = os.path.join(BASE, tag); os.makedirs(os.path.join(out, "lim_design"), exist_ok=True)
+    out = os.path.join(BASE, tag if N_TURNS == 150 else f"{tag}_N{N_TURNS}"); os.makedirs(os.path.join(out, "lim_design"), exist_ok=True)
     with open(os.path.join(out, "meta.json"), "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=1)
-    over = {"MAX_SITE_POWER": 12e6, "N_TURNS": 150, "N_LEV_PLATES": 6, "D_LEV": cfg["t_eff"], "W_LEV": cfg["w_mean"],
+    over = {"MAX_SITE_POWER": 12e6, "N_TURNS": N_TURNS, "N_LEV_PLATES": 6, "D_LEV": cfg["t_eff"], "W_LEV": cfg["w_mean"],
             "LEV_COIL_WIDTH": cfg["cold_width"], "Q_COLD_EXTRA_PER_SITE": cfg["extra"]}
     code = (f"import lim_config as c; c.configure(**{over!r}); import runpy, sys; sys.argv=['lim_simulation.py', '--rising-radius']; "
             f"runpy.run_path('lim_simulation.py', run_name='__main__')")
     env = dict(os.environ, ORBITAL_RING_HW_KGM=f"{cfg['hw']:.1f}", ORBITAL_RING_OUT=os.path.join(out, "lim_design"), MPLBACKEND="Agg", PYTHONUTF8="1")
+    if SLIP_RULE:
+        env["ORBITAL_RING_SLIP_RULE"] = SLIP_RULE
     lf = open(os.path.join(out, "lim_design", "rising_radius_lim_simulation.txt"), "w", encoding="utf-8", errors="replace")
     p = subprocess.Popen([sys.executable, "-c", code], cwd=HERE, env=env, stdout=lf, stderr=subprocess.STDOUT)
     print(f"  launched {tag}: hardware {cfg['hw']:,.1f} kg/m, cold width {cfg['cold_width']:.2f} m, extra cold load {cfg['extra']:,.0f} W per site -> {out}", flush=True)
@@ -66,10 +70,13 @@ def launch(tag, cfg):
 
 
 def main():
+    global N_TURNS, SLIP_RULE
     what = None; jobs = 3
     for a in sys.argv[1:]:
         if a.startswith("--run="): what = a[6:].split(",")
         elif a.startswith("--jobs="): jobs = int(a[7:])
+        elif a.startswith("--turns="): N_TURNS = int(a[8:])
+        elif a.startswith("--slip="): SLIP_RULE = a[7:]
         elif a.startswith("--custom="):
             for item in a[9:].split(","):
                 tag, extra = item.split(":"); CUSTOM.append((tag, float(extra)))

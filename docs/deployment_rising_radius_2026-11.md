@@ -917,3 +917,111 @@ The price of the 17 days is the tape (10 percent) and the insulation margin: the
 The 12 MW minimum has moved from 150 to 165 turns (17 days, 4.5 percent) under the corrected slip rule, and it is broad (155 to 177 turns within 2 percent) where the book calls it narrow. The 8 MW minimum is at 190 turns, and the book's reason for 208 being faster than 150 at 8 MW (the voltage limit never binding) is wrong, though the 24 days hold. Nothing is re-keyed. The ruling is Paul's: stay at 150 turns (the largest N that never reaches 100 kV at 12 MW, 1.1 percent of insulation margin at the end, the least tape of the candidates near the minimum, 4.8 percent off the fastest) or move to 165 (the fastest at 12 MW and at 16 MW, 94 days at the insulation limit, 10 percent more tape), and in either case Section 9.7's sentences on the minimum and its width, and Table 9.4's rows if the design moves (the 16 MW column is in 17.1).
 
 Files under `runs/rising_radius_turns_rerun/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/rising_radius_turns_rerun/`): `rising_radius_turns_rerun.md`, `.csv`, `.json`, `fig09_03_turns_candidate.png|svg`, `_run_console.txt`, `_table_console.txt`, one folder per case with the log, the daily table, the Figure 3.2 series and the summary. Reproduce: `python tools/rising_radius_turns_rerun.py --run --jobs=6` then `--table`. The round 5 sweep of Section 14 stays in `runs/rising_radius_turns/` for the record.
+
+## 18. The design moves to 165 turns: the slip rule settled, the Chapter 9 set, the bearing's deployment (2026-11-14)
+
+Asked for in `Vol_III/Claude_Code_instructions_design_165_turns_2026-11-14.md`. Paul's ruling on Section 17: the design is 165 turns, two LIMs per site, 12 MW. No re-key and no numbers sheet here; the book is re-keyed once, after the bearing's plates are settled. Tools: `tools/rising_radius_design_165.py` (`--part=slip|ch9`, `--run`, `--table`, `--figure`), `tools/round5_deployment.py --turns=165`. Runs under `runs/rising_radius_design_165/` (`slip_optimal/`, `ch9_optimal/`, the figure). Every run: the rising quadratic, the rising radius, 100 kV, the full time steps, the present cable and hardware (10,686 kg/m for two LIMs).
+
+### 18.1 The slip rule
+
+**The rule.** `SLIP_RULE = "optimal"` (`lim_config`, environment `ORBITAL_RING_SLIP_RULE`), beside `power` and `both`: when a limit binds (the site power cap or the 100 kV coil limit, by the same margins as `both`) the slip target goes to the plate's thrust-optimal slip, the slip speed at which the reaction plate gives the most thrust per ampere squared, in place of the fixed 0.5 percent. `lim_physics.optimal_slip_speed` finds that speed from the thrust model for the plate's temperature (a golden-section search, cached per 2 K): in thrust model 1 the thrust at a given current depends on the slip speed alone, not on the relative speed, so it is one speed for the plate, 38.5 m/s at 300 K, 40.3 at 340 K, 43.0 at 400 K for the 200 mm gamma-TiAl plate, and the slip ratio that goes with it falls as the cable speeds up. What it changes at the power cap, where `both` already used 0.5 percent: 0.5 percent of the relative speed is 44 m/s at the end of the deployment, a little above the optimum (the runs end at 0.41 to 0.42 percent), and 20 m/s at 4 km/s, half the optimum, so early at a binding limit the fixed rule ran the plate at too low a slip speed and the new rule holds about 39 m/s throughout. The gain is largest where a limit binds early (low relative speed): 8 MW and the high-turn coils.
+
+**The runs** (Section 17's under `both` beside the same cases under `optimal`):
+
+| Turns | MW | Days, both (Section 17) | Days, optimal | Change | 100 kV from day, both / optimal | Days at 100 kV, both / optimal | P cap days, both / optimal | End: N/LIM, A, slip %, both | End, optimal | Hyst peak kW/LIM, both / optimal | Cryo peak MW (sim), both / optimal |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 150 | 12 | 381.1 | 380.7 | -0.4 d (-0.11 %) | never / never | 0 / 0 | 251 / 247 | 468, 125.3, 0.49 | 469, 124.6, 0.42 | 8.15 / 8.02 | 2.57 / 2.55 |
+| 155 | 12 | 371.2 | 370.2 | -1.0 d (-0.28 %) | 345.0 / 348.2 | 26 / 22 | 244 / 247 | 447, 118.6, 0.50 | 455, 118.7, 0.42 | 8.14 / 7.63 | 2.58 / 2.49 |
+| 160 | 12 | 365.8 | 364.2 | -1.6 d (-0.43 %) | 305.1 / 305.2 | 61 / 59 | 217 / 217 | 419, 111.3, 0.50 | 427, 111.4, 0.41 | 8.11 / 7.34 | 2.58 / 2.46 |
+| 165 | 12 | 363.8 | 361.9 | -2.0 d (-0.54 %) | 270.3 / 269.1 | 94 / 93 | 192 / 191 | 394, 104.6, 0.50 | 401, 104.7, 0.41 | 8.05 / 7.09 | 2.59 / 2.43 |
+| 170 | 12 | 364.8 | 362.6 | -2.3 d (-0.62 %) | 239.7 / 238.5 | 125 / 124 | 169 / 169 | 371, 98.6, 0.50 | 378, 98.7, 0.41 | 7.98 / 6.88 | 2.59 / 2.40 |
+| 175 | 12 | 368.3 | 365.7 | -2.5 d (-0.69 %) | 212.4 / 212.3 | 156 / 153 | 149 / 149 | 350, 93.0, 0.50 | 357, 93.1, 0.41 | 7.91 / 6.68 | 2.59 / 2.39 |
+| 180 | 12 | 373.9 | 371.0 | -2.9 d (-0.77 %) | 187.9 / 189.8 | 186 / 181 | 130 / 133 | 331, 87.9, 0.50 | 337, 88.0, 0.41 | 7.83 / 6.51 | 2.59 / 2.37 |
+| 170 | 8 | 512.3 | 507.3 | -5.0 d (-0.98 %) | never / never | 0 / 0 | 448 / 455 | 303, 89.1, 0.50 | 303, 88.4, 0.41 | 5.91 / 4.31 | 2.24 / 1.98 |
+| 190 | 8 | 500.1 | 495.6 | -4.5 d (-0.90 %) | 480.4 / 488.9 | 20 / 7 | 464 / 460 | 296, 78.9, 0.50 | 303, 79.0, 0.41 | 5.61 / 3.85 | 2.24 / 1.95 |
+| 208 | 8 | 510.2 | 505.2 | -5.1 d (-0.99 %) | 347.8 / 344.2 | 162 / 161 | 338 / 335 | 247, 65.8, 0.50 | 253, 65.9, 0.41 | 5.06 / 3.57 | 2.20 / 1.95 |
+| 120 | 12 | 628.3 | 627.9 | -0.4 d (-0.07 %) | never / never | 0 / 0 | 25 / 26 | 446, 153.0, 0.50 | 448, 152.2, 0.42 | 13.54 / 13.52 | 3.39 / 3.39 |
+| 135 | 12 | 448.4 | 448.7 | +0.3 d (+0.06 %) | never / never | 0 / 0 | 171 / 170 | 459, 137.9, 0.49 | 460, 137.1, 0.42 | 10.76 / 10.81 | 2.96 / 2.97 |
+| 140 | 12 | 415.7 | 415.9 | +0.2 d (+0.05 %) | never / never | 0 / 0 | 213 / 210 | 462, 133.4, 0.49 | 464, 132.7, 0.42 | 9.34 / 9.47 | 2.74 / 2.76 |
+| 145 | 12 | 395.2 | 395.1 | -0.1 d (-0.02 %) | never / never | 0 / 0 | 237 / 233 | 465, 129.2, 0.49 | 467, 128.5, 0.42 | 8.39 / 8.58 | 2.60 / 2.63 |
+| 190 | 12 | 390.7 | 386.7 | -3.9 d (-1.01 %) | 146.0 / 153.5 | 245 / 233 | 98 / 106 | 296, 78.9, 0.50 | 303, 79.0, 0.41 | 7.66 / 6.19 | 2.59 / 2.34 |
+| 208 | 12 | 436.0 | 428.6 | -7.4 d (-1.70 %) | 89.2 / 108.4 | 347 / 320 | 55 / 73 | 247, 65.8, 0.50 | 253, 65.9, 0.41 | 7.29 / 5.69 | 2.57 / 2.30 |
+| 240 | 12 | 550.6 | 532.8 | -17.8 d (-3.23 %) | 43.5 / 63.9 | 507 / 469 | 19 / 41 | 185, 49.5, 0.50 | 190, 49.5, 0.41 | 6.18 / 5.12 | 2.46 / 2.29 |
+| 280 | 12 | 730.7 | 700.7 | -30.0 d (-4.10 %) | 28.2 / 36.9 | 702 / 664 | 12 / 21 | 136, 36.3, 0.50 | 139, 36.4, 0.40 | 4.91 / 4.94 | 2.35 / 2.36 |
+| 150 | 8 | 534.5 | 529.1 | -5.4 d (-1.02 %) | never / never | 0 / 0 | 429 / 448 | 300, 100.5, 0.50 | 301, 99.7, 0.41 | 6.15 / 4.80 | 2.23 / 2.01 |
+| 230 | 8 | 554.2 | 548.7 | -5.4 d (-0.98 %) | 229.8 / 234.8 | 324 / 314 | 223 / 226 | 202, 53.9, 0.50 | 207, 53.9, 0.41 | 4.43 / 3.45 | 2.15 / 1.98 |
+| 250 | 8 | 616.9 | 608.7 | -8.1 d (-1.32 %) | 150.1 / 171.8 | 467 / 437 | 145 / 164 | 171, 45.6, 0.50 | 175, 45.6, 0.41 | 3.90 / 3.42 | 2.11 / 2.03 |
+
+**The minimum.** At 12 MW it is still at 165 turns: 380.7, 370.2, 364.2, **361.9**, 362.6, 365.7, 371.0 days at 150 to 180 turns, and 160 to 175 turns are within 2 percent, the same band as Section 17 (about 155 to 177 turns by the slopes). At 8 MW it is still at 190 turns, 495.6 days, with 208 turns (505.2) now inside the 2 percent band. The whole grid of Section 17 was rerun under the new rule so that the figure is drawn from one rule; the high-turn coils gain most (208 turns at 12 MW 428.6 against 436.0, 240 turns 532.8 against 550.6, 280 turns 700.7 against 730.7), which also removes the loss the `both` rule had there against the October rule (541.1 and 719.4 days). The coils that never meet a limit early (120 to 145 turns at 12 MW) do not move.
+
+**The default.** The 165-turn design run moves from 363.8 to 361.9 days, 0.54 percent, just over the brief's half percent. So `optimal` is now the default of `lim_config.SLIP_RULE`; the reference tests keep `power` (`tests/conftest.py`, unchanged; 70 passed, 11 skipped), and `both` and `power` remain as options. Everything below is under `optimal`.
+
+### 18.2 The Chapter 9 set at 165 turns
+
+#### Table 9.2's values for the 165-turn coil
+
+| Parameter | Value |
+|---|---|
+| Turns in each coil | 165 |
+| Peak coil current | 183.1 A (the cap as configure() leaves it; the winding's own limit 184.0 A) |
+| Current limit of one tape in the field of the winding | 184.0 A at the worst tape, at the edge of the sheet, in 0.070 T at 7.8 degrees from its face's normal |
+| Layers of tape in each turn | 2, the turns laid flat, side by side, in a sheet 670 mm wide |
+| Tape in each LIM | 1,293 kg (2,585 kg per site), 303 km of 3 mm tape (606 km per site) |
+| Current in each tape | 91.5 A, half of its limit |
+| Supply frequency at the end of deployment | 44.4 Hz |
+| Peak thrust of each LIM | about 1,226 N |
+| Deployment time | 362 days at 12 MW, 512 days at 8 MW |
+
+#### Table 9.3, both columns, 165 turns
+
+| Quantity | 12 MW per site, the design | 8 MW per site |
+|---|---|---|
+| Deployment time | 362 days (11.9 months) | 512 days (16.8 months) |
+| Governing limit, in order | coil current for the first 92 days; then site power from day 88 to day 279; then the coil voltage at 100 kV from day 269 to the end (93 days) | coil current for the first 60 days; then site power from day 58 to day 512; the coil voltage never reaches 100 kV |
+| Peak coil current | 183 A, from the first day to day 92 | 183 A, from the first day to day 60 |
+| Coil voltage at the end | 100 kV, with 105 A in the coil | 87 kV, with 91 A in the coil |
+| Site power | 12 MW from day 88 to day 279 (191 days) | 8 MW from day 58 to day 512 (454 days) |
+| Peak thrust per LIM | 1,226 N, at 1.0 months (day 30); 401 N at the end | 1,226 N, at 1.0 months (day 30); 303 N at the end |
+| Peak thrust power per LIM | 4.2 MW, at 9.0 months (day 274, as the voltage limit arrives) | 2.7 MW, at the end |
+| Mechanical energy delivered | 19.2 EJ (19.175) | 19.2 EJ (19.175) |
+| Peak eddy current heating per LIM | 95 kW, on day 1 | 95 kW, on day 1 |
+| Peak hysteresis heating per LIM | 7.1 kW, at 3.0 months | 4.4 kW, at 2.0 months |
+| Peak cable temperature | 345 K on the first day, settling near 262 K | 345 K on the first day, settling near 255 K |
+| Peak cryogenic plant per site (by the book's COP; the simulation's own) | 2.75 MW (2.43), at the end 1.95 (1.73) | 2.24 MW (1.98), at the end 1.74 (1.53) |
+
+#### Table 9.4's rows
+
+| Site power | Turns | LIMs per site | Deployment | 100 kV from day | Panel width | HTS tape per site | Cable mass | Peak cryogenic plant (book COP) | Plate on day one | Peak hysteresis per LIM |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 8 MW | 165 | 2 | 512 days (16.8 months) | never | 55 m | 2.59 t | 103,570 kg/m, 4,606 Mt | 2.24 MW | 345 K | 4.4 kW |
+| 12 MW | 165 | 2 | 362 days (11.9 months) | 269 | 83 m | 2.59 t | 103,570 kg/m, 4,606 Mt | 2.75 MW | 345 K | 7.1 kW |
+| 16 MW | 165 | 2 | 338 days (11.1 months) | 163 | 110 m | 2.59 t | 103,570 kg/m, 4,606 Mt | 3.41 MW | 345 K | 10.6 kW |
+| 20 MW | 165 | 2 | 337 days (11.1 months) | 143 | 118 m | 2.59 t | 103,570 kg/m, 4,606 Mt | 3.49 MW | 345 K | 11.0 kW |
+| 24 MW | 165 | 2 | 337 days (11.1 months) | 143 | 118 m | 2.59 t | 103,570 kg/m, 4,606 Mt | 3.49 MW | 345 K | 11.0 kW |
+| 12 MW | 150 | 2 | 381 days (12.5 months) | never | 83 m | 2.35 t | 103,570 kg/m, 4,606 Mt | 2.88 MW | 331 K | 8.0 kW |
+| 16 MW | 150 | 2 | 355 days (11.7 months) | 251 | 110 m | 2.35 t | 103,570 kg/m, 4,606 Mt | 3.57 MW | 331 K | 11.7 kW |
+| 12 MW | 208 | 2 | 429 days (14.1 months) | 108 | 82 m | 3.26 t | 103,570 kg/m, 4,606 Mt | 2.61 MW | 382 K | 5.7 kW |
+| 16 MW | 208 | 2 | 417 days (13.7 months) | 65 | 110 m | 3.26 t | 103,570 kg/m, 4,606 Mt | 3.02 MW | 382 K | 7.9 kW |
+| 8 MW | 165 | 4 | 510 days (16.8 months) | never | 55 m | 5.17 t | 105,010 kg/m, 4,670 Mt | 2.73 MW | 404 K | 2.3 kW |
+| 16 MW | 165 | 4 | 245 days (8.0 months) | never | 110 m | 5.17 t | 105,010 kg/m, 4,670 Mt | 3.66 MW | 404 K | 4.7 kW |
+| 24 MW | 165 | 4 | 181 days (5.9 months) | 127 | 165 m | 5.17 t | 105,010 kg/m, 4,670 Mt | 4.68 MW | 404 K | 7.4 kW |
+| 24 MW | 165 | 6 | 162 days (5.3 months) | never | 165 m | 7.76 t | 106,453 kg/m, 4,734 Mt | 5.19 MW | 447 K | 5.0 kW |
+
+#### The power curve of the design (two LIMs, 165 turns)
+
+511.6 days at 8 MW, 361.9 days at 12 MW, 338.2 days at 16 MW, 337.3 days at 20 MW, 337.3 days at 24 MW. Days per megawatt between the steps: 37.4 from 8 to 12 MW; 5.9 from 12 to 16 MW; 0.2 from 16 to 20 MW; 0.0 from 20 to 24 MW. The floor is 337.3 days; 12 MW sits 7.3 percent above it; the knee by the 2 percent rule is 16 MW.
+
+
+Notes for keying. Table 9.3: the 12 MW design passes through all three limits in order (the current cap to day 92, the site power cap from day 88 to day 279, the voltage limit from day 269 to the end; the overlaps are the days two limits bind together); the peak thrust of 1,226 N comes at one month, while the current cap holds; the cable's monthly mean temperature settles near 262 K at 12 MW and 255 K at 8 MW after the first-day 345 K. Table 9.4: the panel width is that of the peak site power drawn; at 20 and 24 MW the two-LIM 165-turn site never draws more than 17.2 MW (the coil is voltage-limited from day 143), so the panel a 20 or 24 MW cap would provide (138 or 165 m) is not used and the two runs are the same run. The 150 and 208-turn comparison rows are reruns under the new rule (381 and 355 days at 150 turns, as before to the day; 429 and 417 days at 208 turns against 436 and 428 under `both`). The four-LIM and six-LIM cables are the quadratic solved with their plates (12,558 and 14,430 kg/m of hardware). The cryogenic plant is the peak cold-side load over the book's COP of 0.0106.
+
+### 18.3 Figure 9.3
+
+`runs/rising_radius_design_165/fig09_03_turns_optimal.png|svg`: the candidate of Section 17 redrawn from the runs under the new rule, the legend moved clear of the 280-turn point and of the note; nothing else changed. The caption's numbers under this rule: the minimum at 165 turns (362 days) at 12 MW and at 190 turns (496 days) at 8 MW; filled points from 155 turns up at 12 MW and from 190 up at 8 MW.
+
+### 18.4 The bearing's ten-family deployment at 165 turns
+
+Round 6a's run (the optimum plates' hardware of 8,483 kg/m, 4.0 m of cold width, ten of the 20 fast-coil families connected, 4,510 W of extra cold load per site), at 165 turns under the new rule (`tools/round5_deployment.py --turns=165 --slip=optimal --custom=n10:4510 --run=n10`, `runs/round5_hw/n10_N165/`): **369.7 days**, peak cold load 33.0 kW per site, peak cryogenic plant 2.75 MW (the simulation's own figure), against 390.3 days, 35.0 kW and 2.92 MW at 150 turns under `both`. That is 7.8 days over the 361.9 of the design run with no bearing heat and the book's hardware.
+
+### 18.5 Files
+
+`runs/rising_radius_design_165/` (copies in `Vol_III/runs_700km_hw10686_2026-10-12/rising_radius_2026-11-06/rising_radius_design_165/`): `slip_optimal/` (21 cases and `slip_optimal_table.md`), `ch9_optimal/` (13 cases, `ch9_tables.md`, `ch9_rows.json`), `fig09_03_turns_optimal.png|svg`, the consoles. Reproduce: `python tools/rising_radius_design_165.py --part=slip --run` then `--table --figure`; `--part=ch9 --rule=optimal --run` then `--table`.
