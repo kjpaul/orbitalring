@@ -299,6 +299,11 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     data_time.append(0.0); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
     data_tension.append(T0); data_casing_weight.append(W0); data_cable_excess.append(F0); data_stress.append(S0)
     T_prev, W_prev = T0, W0
+    bcl = None
+    if getattr(cfg, "BEARING_COLD_LOAD", ""):                # the bearing's cold load from the run's own weight series (round 9)
+        import bearing_cold_load as _bcl
+        bcl = _bcl.BearingColdLoad(cfg.BEARING_COLD_LOAD)
+        print(f"Bearing cold load from {cfg.BEARING_COLD_LOAD}: the pump moves {bcl.rate_pump:.3f} A per day")
     dT_max = (0.0, 0.0); dW_max = (0.0, 0.0)              # peak rise rates (per second) and when
     T_diff_rel_max = 0.0; T_diff_abs_max = 0.0            # simulated against the closed form
     t_zero = None; t_stress = None                        # casing through zero speed; stress first at SIGMA_CABLE
@@ -441,7 +446,7 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
             # Calculate cryogenic heat load based on thermal mode
             q_cryo_cold = phys.calc_cryo_heat_load(
                 p_eddy, p_hyst, cfg.LIMS_PER_SITE, cfg.Q_ABSORBED_PER_SITE,
-                eddy_to_cable, cfg.Q_COIL_ENVIRONMENT, q_lev_coil
+                eddy_to_cable, cfg.Q_COIL_ENVIRONMENT + (bcl.update(time, W_prev) if bcl else 0.0), q_lev_coil
             )
 
             # Calculate radiator width
@@ -767,6 +772,9 @@ def run_deployment_simulation(v_slip_init, i_peak_init, thrust_model=1, eddy_to_
     T_end, W_end, F_end, S_end = deployment_tension(v_cable, v_casing) if rising is None else rising.forces()
     data_time.append(time / cfg.DAY); data_v_cable.append(v_cable); data_v_casing.append(v_casing)
     data_tension.append(T_end); data_casing_weight.append(W_end); data_cable_excess.append(F_end); data_stress.append(S_end)
+    if bcl is not None:
+        bcl.write(ring.OUT_DIR)
+        print(f"Bearing cold load: {bcl.events}")
     if rising is not None:                                    # the rising-radius report and files replace the fixed-radius tension block
         rising.sample(time / cfg.DAY, volts, i_peak, site_power, thrust, p_cryo)
         extra = dict(N_TURNS=cfg.N_TURNS, LIMS_PER_SITE=cfg.LIMS_PER_SITE, N_PLATES_PER_SIDE=cfg.N_PLATES_PER_SIDE, MAX_SITE_POWER=cfg.MAX_SITE_POWER,

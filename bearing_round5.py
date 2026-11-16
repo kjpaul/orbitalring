@@ -233,13 +233,14 @@ N_M = 4 * N_FAM / L_FAST                                              # fast coi
 W_HALF = ring.M_LOAD_M * 7.918 / 2                                    # the support track's normal share of the casing's weight, 47.5 kN/m [bearing_electrical.W_HALF]
 
 
-def hold_time(u, L_coil=L_FAST, tau=TAU):
-    """One coil's energized time in a pass at speed u and the energized length (final_bearing C.2 with the rise free)."""
+def hold_time(u, L_coil=L_FAST, tau=TAU, frame=None):
+    """One coil's energized time in a pass at speed u and the energized length (final_bearing C.2 with the rise free).  The coil is on the casing,
+    so its on-time is the energized length over u (round 9); frame="plate" gives rounds 4 to 8's length over u + V_rel, the plate's dwell."""
     L_on = u * max(0.05, bd.L_SC / u) + bd.L_SC + 2 * L_coil + 2 * u * tau
-    return L_on / (u + bd.V_REL), L_on
+    return L_on / (u if (frame or r4.ON_TIME_FRAME) == "casing" else u + bd.V_REL), L_on
 
 
-def launch_integrals(W_req, F_req, tau=TAU, L_coil=L_FAST, n_fam=N_FAM):
+def launch_integrals(W_req, F_req, tau=TAU, L_coil=L_FAST, n_fam=N_FAM, frame=None):
     """Per launch along the sled's run: the magnetic energy cycled through the pulsing pair (J), the full-current-equivalent coil-seconds per
     meter of ring, the run length; bearing_round4.launch_integrals with the rise and the requirement free."""
     t_p, v_p, P_p = pz.lsm_profile()
@@ -250,7 +251,7 @@ def launch_integrals(W_req, F_req, tau=TAU, L_coil=L_FAST, n_fam=N_FAM):
             continue
         F, kind = r4.pull_track_of_u(u)
         E_cycle += 2 * W_req * (F / F_req) * dx
-        lead_s += (2 * n_fam / L_coil) * (F / F_req) * hold_time(u, L_coil, tau)[0] * dx
+        lead_s += (2 * n_fam / L_coil) * (F / F_req) * hold_time(u, L_coil, tau, frame)[0] * dx
         x_run += dx
     return dict(E_cycle=E_cycle, lead_s=lead_s, x_run=x_run, t_run=t_run, t_p=t_p, v_p=v_p)
 
@@ -648,11 +649,13 @@ def lead_rows(rl):
     with the 10 ms rise's hold times); idle and pulse heat per meter of ring and per site."""
     li = launch_integrals(rl["W_mag"], rl["F_req"])
     duty = li["lead_s"] * LAUNCHES_PER_DAY / 86400 / (N_M * ring.L_RING)
+    # the lead's section stays as ruled (round 5's sizing, made with the plate's dwell as the on-time); the duty and the pulse heat are the casing's
+    duty_ruled = launch_integrals(rl["W_mag"], rl["F_req"], frame="plate")["lead_s"] * LAUNCHES_PER_DAY / 86400 / (N_M * ring.L_RING)
     rows = {}
     for N in TURNS:
         fbk = fast_basics(rl, N); I = fbk["I"]
         A_p = I / r4.J_PULSE_LEAD; R_p = be.RHO_CU_77 * 1.0 / A_p
-        P_mean = I**2 * R_p * duty; dT = P_mean * 1.0 / (2 * 400.0 * A_p)
+        P_mean = I**2 * R_p * duty_ruled; dT = P_mean * 1.0 / (2 * 400.0 * A_p)
         A_m = A_p * math.sqrt(dT / 20.0) if dT > 20.0 else A_p; R_m = be.RHO_CU_77 * 1.0 / A_m
         q_idle = be.lead_heat(0.0, A_over_l=A_m)[0]
         idle_m = 2 * q_idle * N_M; pulse_m = 2 * I**2 * R_m * duty * N_M

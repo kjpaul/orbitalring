@@ -637,6 +637,12 @@ def part_C(rows_A, B):
 # PART D
 # =============================================================================
 
+ROLL_REACTION_FIX = True        # round 9: the cable's orbit carries the casing's weight in roll_model (see the comment at the cable's acceleration there)
+ROLL_SLED_LOAD = True           # round 9: the sled's own load on the casing is in roll_model's heave (the point lane's q); before, only the lone track's pull was
+ROLL_SURVIVOR_FIX = True        # round 9: roll_model's ceiling protection is the surviving lift track (see tracks_prot there)
+ROLL_SUPPORT_HZ = 1.0           # the support tracks' own loop in roll_model; 0 = the support frozen (round 9 runs it frozen, as the point and beam lanes are)
+
+
 def roll_model(hist, i_lane, u, with_prot, trigger=0.010, delay=1e-3, hz=5.0, support_lost=False, cap=CAP_ONE):
     """Heave and roll of casing and cable with one compensation track pulling at Y_COMP (the other of its pair lost).
     Support tracks at +-Y_SUPPORT each with a 1 Hz loop on its own gap; load compensation tracks at +-Y_COMP on the floor
@@ -645,11 +651,17 @@ def roll_model(hist, i_lane, u, with_prot, trigger=0.010, delay=1e-3, hz=5.0, su
     t = hist["t"]; dt = t[1] - t[0]
     F_pull = -hist["F"][i_lane]                       # lift pull, positive = casing pulled down, from the point model (F = F_hu - F_hd)
     F_pull = np.maximum(F_pull, 0.0)
-    om = 2 * math.pi * 1.0; om_p = 2 * math.pi * hz
+    q_sled = hist["q"][i_lane] if (ROLL_SLED_LOAD and "q" in hist) else None
+    om = 2 * math.pi * ROLL_SUPPORT_HZ; om_p = 2 * math.pi * hz
+    import sled_passage_pulsed as _pz
+    sog = _pz.SUPPORT_OF_GAP                         # the support's pull at constant flux against its own gap (round 9), or None
     ndel = int(round(delay / dt))
     w = v = th = thd = wc = vc = thc = thcd = 0.0
     y_sup = (-Y_SUPPORT, Y_SUPPORT)
-    tracks_prot = [(-Y_COMP, +1), (Y_COMP, +1), (-Y_COMP, -1)]   # (offset, +1 floor pulls up / -1 ceiling pulls down); the +Y_COMP lift track is the lost one
+    # (offset, +1 floor pulls up / -1 ceiling pulls down).  The planned pull below is applied at +Y_COMP, so the surviving lift track is the one at
+    # +Y_COMP and the lost one is at -Y_COMP.  Until round 9 the ceiling protection was put at -Y_COMP, the lost track's place (ROLL_SURVIVOR_FIX =
+    # False restores that); now it is the survivor at +Y_COMP, and what it gives as protection and as planned pull together stays within its cap.
+    tracks_prot = [(-Y_COMP, +1), (Y_COMP, +1), ((Y_COMP if ROLL_SURVIVOR_FIX else -Y_COMP), -1)]
     eng = [False] * 3
     buf = []
     I_p = [0.0] * 3
@@ -668,11 +680,15 @@ def roll_model(hist, i_lane, u, with_prot, trigger=0.010, delay=1e-3, hz=5.0, su
             else:
                 rel_y = rel + rth * y; reld_y = reld + rthd * y
                 S = min(max(W / 2 - (MU / 2) * (2 * om * reld_y + om**2 * rel_y), 0.0), sp.F_EML_OP / 2)
+                if sog is not None:
+                    S *= float(np.interp(GAP0 - rel_y, sog[0], sog[1]))
             S_total += S
             F_up += S; M += S * y
         # the pull (one lift track at +Y_COMP, pulls down)
         Fp = F_pull[j]
         F_up -= Fp; M -= Fp * Y_COMP
+        if q_sled is not None:                       # the sled's own load on the casing, on the centerline (positive down; round 9)
+            F_up -= q_sled[j]
         # per-side protection
         if with_prot:
             buf.append((rel, rth, reld, rthd))
@@ -687,11 +703,16 @@ def roll_model(hist, i_lane, u, with_prot, trigger=0.010, delay=1e-3, hz=5.0, su
                 if eng[k]:
                     F_des = (W - S_total) / 2 - (MU / 2) * (2 * om_p * reld_k + om_p**2 * rel_k)
                     F_des = min(max(F_des * sgn, 0.0), cap) * sgn          # a floor track can only pull up, a ceiling track only down
+                    if sgn < 0 and ROLL_SURVIVOR_FIX:
+                        F_des = -min(-F_des, max(cap - Fp, 0.0))            # the survivor already carries the planned pull Fp
                 I_p[k] += (math.sqrt(abs(F_des) / cap) - I_p[k]) * lag
                 Fk = sgn * cap * I_p[k]**2
                 F_up += Fk; M += Fk * y
         a = (F_up - W) / MU; al = M / I_CASING
-        ac = -(F_up) / MU_C + 0.0; alc = -M / I_CABLE          # the cable feels the reaction; its weight is carried by its own orbit
+        # The cable feels the reactions.  Its own orbit carries the casing's normal weight W, so only the difference from W accelerates it.  Until
+        # round 9 (2026-11-16) this line read ac = -F_up / MU_C: the cable was given the whole support reaction with nothing carrying it, so it fell
+        # away at W / MU_C and the casing settled about 21 mm off with no sled at all (ROLL_REACTION_FIX = False restores that for the record).
+        ac = -(F_up - (W if ROLL_REACTION_FIX else 0.0)) / MU_C; alc = -M / I_CABLE
         v += a * dt; w += v * dt; thd += al * dt; th += thd * dt
         vc += ac * dt; wc += vc * dt; thcd += alc * dt; thc += thcd * dt
         rth = th - thc; rel = w - wc

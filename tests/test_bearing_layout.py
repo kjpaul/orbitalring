@@ -117,7 +117,12 @@ def test_rate_limited_support_loop_slews(rec):
     tabs = dict(sp.limiter_tables(), F0=0.0, Q0=0.0)
     lanes = [pz.lane(no_sled=True, cancel=False, steady_loop_hz=1.0, w0=0.005, steady_rate=2e3, label="slewed"),
              pz.lane(no_sled=True, cancel=False, steady_loop_hz=1.0, w0=0.005, label="free")]
-    res, hist = pz.point_pulsed(lanes, 30000.0, tabs, t_settle=0.5)
+    old = pz.SUPPORT_OF_GAP                    # this test is of the loop's slew alone, so the pull's own change with the gap (round 9's default) is off
+    pz.SUPPORT_OF_GAP = None
+    try:
+        res, hist = pz.point_pulsed(lanes, 30000.0, tabs, t_settle=0.5)
+    finally:
+        pz.SUPPORT_OF_GAP = old
     dt = float(hist["t"][1] - hist["t"][0])
     slope = np.abs(np.diff(hist["S"], axis=1)) / dt
     assert slope[0].max() <= 2e3 * 1.001

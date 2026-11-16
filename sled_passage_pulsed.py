@@ -73,8 +73,19 @@ W = sp.W_CASING                 # casing weight, N/m
 G_NET = sp.G_NET
 G0 = sp.G0_STD
 GAP0 = sp.GAP0                  # 0.100 m
-SUPPORT_OF_GAP = None           # (gaps, ratio) or None: in point_pulsed the support force is multiplied by ratio at the floor gap, the frozen support's
-                                # pull at constant flux (bearing_gap_trade.py, 2026-11-16); None leaves every earlier run as it was
+def _support_of_gap_default():
+    """The split support's pull at constant flux over its pull at the nominal 100 mm gap, against the gap (data/support_constant_flux.json)."""
+    import json as _json, os as _os
+    p = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "data", "support_constant_flux.json")
+    d = _json.load(open(p, encoding="utf-8"))
+    return np.array(d["gap_m"]), np.array(d["ratio"])
+
+
+# (gaps, ratio) or None: the support force is multiplied by ratio at the floor gap, the support's pull at constant flux (a persistent coil keeps its
+# flux, so its pull grows as the gap closes; bearing_gap_trade.py, 2026-11-16).  Carried in point_pulsed, beam_pulsed and compensation_tracks.roll_model
+# and the DEFAULT since round 9 (2026-11-16).  None restores rounds 4 to 7, where the support's pull did not depend on the gap.  The table is for
+# the 100 mm gap; a run at another nominal gap sets its own (bearing_gap_trade.part_cases).
+SUPPORT_OF_GAP = _support_of_gap_default()
 GAP_FORBIDDEN = sp.GAP_FORBIDDEN  # 0.020 m
 BAND = 0.020                    # the casing must stay within 100 +/- 20 mm of the cable
 BAND_STRICT = 0.010
@@ -394,7 +405,7 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
     J_hd = np.zeros(n)
     J_hu = np.zeros(n)
     contact = np.zeros(n, dtype=bool)
-    hist = dict(t=t, w=np.zeros((n, nt)), wc=np.zeros((n, nt)), F=np.zeros((n, nt)), S=np.zeros((n, nt)))   # S: the support force history (2026-11-12)
+    hist = dict(t=t, w=np.zeros((n, nt)), wc=np.zeros((n, nt)), F=np.zeros((n, nt)), S=np.zeros((n, nt)), q=q)   # S: the support force history (2026-11-12)
 
     for j in range(nt):
         cmd = F_cmd[:, j].copy()
@@ -782,6 +793,8 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
                 S_corr += np.clip(S - W - S_corr, -loop_rate * dt, loop_rate * dt)
                 S = np.clip(W + S_corr, 0.0, F_STEADY_CAP)
             S = np.where(S_fail, 0.0, S)
+        if SUPPORT_OF_GAP is not None:               # the support's pull at constant flux follows its gap (round 9)
+            S = S * np.interp(gap_b, SUPPORT_OF_GAP[0], SUPPORT_OF_GAP[1])
         q_cas = q[None, :] * np.ones((n, 1))
         if spurious.any():
             for ic in range(n_c):

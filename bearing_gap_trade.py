@@ -375,6 +375,7 @@ def part_cases(gap, flux=True):
     cp = r7.load("round7_coupling.json")
     old = pz.GAP0, bd.GAP0, sp.GAP0, be.GAP, bl.GAP, ct.GAP0
     pz.GAP0 = bd.GAP0 = sp.GAP0 = be.GAP = bl.GAP = ct.GAP0 = gap
+    old_sog = pz.SUPPORT_OF_GAP
     pz.SUPPORT_OF_GAP = flux_table(gap) if flux else None
     tag = f"{gap*1e3:.0f}mm" + ("_flux" if flux else "")
     out_dir = os.path.join("gap_trade_logs", f"gap_trade_cases_{tag}.txt")
@@ -385,7 +386,7 @@ def part_cases(gap, flux=True):
                                           head=f"[gap trade: nominal gap {gap*1e3:.0f} mm, {'the support at constant flux' if flux else 'the support pull independent of the gap'}, coupling {cp['c_split']*100:.2f} percent]",
                                           couple=cp["c_split"])
     finally:
-        pz.GAP0, bd.GAP0, sp.GAP0, be.GAP, bl.GAP, ct.GAP0 = old; pz.SUPPORT_OF_GAP = None
+        pz.GAP0, bd.GAP0, sp.GAP0, be.GAP, bl.GAP, ct.GAP0 = old; pz.SUPPORT_OF_GAP = old_sog
     rows = [dict(label=g[0], model=str(g[1]), gap_b=float(g[2]), gap_t=float(g[3]), contact=bool(g[4]), single=bool(bl.is_single(g[0]))) for g in gaps]
     save(f"gap_trade_cases_{tag}.json", dict(gap=gap, flux=flux, table="fit", rows=rows, summary=bl.parse_summary(txt), seconds=time.time() - t0))
     s = bl.parse_summary(txt)

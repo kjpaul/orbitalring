@@ -31,7 +31,9 @@ def test_bean_slab_is_continuous_at_the_penetration_field():
 def test_hold_time_and_zone_at_30_km_per_s():
     t, L_on = r5.hold_time(30e3)
     assert abs(L_on - (30e3 * 0.05 + bd.L_SC + 2 * 25.0 + 2 * 30e3 * r5.TAU)) < 1e-6
-    assert abs(t - L_on / (30e3 + bd.V_REL)) < 1e-12
+    assert abs(t - L_on / 30e3) < 1e-12                           # round 9: a coil is on for the energized length over the sled's speed
+    tp, _ = r5.hold_time(30e3, frame="plate")
+    assert abs(tp - L_on / (30e3 + bd.V_REL)) < 1e-12             # the plate's dwell, still used for the plate's heat and the lead's section
     t2, L2 = r5.hold_time(30e3, tau=2e-3)
     assert L2 < L_on and t2 < t
 

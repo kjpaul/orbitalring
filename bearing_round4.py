@@ -337,13 +337,18 @@ def pull_track_of_u(u):
     return float(np.interp(u, xs, ys)), ("load" if u < u_orb else "lift")
 
 
-def hold_time(u, L_coil):
-    """The time one coil is energized in a pass at speed u (final_bearing C.2's energized length over the sweep speed)."""
+ON_TIME_FRAME = "casing"      # round 9 (2026-11-16): the coils are on the casing, where the load moves at u.  "plate" restores rounds 4 to 8
+
+
+def hold_time(u, L_coil, frame=None):
+    """The time one coil is energized in a pass at speed u: the energized length (final_bearing C.2) over the sled's speed.  The coil is on the
+    casing, so the zone passes it at u.  Rounds 4 to 8 divided by u + V_rel, which is the time a point of the PLATE spends in the zone (the plate
+    moves with the cable); frame="plate" gives that."""
     L_on = u * max(0.05, bd.L_SC / u) + bd.L_SC + 2 * L_coil + 2 * u * bd.TAU_HW
-    return L_on / (u + bd.V_REL)
+    return L_on / (u if (frame or ON_TIME_FRAME) == "casing" else u + bd.V_REL)
 
 
-def launch_integrals(r_lift, L_coil=L_FAST, n_fam=N_FAM):
+def launch_integrals(r_lift, L_coil=L_FAST, n_fam=N_FAM, frame=None):
     """Per launch, along the sled's run: the magnetic energy cycled through the pulsing pair's coils (J), and the full-current-equivalent
     lead seconds per metre of ring (sum over the pulsing coils of (I/I_full)^2 x hold time, per metre), from lsm_simulation's profile."""
     t_p, v_p, P_p = pz.lsm_profile()
@@ -356,11 +361,11 @@ def launch_integrals(r_lift, L_coil=L_FAST, n_fam=N_FAM):
             continue
         F, kind = pull_track_of_u(u)
         E_cycle += 2 * W_req * (F / F_req) * dx                     # both tracks of the pulsing pair, per metre of run
-        lead_s += (2 * n_fam / L_coil) * (F / F_req) * hold_time(u, L_coil) * dx   # I^2 ~ F: full-current seconds of the coils per metre
+        lead_s += (2 * n_fam / L_coil) * (F / F_req) * hold_time(u, L_coil, frame) * dx   # I^2 ~ F: full-current seconds of the coils per metre
         x_run += dx
     for uk in (1, 3, 5, 10, 20, 30):
         u = uk * 1e3; F, kind = pull_track_of_u(u)
-        per_u[uk] = dict(F=F, kind=kind, hold=hold_time(u, L_coil), frac=F / F_req)
+        per_u[uk] = dict(F=F, kind=kind, hold=hold_time(u, L_coil, frame), frac=F / F_req)
     return dict(E_cycle=E_cycle, lead_s=lead_s, x_run=x_run, per_u=per_u)
 
 
