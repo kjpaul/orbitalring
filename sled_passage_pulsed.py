@@ -73,6 +73,8 @@ W = sp.W_CASING                 # casing weight, N/m
 G_NET = sp.G_NET
 G0 = sp.G0_STD
 GAP0 = sp.GAP0                  # 0.100 m
+SUPPORT_OF_GAP = None           # (gaps, ratio) or None: in point_pulsed the support force is multiplied by ratio at the floor gap, the frozen support's
+                                # pull at constant flux (bearing_gap_trade.py, 2026-11-16); None leaves every earlier run as it was
 GAP_FORBIDDEN = sp.GAP_FORBIDDEN  # 0.020 m
 BAND = 0.020                    # the casing must stay within 100 +/- 20 mm of the cable
 BAND_STRICT = 0.010
@@ -448,6 +450,8 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
             # the coupling: the persistent support's ampere-turns fall by k x the load winding's, its force by 2k NI_l / NI_s, and NI_l goes as the
             # square root of the floor tracks' pull; the loop (if on) has already set Sj for this step, so the deficit is what the loop has not yet seen
             Sj = Sj * (1.0 - cpl_c * np.sqrt(np.minimum(F_hu / cpl_F, 4.0)))
+        if SUPPORT_OF_GAP is not None:
+            Sj = Sj * np.interp(gap_b, SUPPORT_OF_GAP[0], SUPPORT_OF_GAP[1])
         a_cas = (-W + Sj - q[:, j] - F_hd - F_pd + F_hu - F_lb + F_lt) / MU
         a_cab = np.where(cable_free, (W - Sj + F_hd + F_pd - F_hu + F_lb - F_lt) / MU_C, 0.0)
         v += a_cas * dt
