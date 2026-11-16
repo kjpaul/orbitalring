@@ -199,7 +199,8 @@ def is_single(label):
     return not any(s in label for s in SINGLE_EXCLUDE) and not label.startswith("2.")
 
 
-def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, rate=None, no_up=False, head="", bias=0.0, couple=None):
+def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, rate=None, no_up=False, head="", bias=0.0, couple=None, regulator=None,
+              roll_model=None):
     """final_bearing's Part B at the rise tau, the support loop on or frozen in every lane (point and beam), recording every point
     lane's support force history.  prot_all: the lanes that final_bearing runs without the 10 mm gap protection (the F.1 passages and
     tolerances, which lean on the 1 Hz support loop to arrest the drift after the pass) get it, at their own track rating, as the F.2
@@ -208,7 +209,15 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
     the up-pull caps of the planned pulse and of the protection set to zero.  Returns (all_gaps, records, text)."""
     import compensation_tracks as ct
     orig_point, orig_beam = pz.point_pulsed, pz.beam_pulsed
+    orig_roll = ct.roll_model
     records = []
+    # regulator (round 10): dict(rating=the tracks' rating over their full pull).  Every lane that had the 10 mm protection (or gets it by prot_all)
+    # has the continuous regulator instead (sled_passage_pulsed.regulator), with the tracks' ratings as its limits; roll_model replaces
+    # compensation_tracks.roll_model for the rows that carry the roll.
+
+    def to_reg(cap_up, cap_down, err):
+        k = regulator["rating"]
+        return pz.regulator(pz.MU, max(cap_up, cap_down, 1.0), k * cap_up, k * cap_down, sensor_err=err)
 
     def point_wrapped(lanes, u, tabs_, **kw):
         if freeze:
@@ -220,6 +229,11 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
                     cap_up = ln["hu_width"] * bd.P12 if ln.get("hu_width") else 2 * fb.F_LOAD_TRACK
                     cap_down = ln["hd_width"] * bd.P12 if ln.get("hd_width") else 2 * fb.F_LIFT_TRACK
                     ln["prot"] = ct.prot(0.010, 1e-3, cap_up=cap_up, cap_down=cap_down)
+        if regulator is not None:
+            for ln in lanes:
+                pr = ln.get("prot")
+                if pr is not None:
+                    ln["reg"] = to_reg(pr.get("cap_up", 0.0), pr.get("cap_down", 0.0), pr.get("sensor_err", 0.0) or ln.get("gap_err", 0.0)); ln["prot"] = None
         if rate is not None:
             for ln in lanes:
                 ln["steady_rate"] = rate
@@ -239,7 +253,9 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
                 ln["couple"] = (couple / 2, fb.F_LOAD_TRACK) if one else (couple, 2 * fb.F_LOAD_TRACK)
         res, hist = orig_point(lanes, u, tabs_, **kw)
         for i, (ln, r) in enumerate(zip(lanes, res)):
-            records.append((ln.get("label", "") or f"lane {i}", u, hist["t"], hist["S"][i].copy(), dict(exc=r["max_exc_all"], gap_b=r["min_gap_b"], gap_t=r["min_gap_t"], contact=r["contact"])))
+            records.append((ln.get("label", "") or f"lane {i}", u, hist["t"], hist["S"][i].copy(), dict(exc=r["max_exc_all"], gap_b=r["min_gap_b"], gap_t=r["min_gap_t"], contact=r["contact"],
+                                                                                              pk_fb=r.get("pk_fb", 0.0), J_abs=r.get("J_abs", 0.0), J_ff=r.get("J_ff", 0.0), pk_hd=r["pk_hd"], pk_hu=r["pk_hu"],
+                                                                                              err=float(np.abs(hist["w"][i] - hist["wc"][i] - hist["z_ref"][i]).max()) if "z_ref" in hist else float("nan"))))
         return res, hist
 
     def beam_wrapped(*args, **kw):
@@ -251,10 +267,15 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
             kw["prot"] = dict(kw["prot"], cap_up=0.0)
         if bias:
             kw["bias"] = bias
+        if regulator is not None and kw.get("prot") is not None:
+            pr = kw["prot"]
+            kw["prot"] = to_reg(pr.get("cap_up", 0.0), pr.get("cap_down", 0.0), pr.get("sensor_err", 0.0))
         return orig_beam(*args, **kw)
 
     tau0 = bd.TAU_HW, fb.TAU_HW
     pz.point_pulsed, pz.beam_pulsed = point_wrapped, beam_wrapped
+    if roll_model is not None:
+        ct.roll_model = roll_model
     bd.TAU_HW = tau; fb.TAU_HW = tau
     buf = io.StringIO()
     try:
@@ -262,6 +283,7 @@ def run_cases(tau, freeze, A, theva, sup, lift, tabs, log_name, prot_all=False, 
             gaps = fb.part_B(A, theva, sup, lift, tabs)
     finally:
         pz.point_pulsed, pz.beam_pulsed = orig_point, orig_beam
+        ct.roll_model = orig_roll
         bd.TAU_HW, fb.TAU_HW = tau0
     txt = buf.getvalue()
     with open(os.path.join(ring.out_dir(), log_name), "w", encoding="utf-8") as f:

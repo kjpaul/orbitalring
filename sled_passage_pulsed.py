@@ -139,6 +139,28 @@ def hr(t=""):
 # POINT MODEL
 # =============================================================================
 
+REG_DELAY = 1e-3        # s, the gap sensors' and the controller's delay (the protection's 1 ms)
+REG_SAMPLE = 1e-3       # s, the gap sensors' rate (1 kHz, Chapter 7)
+REG_WINDOW = 2e-3       # s, the rate is the difference of two readings this far apart
+REG_MARGIN_DEG = 60.0   # the phase margin the gains are set for
+REG_RISE = 10e-3        # s, a coil goes from zero to its full pull in this time at the supply's voltage
+
+
+def regulator(mass, F_full, cap_up, cap_down, sensor_err=0.0, rise=None):
+    """Round 10: the continuous gap regulator of the compensation coils, with its gains by rule.  The law, on the measured gap error z (positive: the
+    casing has moved up) and its rate: F = -m (om^2 z + 2 om dz/dt) - k_i integral(z), added to the planned pull; positive F goes to the load
+    track(s), negative to the lift track(s).  No dead band.  The gains: critically damped, with om set so that the loop keeps REG_MARGIN_DEG of phase
+    margin against its own dead time T_d = delay + sample / 2 + window / 2 (the plant is a mass, so the crossover is at 2.058 om and the lead there
+    is atan(2 x 2.058) = 76.3 degrees; om = (76.3 deg - margin) / (2.058 T_d)); the integral a decade slower, k_i = m om^3 / 10.  mass: the mass per
+    meter the loop moves (the casing's for a pair acting together, half of it for one side).  F_full: the pull the supply's rise is sized for; the
+    coils' current (the root of the pull) moves no faster than full in one rise time.  cap_up, cap_down: the tracks' ratings."""
+    T_d = REG_DELAY + REG_SAMPLE / 2 + REG_WINDOW / 2
+    x = math.sqrt(2 + math.sqrt(5))                    # crossover over om for the critically damped law on a mass
+    om = (math.atan(2 * x) - math.radians(REG_MARGIN_DEG)) / (x * T_d)
+    return dict(om=om, hz=om / (2 * math.pi), ki=mass * om**3 / 10.0, mass=mass, T_d=T_d, delay=REG_DELAY, sample=REG_SAMPLE, window=REG_WINDOW,
+                F_full=F_full, cap_up=cap_up, cap_down=cap_down, sensor_err=sensor_err, rise=rise or REG_RISE)
+
+
 def lane(**kw):
     """A parameter set for the point model, with defaults."""
     d = dict(L_sc=100.0, pos="front", tau=2e-3, L_section=50.0, pos_in_section=0.5, dt_err=0.0, mass_err=0.0,
@@ -162,6 +184,7 @@ def lane(**kw):
              couple=None)                     # (c, F_full): the load tracks' coupling to the persistent support beside them (round 6, 2026-11-14): while the
                                               # floor tracks pull F_hu the support force is multiplied by 1 - c sqrt(F_hu / F_full) (flux conservation,
                                               # the support's ampere-turns falling with the load winding's); c is dF/F at F_full, F_full the pull at full current
+    d["reg"] = None      # round 10: the continuous gap regulator in the compensation coils, a dict from regulator() (no dead band; see there)
     d.update(kw)
     return d
 
@@ -248,6 +271,7 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
 
     # per lane: sled load at the point, commanded pulsed force (up positive), steady force
     q = np.zeros((n, nt))
+    q_pred = np.zeros((n, nt))
     F_cmd = np.zeros((n, nt))
     S = np.full((n, nt), F_STEADY)
     F_ref_hd = np.ones(n)
@@ -276,6 +300,11 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         # what the feed-forward thinks the loads are (mass and speed errors)
         qz_ff = float(q_zone(u_assumed, L_sc, ln["M_sc"] * (1 + ln["mass_err"])))
         qb_ff = float(q_bare(u_assumed))
+        # round 10: what the controller expects the sled to do to the casing (its own speed, mass and timing), for the regulator's reference
+        tzp0, tzp1 = d_pos / u_assumed + ln["dt_err"], (d_pos + L_sc) / u_assumed + ln["dt_err"]
+        cz_p = np.clip((np.minimum(tzp1, t + dt) - np.maximum(tzp0, t)) / dt, 0.0, 1.0)
+        cs_p = np.clip((np.minimum(L_SLED / u_assumed + ln["dt_err"], t + dt) - np.maximum(ln["dt_err"], t)) / dt, 0.0, 1.0)
+        q_pred[i] = qz_ff * cz_p + qb_ff * (cs_p - cz_p) if ln["cancel"] else 0.0
         if ln["steady"] == "reduced":
             # steady track set to W - |q_bare| (clipped to its range) from 1 s before the sled to 1 s after, ramped
             S_low = min(max(W - abs(qb_ff), 0.0), F_STEADY_CAP) if qb_ff < 0 else min(W + qb_ff, F_STEADY_CAP)
@@ -366,6 +395,44 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         F_ref_hu = np.maximum(F_ref_hu, bias + F_ref_hu); F_ref_hd = np.maximum(F_ref_hd, bias + F_ref_hd)   # the references hold the bias plus the command
     engaged = np.zeros(n, dtype=bool)
     t_engaged = np.full(n, np.nan)
+    # round 10: the regulator (see regulator()).  Its lanes do not use the latched protection above.
+    regs = [ln.get("reg") for ln in lanes]
+    reg_on = np.array([r is not None for r in regs])
+    if reg_on.any():
+        r0 = next(r for r in regs if r is not None)
+        g = lambda key, dflt=0.0: np.array([(r or {}).get(key, dflt) for r in regs], dtype=float)
+        reg_om = g("om"); reg_ki = g("ki"); reg_err = g("sensor_err"); reg_full = g("F_full", 1.0)
+        reg_cap_up = g("cap_up"); reg_cap_dn = g("cap_down")
+        reg_delay = int(round(r0["delay"] / dt)); reg_ks = max(int(round(r0["sample"] / dt)), 1); reg_kw = max(int(round(r0["window"] / dt)), 1)
+        reg_rate = np.sqrt(reg_full) / g("rise", 1.0)            # the supply's voltage: the root of the pull moves no faster than full pull in one rise time
+        reg_s = np.zeros(n); reg_int = np.zeros(n); reg_F = np.zeros(n)
+        # the reference: the regulator holds the casing on the path the plan itself predicts (the planned pull moves the casing a few millimeters on
+        # purpose before the spacecraft arrives), from a model of two free masses with the planned pull and the expected sled load and nothing else
+        reg_zr = np.zeros(n); reg_vr = np.zeros(n); I_pl_hd = np.zeros(n); I_pl_hu = np.zeros(n)
+        reg_omr = reg_om / 10.0                                   # the reference is led back to zero a decade slower than the loop
+        # the plan trimmed: the boxes above are shaped for one coil's lag and then split among the staggered coils, which leaves the delivered
+        # impulse a few percent off what the plan means to give (the share MATCH of the expected sled impulse).  A controller that plans its own
+        # pull would not leave that, so in the regulator's lanes each face's command is scaled until its delivered impulse is the planned one.
+        lag0 = 1.0 - np.exp(-dt / np.array(taus))
+        for sgn in (+1.0, -1.0):
+            part = np.clip(sgn * F_cmd, 0, None)
+            I0 = np.zeros(n); Jd = np.zeros(n)
+            ref = np.maximum(part.max(axis=1), 1.0)
+            for jj in range(nt):
+                I0 += (np.sqrt(part[:, jj] / ref) - I0) * lag0
+                Jd += ref * I0**2 * dt
+            fm = np.array([({"ring": MATCH_RING, "casing": 1.0}.get(ln["match"], ln["match"]) if ln["cable_free"] or ln["match"] != "ring" else 1.0) for ln in lanes])
+            Jt = fm * np.clip(sgn * q_pred, 0, None).sum(axis=1) * dt
+            k = np.where(reg_on & (Jd > 1.0) & (Jt > 1.0), Jt / np.maximum(Jd, 1.0), 1.0)
+            F_cmd += sgn * part * (k - 1.0)[:, None]
+            for i in range(n):
+                if regs[i] is not None:
+                    lanes[i]["_plan_trim_" + ("up" if sgn > 0 else "down")] = float(k[i])
+        F_ref_hd = np.where(reg_on, np.maximum(-F_cmd.min(axis=1), 1.0), F_ref_hd); F_ref_hu = np.where(reg_on, np.maximum(F_cmd.max(axis=1), 1.0), F_ref_hu)
+        err_buf = np.zeros((n, reg_delay + reg_kw + 2))
+        for i, r in enumerate(regs):
+            if r is not None:
+                cap_hu[i] = r["cap_up"]; cap_hd[i] = r["cap_down"]
     k_win = max(int(round(PROT_V_WINDOW / dt)), int(prot_delay.max()), 1)   # velocity estimate over at least the sensor delay
     n_buf = int(prot_delay.max()) + k_win + 2
     rel_buf = np.zeros((n, n_buf))
@@ -405,10 +472,20 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
     J_hd = np.zeros(n)
     J_hu = np.zeros(n)
     contact = np.zeros(n, dtype=bool)
-    hist = dict(t=t, w=np.zeros((n, nt)), wc=np.zeros((n, nt)), F=np.zeros((n, nt)), S=np.zeros((n, nt)), q=q)   # S: the support force history (2026-11-12)
+    hist = dict(t=t, w=np.zeros((n, nt)), wc=np.zeros((n, nt)), F=np.zeros((n, nt)), S=np.zeros((n, nt)), q=q,   # S: the support force history (2026-11-12)
+                F_cmd=F_cmd, S_base=S, q_pred=q_pred, z_ref=np.zeros((n, nt)), F_fb=np.zeros((n, nt)), F_ff=np.zeros((n, nt)))                               # round 10: the planned command, the base support, the regulator's part
+    J_abs = np.zeros(n); J_ff = np.zeros(n); pk_fb = np.zeros(n)
 
     for j in range(nt):
         cmd = F_cmd[:, j].copy()
+        if reg_on.any():
+            pl = F_cmd[:, j]
+            I_pl_hd += (np.sqrt(np.clip(-pl, 0, None) / F_ref_hd) - I_pl_hd) * lag_step
+            I_pl_hu += (np.sqrt(np.clip(pl, 0, None) / F_ref_hu) - I_pl_hu) * lag_step
+            F_plan = F_ref_hu * I_pl_hu**2 - F_ref_hd * I_pl_hd**2
+            reg_vr += ((-q_pred[:, j] + F_plan) / MU + np.where(cable_free, F_plan / MU_C, 0.0) - 2 * reg_omr * reg_vr - reg_omr**2 * reg_zr) * dt
+            reg_zr += reg_vr * dt
+            err_buf = np.roll(err_buf, 1, axis=1); err_buf[:, 0] = (w - wc) - reg_zr
         if prot_on.any():
             # the sensors see the casing-to-cable offset with a delay and an error; once a face's gap has closed by the
             # trigger the compensation tracks run a position loop (critically damped at prot hz) plus the weight the
@@ -440,12 +517,32 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         rel = w - wc
         gap_t = GAP0 + rel
         gap_b = GAP0 - rel
+        if reg_on.any():
+            # the regulator: every sample it reads the gap (delayed, with its error) and its rate over the window, and sets the pull it wants on top of
+            # the planned pull; the coils follow at the supply's rate.  One signed state per lane: positive is the load tracks, negative the lift tracks.
+            if j % reg_ks == 0 and j >= reg_delay + reg_kw:
+                z = err_buf[:, reg_delay] + reg_err
+                zd = (err_buf[:, reg_delay] - err_buf[:, reg_delay + reg_kw]) / (reg_kw * dt)
+                sat = (np.abs(reg_F) >= np.where(reg_F > 0, reg_cap_up, reg_cap_dn) - 1.0)
+                reg_int += np.where(sat, 0.0, z * reg_ks * dt)
+                reg_F = np.where(reg_on, -MU * (reg_om**2 * z + 2 * reg_om * zd) - reg_ki * reg_int, 0.0)
+            F_ff_now = F_ref_hu * I_hu**2 - F_ref_hd * I_hd**2
+            c = np.clip(F_ff_now + reg_F, -reg_cap_dn, reg_cap_up)
+            s_t = np.sign(c) * np.sqrt(np.abs(c))
+            reg_s = np.where(reg_on, reg_s + np.clip(s_t - reg_s, -reg_rate * dt, reg_rate * dt), 0.0)
         # open loop: force goes as 1/gap^2; regulated: the current is set for the measured gap (true gap plus sensor error)
         fac_t = np.where(gap_dep, (GAP0 / np.maximum(gap_t, 1e-3)) ** 2, ((gap_t + gap_err) / np.maximum(gap_t, 1e-3)) ** 2)
         fac_b = np.where(gap_dep, (GAP0 / np.maximum(gap_b, 1e-3)) ** 2, ((gap_b + gap_err) / np.maximum(gap_b, 1e-3)) ** 2)
         F_hd = np.minimum(F_ref_hd * I_hd**2 * (1 - push_share) * fac_t, cap_hd)      # pulls casing down, cable up
         F_pd = F_ref_hd * I_hd**2 * push_share * np.exp(np.minimum(push_k * rel, 5.0))  # push-down, stable with the gap
         F_hu = np.minimum(F_ref_hu * I_hu**2 * fac_b, cap_hu)                          # pulls casing up, cable down
+        if reg_on.any():
+            F_hd = np.where(reg_on, np.minimum(np.clip(-reg_s, 0, None)**2 * fac_t, cap_hd), F_hd)
+            F_hu = np.where(reg_on, np.minimum(np.clip(reg_s, 0, None)**2 * fac_b, cap_hu), F_hu)
+            F_pd = np.where(reg_on, 0.0, F_pd)
+            hist["F_fb"][:, j] = (F_hu - F_hd) - F_ff_now; hist["F_ff"][:, j] = F_ff_now; hist["z_ref"][:, j] = reg_zr
+            J_abs += (F_hu + F_hd) * dt; J_ff += np.abs(F_ff_now) * dt
+            np.maximum(pk_fb, np.abs((F_hu - F_hd) - F_ff_now), out=pk_fb)
         F_lb = F0 * np.exp(-k2 * np.maximum(gap_b, 0.0))
         F_lt = F0 * np.exp(-k2 * np.maximum(gap_t, 0.0))
         Sj = S[:, j]
@@ -507,7 +604,7 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
                         t_20=(BAND / abs(v[i] - vc[i]) if abs(v[i] - vc[i]) > 1e-9 else float('inf')),
                         pk_lim=float(pk_lim[i]), pk_hd=float(pk_hd[i]), pk_hu=float(pk_hu[i]),
                         J_hd=float(J_hd[i]), J_hu=float(J_hu[i]), J_sled=float(J_sled[i]), contact=bool(contact[i]),
-                        t_engaged=float(t_engaged[i]), engaged=bool(engaged[i]),
+                        t_engaged=float(t_engaged[i]), engaged=bool(engaged[i]), J_abs=float(J_abs[i]), J_ff=float(J_ff[i]), pk_fb=float(pk_fb[i]),
                         ok_band=bool(max_exc_pass[i] <= BAND and pk_lim[i] < 1e3), ok_strict=bool(max_exc_pass[i] <= BAND_STRICT),
                         dt=dt))
     return out, hist
@@ -685,6 +782,14 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
     I_bu = np.full((n, N), math.sqrt(bias / F_ref_bias)) if bias else None; I_bd = I_bu.copy() if bias else None
     t_eng = np.full(n, np.nan)
     rel_meas_prev = np.zeros((n, N))
+    # round 10: prot may be a regulator() dict (it has the key "om"): the continuous regulator on every node, about the path the plan predicts
+    reg = prot if (prot_on and "om" in prot) else None
+    if reg is not None:
+        p_trig = -1.0; p_delay = int(round(reg["delay"] / dt)); p_err = reg.get("sensor_err", 0.0)
+        k_win = max(int(round(reg["window"] / dt)), 1); n_buf = p_delay + k_win + 2
+        rel_buf = np.zeros((n_buf, n, N))
+        zr = np.zeros((n, N)); vr = np.zeros((n, N)); r_int = np.zeros((n, N)); omr = reg["om"] / 10.0
+        r_rate = math.sqrt(reg["F_full"] / F_ref_prot) / reg["rise"]
 
     T_c = sp.T_CABLE
     snapshot = None
@@ -741,7 +846,26 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
         S_fail = (t >= t_fail_lane)                  # (n, 1) lanes whose support tracks are gone
         if prot_on or any(fp is not None for fp in false_pull):
             F_extra = np.zeros((n, N))
-            if prot_on:
+            if reg is not None:
+                # the reference path: two free masses per node under the planned pull as the coils deliver it and the sled load the plan expects
+                F_pl = F_on_casing
+                q_exp = q[None, :] * np.repeat(1.0 - no_pulse.astype(float), n_s)[:, None]     # a case with no planned pull expects no sled
+                vr += ((-q_exp + F_pl) / MU + F_pl / MU_C - 2 * omr * vr - omr**2 * zr) * dt
+                zr += vr * dt
+                rel_buf[j % n_buf] = rel - zr
+                e_d = rel_buf[(j - p_delay) % n_buf]; e_dw = rel_buf[(j - p_delay - k_win) % n_buf]
+                if m_avg > 0:
+                    e_d = np.array([np.convolve(np.pad(r, m_avg, mode="edge"), ker, mode="valid") for r in e_d])
+                    e_dw = np.array([np.convolve(np.pad(r, m_avg, mode="edge"), ker, mode="valid") for r in e_dw])
+                e_m = e_d + p_err
+                e_v = (e_d - e_dw) / (k_win * dt) if j >= p_delay + k_win else np.zeros((n, N))
+                F_des = -MU * (reg["om"]**2 * e_m + 2 * reg["om"] * e_v) - reg["ki"] * r_int
+                sat = (F_des >= p_cap_up) | (F_des <= -p_cap_dn)
+                r_int += np.where(sat, 0.0, e_m * dt)
+                F_extra += np.clip(F_des, -p_cap_dn, p_cap_up)
+                if np.isnan(t_eng).any():
+                    t_eng[:] = t
+            elif prot_on:
                 rel_buf[j % n_buf] = rel
                 rel_d = rel_buf[(j - p_delay) % n_buf]
                 rel_dw = rel_buf[(j - p_delay - k_win) % n_buf]
@@ -770,7 +894,10 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
                 F_on_casing = F_on_casing + F_ref_bias * (I_bu**2 - I_bd**2)
             else:
                 I_cmd_p = np.sign(F_extra) * np.sqrt(np.abs(F_extra) / F_ref_prot)
-                I_prot += (I_cmd_p - I_prot) * lag_step
+                if reg is not None:
+                    I_prot += np.clip(I_cmd_p - I_prot, -r_rate * dt, r_rate * dt)      # the supply's rate, not a lag
+                else:
+                    I_prot += (I_cmd_p - I_prot) * lag_step
                 F_on_casing = F_on_casing + np.sign(I_prot) * F_ref_prot * I_prot**2
         if snap and (snapshot is None) and t >= t_snap:
             snapshot = dict(x=x - x[N // 2], rel=(w - wc).copy(), F=F_on_casing.copy())

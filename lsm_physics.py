@@ -392,6 +392,10 @@ def calc_hysteresis_power(f_supply, I_stator, params, n_units):
     # Tape geometry per layer
     coil_depth = n_turns * 0.15e-3          # winding depth (m)
     turn_perimeter = 2.0 * (w_coil + coil_depth)
+    # Round 10 (2026-11-17), switchable: params['turn_length_model'] = 'full_pitch' counts the turn of the coil that
+    # calc_EMF assumes, 2 (tau_p + w_coil).  The default (key absent) is the count above, unchanged.
+    if params.get('turn_length_model') == 'full_pitch':
+        turn_perimeter = 2.0 * (tau_p + w_coil)
     L_tape_per_layer = n_turns * turn_perimeter
 
     # Gömöry loss per meter of tape per cycle (J/m/cycle)
@@ -433,3 +437,40 @@ def calc_radiator_width(P_hts_total, L_stator_active):
     q_rad = epsilon * sigma * T_rad**4   # W/m² per side
     # Two-sided radiator:
     return P_hts_total / (2.0 * q_rad * L_stator_active)
+
+
+# =============================================================================
+# ROUND 10 ADDITIONS (2026-11-17): THE FULL-PITCH STATOR COIL
+#
+# Nothing above this line is changed in its default behavior.  The three
+# functions below, and the optional key 'turn_length_model' read by
+# calc_hysteresis_power, describe the coil that calc_EMF's own derivation
+# assumes: N turns around a rectangle one pole pitch long and w_coil wide.
+# They are used by tools/round10_stator.py and by nothing else.
+# =============================================================================
+
+def calc_turn_length_full_pitch(tau_p, w_coil):
+    """Length of one turn of the coil of calc_EMF (m): two sides of w_coil
+    across the track and two runs of one pole pitch along it."""
+    return 2.0 * (tau_p + w_coil)
+
+
+def calc_thrust_full_pitch(N, I, B_sled, w_coil, delta, n_coils):
+    """Thrust of n_coils full-pitch coils in balanced three-phase drive (N).
+
+    Each coil has two sides of length w_coil, one pole pitch apart, with N
+    conductors each.  The sled's field is B_sled sin(pi x / tau_p), so the two
+    sides sit in equal and opposite fields and carry opposite currents: the
+    force on one coil is 2 N i(t) B(t) w_coil.  With i and B both sinusoidal in
+    time its mean is N I B_sled w_coil sin(delta), delta being the load angle
+    of calc_thrust (90 degrees is the pull-out).  The sum over a balanced
+    three-phase set is steady at that mean per coil.  The same figure follows
+    from calc_EMF: F v = (1/2) EMF_peak I sin(delta) per coil.
+    """
+    return n_coils * N * I * B_sled * w_coil * math.sin(delta)
+
+
+def calc_power_limit_full_pitch(V_limit, I, delta, n_coils):
+    """Mechanical power of n_coils coils held at the back-EMF limit (W):
+    (1/2) V_limit I sin(delta) per coil, whatever N, B_sled and w_coil are."""
+    return n_coils * 0.5 * V_limit * I * math.sin(delta)
