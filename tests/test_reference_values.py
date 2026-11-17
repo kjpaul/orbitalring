@@ -95,6 +95,8 @@ FAST = [
     ("lsm_chapter_metrics", ["tools/lsm_chapter_metrics.py"], {}),
     ("lsm_n_optimization", ["tools/lsm_n_optimization_demo.py"], {}),
     ("lsm_simulation", ["lsm_simulation.py"], {}),
+    # round 13: the 130 m stator of the earlier Table 9.6 behind its switch must print what the script printed before
+    ("lsm_simulation_table96", ["lsm_simulation.py"], {"ORBITAL_RING_LSM_STATOR": "table96"}),
     ("md_simulation", ["md_simulation.py", "--no-graphs"], {}),
     ("md_trade_study", ["md_trade_study.py"], {}),
     ("debris_simulation", ["debris_simulation.py"], {}),
@@ -106,6 +108,34 @@ FAST = [
 @pytest.mark.parametrize("name,args,env", FAST, ids=[f[0] for f in FAST])
 def test_fast_simulation(name, args, env):
     assert_lines_present(run_script(args, env), name)
+
+
+def test_lsm_ruled_stator_is_the_default():
+    """Round 13: lsm_config's default is the stator ruled on 2026-11-17 (6 m, 17 turns, 2,088 A, 14,190 coils), and it
+    gives the launch's thrust and power; the voltages are those of round 12's final stator."""
+    import math
+    import lsm_config as cfg
+    import lsm_physics as phys
+    assert cfg.STATOR == "ruled"
+    assert (cfg.TAU_P, cfg.N_STATOR, cfg.N_HTS_LAYERS, cfg.TAPE_WIDTH_MM, cfg.ALPHA_SLED, cfg.V_CORNER) == (6.0, 17, 30, 3.0, 0.4, 5000.0)
+    assert cfg.I_PEAK == pytest.approx(2087.6, abs=0.05)                                    # A
+    assert cfg.A_ACTIVE_TOTAL == pytest.approx(39_000.0, abs=1e-6)                          # m^2
+    assert cfg.N_LIM_SIDES * 3 * cfg.COILS_Q * cfg.N_UNITS == pytest.approx(14_190, abs=0.5)   # coils facing the sled
+    K1 = phys.calc_sheet_current_full_pitch(cfg.N_STATOR, cfg.I_PEAK, cfg.COILS_Q, cfg.TAU_P, cfg.K_W)
+    assert K1 == pytest.approx(49_323, abs=0.5)                                             # A/m
+    F = phys.calc_thrust_current_sheet(K1, cfg.B_SLED_NOMINAL, cfg.DELTA_MAX, cfg.A_ACTIVE_TOTAL)
+    assert F / 1e6 == pytest.approx(83.294, abs=0.0005)                                     # MN
+    assert F * cfg.V_CORNER / 1e9 == pytest.approx(416.47, abs=0.005)                       # GW
+    # the coil at 5 km/s and at 30 km/s: back-EMF, inductive voltage, terminal voltage (kV)
+    for v, e_ref, x_ref, v_ref in ((5000.0, 32.47, 18.39, 28.20), (30000.0, 95.14, 37.66, 82.98)):
+        s = cfg.V_CORNER / v
+        E = phys.calc_EMF(cfg.N_STATOR, v, cfg.B_SLED_NOMINAL * s**cfg.ALPHA_SLED, cfg.W_COIL, cfg.K_W)
+        X = 2 * math.pi * v / (2 * cfg.TAU_P) * cfg.L_COIL * cfg.I_PEAK * s**(1 - cfg.ALPHA_SLED)
+        assert E / 1e3 == pytest.approx(e_ref, abs=0.005)
+        assert X / 1e3 == pytest.approx(x_ref, abs=0.005)
+        assert phys.calc_coil_voltage(E, X, cfg.DELTA_MAX) / 1e3 == pytest.approx(v_ref, abs=0.005)
+    # the default formula of calc_EMF is the old one
+    assert phys.calc_EMF(50, 5000.0, 0.10, 2.0) == pytest.approx(100_000.0, rel=1e-12)
 
 
 # ---------------------------------------------------------------- 3. the slow simulations, from the reader's own run

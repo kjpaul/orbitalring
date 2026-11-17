@@ -88,7 +88,7 @@ The bearing has four tracks of air-core superconducting coils: two support track
 
 | Script | What it prints | Chapter |
 |---|---|---|
-| `lsm_simulation.py` | linear synchronous motor mass driver: the casing carries the stator coils and the sled carries DC superconducting magnets; laps, time, power and acceleration to the launch speed (log `lsm_simulation.txt`; manual in `docs/LSM_README.md`) | 10 |
+| `lsm_simulation.py` | linear synchronous motor mass driver: the casing carries the stator coils and the sled carries DC superconducting magnets; laps, time, power and acceleration to the launch speed (log `lsm_simulation.txt`; manual in `docs/LSM_README.md`). Since 2026-11-17 the default stator is the ruled 6 m one (17 turns, 2,088 A, 14,190 coils facing the sled; above 5 km/s the power is held by lowering the sled's field and the coil current together; the heat in the stator's tape from the table `data/lsm_stator_ruled.json`, written by `tools/round13_stator_table.py`). `ORBITAL_RING_LSM_STATOR=table96` or `--stator=table96` gives the 130 m stator of the earlier Table 9.6 and the earlier printout | 10 |
 | `md_simulation.py --no-graphs` | four-stage linear induction mass driver, eddy current model (log `md_simulation.txt`) | 10 |
 | `md_trade_study.py` | the induction driver's payload against length, plate and thermal margin, with figures (log `md_trade_study.txt`) | 10 |
 | `power_simulation.py` | solar generation on the ring and the suspended array, HVDC distribution, deployment and operations demand (logs `power_*.txt`) | 8, 12 |
@@ -128,7 +128,7 @@ The bearing has four tracks of air-core superconducting coils: two support track
 | `tools/fig09_01_traveling_wave.py`, `tools/fig09_02_load_angle.py` | Figures 9.1 and 9.2, in `runs/figures_ch09/` | 9 |
 | `tools/numbers_700_hand.py` | hand calculations that check quoted numbers (Table 2.1, horizon, array shading) | 2, 3, 4, 11, 12 |
 | `tools/number_sheet_hw10686.py` | the number sheet of the cable hardware change, from two folders of logs | the renumbering pass |
-| `tools/lsm_chapter_metrics.py`, `tools/lsm_n_optimization_demo.py` | energies and cryogenic loads of the launch; why a fixed stator turn count is best (logs `lsm_chapter_metrics.txt`, `lsm_n_optimization.txt`) | 10 |
+| `tools/lsm_chapter_metrics.py`, `tools/lsm_n_optimization_demo.py` | energies and cryogenic loads of the launch on the ruled stator, with the heat in the stator's tape; why a fixed stator turn count was best on the 130 m stator (logs `lsm_chapter_metrics.txt`, `lsm_n_optimization.txt`) | 10 |
 | `tools/make_bifacial_24hr_graph.py`, `tools/make_solar_hammock_plots.py` | the solar panel and suspended array figures, in `runs/graphs_power/` | 8, 12 |
 | `tools/sled_passage_config_table.py` | the configuration table of the sled passage problem | review only |
 | `tools/graph_plate_thickness_vs_thrust.py`, `tools/hts_coil_inductance_analysis.py` | thrust against plate thickness; HTS coil inductance with eddy currents | 9 (not named by the chapter) |

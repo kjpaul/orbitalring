@@ -7,15 +7,18 @@ Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the r
 
 Compute chapter metrics from baseline LSM simulation results.
 
-Baseline: N=50 stator turns, tau_p=130 m, 5-layer HTS (I_PEAK=2107 A),
-525 kg/m sled, 10 km, 5000t payload, P_HVDC_MAX=666 GW.
+Baseline (since round 13, 2026-11-17): the ruled stator of lsm_config.py, 6 m pole pitch, N=17 turns of 30 layers
+of 3 mm tape (I_PEAK=2088 A), 14,190 coils facing the sled; 525 kg/m sled, 10 km, 5000t payload.  The launch
+itself is what it was (83.29 MN, 416.47 GW, 189.7 min, 222,015.5 km).  The stator's heat is from the default run of
+lsm_simulation.py (runs/round13_logs/round13_stator_default_after.txt).  Before round 13 this script held the 130 m
+stator (N=50, 5 layers of 12 mm tape, 2107 A; 114.70 kW and 8.488e8 J of hysteresis on the 2025 loss factor).
 """
 import os as _os, sys as _sys
 _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))   # the repository root, for the imports below
 import math
 
 # =============================================================================
-# BASELINE SIMULATION RESULTS (N=50, tau_p=130, 5-layer HTS, 525 kg/m)
+# BASELINE SIMULATION RESULTS (the ruled stator: N=17, tau_p=6 m, 30 layers of 3 mm tape, 525 kg/m)
 # =============================================================================
 
 V_FINAL = 30_000.0          # m/s
@@ -31,7 +34,7 @@ M_SLED_HW = M_SLED_PER_M * L_SLED  # 5,250,000 kg
 M_SPACECRAFT = 5_000_000    # kg
 M_TOTAL = M_SLED_HW + M_SPACECRAFT  # 10,250,000 kg
 
-F_PEAK = 83.29e6            # N — thrust-limited at delta=60 deg, I_PEAK=2107 A
+F_PEAK = 83.29e6            # N — thrust-limited at delta=60 deg, I_PEAK=2088 A
 P_PEAK = 416.47e9           # W (constant power phase)
 G_0 = 9.807
 
@@ -39,19 +42,23 @@ G_0 = 9.807
 A_NOM = F_PEAK / M_TOTAL    # 8.126 m/s^2 = 0.829 g
 G_NOM = A_NOM / G_0
 
-# Voltage crossover: EMF = V_max at v = V_max / (2*N*B_sled*w_coil)
-# = 100,000 / (2*50*0.10*2.0) = 5,000 m/s
+# Corner speed: above it the power is held at the rating of the stator and its supply (F_PEAK x 5 km/s) by lowering
+# the sled's field as (5 km/s / v)^0.4 and the coil current as (5 km/s / v)^0.6.  The back-EMF there is 32.5 kV
+# (2 x 0.955 x 17 x 5,000 x 0.10 x 2.0); the terminal voltage reaches 83.0 kV at 30 km/s.
 V_CROSSOVER = 5_000         # m/s
 
-# HTS hysteresis (from simulation at N=50, 5-layer)
-P_HTS_PEAK = 114.70e3       # W (114.70 kW)
-E_HTS_TOTAL = 8.488e8       # J (235.8 kWh)
+# Heat in the stator's tape (from the default run of lsm_simulation.py: strip-model hysteresis, eddy loss in the
+# tape's metal, soldered layers)
+P_HTS_PEAK = 672.56e6       # W, at the corner speed (672.6 MW over the 20 sites the sled covers, 33,628 kW each)
+E_HTS_TOTAL = 5.734e12      # J per launch
+E_HTS_HYST, E_HTS_EDDY, E_HTS_SOLD = 5.559e12, 1.013e11, 7.454e10
+V_COIL_PEAK, EMF_PEAK, F_SUPPLY_PEAK = 83.0e3, 95.1e3, 2500.0
 
 # HVDC power limit
 P_HVDC_MAX = round(L_RING / 500.0) * 8e6           # W — not reached (416 GW < 666 GW)
 
 print("=" * 76)
-print("LSM CHAPTER METRICS (N=50, 5-layer HTS, 525 kg/m, 10 km, 5000t)")
+print("LSM CHAPTER METRICS (ruled stator: 6 m, N=17, 30 layers of 3 mm tape; 525 kg/m, 10 km, 5000t)")
 print("=" * 76)
 
 # =============================================================================
@@ -63,10 +70,12 @@ print(f"   Final velocity:          {V_FINAL/1000:.1f} km/s")
 print(f"   Total launch time:       {T_LAUNCH/60:.1f} min  ({T_LAUNCH/3600:.2f} hr)")
 print(f"   Distance traveled:       {DIST/1000:.1f} km")
 print(f"   Ring circumferences:     {N_LAPS:.1f}")
-print(f"   Peak thrust:             {F_PEAK/1e6:.2f} MN  (delta_max=60 deg, I_peak=2107 A)")
+print(f"   Peak thrust:             {F_PEAK/1e6:.2f} MN  (delta_max=60 deg, I_peak=2088 A)")
 print(f"   Tangential acceleration: {A_NOM:.3f} m/s^2  ({G_NOM:.3f} g)")
 print(f"   Peak power:              {P_PEAK/1e9:.2f} GW")
-print(f"   Voltage crossover:       {V_CROSSOVER/1000:.0f} km/s")
+print(f"   Power limit from:        {V_CROSSOVER/1000:.0f} km/s")
+print(f"   Peak supply frequency:   {F_SUPPLY_PEAK:.0f} Hz")
+print(f"   Peak coil voltage:       {V_COIL_PEAK/1e3:.1f} kV at the terminals  (back-EMF {EMF_PEAK/1e3:.1f} kV)")
 print(f"   HVDC power limit:        {P_HVDC_MAX/1e9:.0f} GW (not reached)")
 print(f"   Total KE:                {0.5*M_TOTAL*V_FINAL**2/1e12:.1f} TJ")
 print(f"   Payload KE:              {0.5*M_SPACECRAFT*V_FINAL**2/1e12:.1f} TJ")
@@ -88,7 +97,10 @@ print("\n2. PER 500 m STATOR SITE")
 print(f"   Active sites (simultaneous): {N_SITES_ACTIVE:.0f}")
 print(f"   Peak thrust per site:        {F_PER_SITE/1e6:.3f} MN  ({F_PER_SITE/1e3:.0f} kN)")
 print(f"   Peak power per site:         {P_PER_SITE/1e9:.2f} GW")
-print(f"   Peak HTS hysteresis/site:    {P_HTS_PER_SITE/1000:.2f} kW")
+print(f"   Peak stator tape heat/site:  {P_HTS_PER_SITE/1000:,.0f} kW  (at {V_CROSSOVER/1000:.0f} km/s, for {L_SLED/V_CROSSOVER:.0f} s)")
+print(f"   Stator tape heat per launch: {E_HTS_TOTAL:.3e} J  ({E_HTS_TOTAL/(0.5*M_TOTAL*V_FINAL**2)*100:.3f}% of the launch's energy)")
+print(f"     hysteresis / eddy / soldered layers: {E_HTS_HYST:.3e} / {E_HTS_EDDY:.3e} / {E_HTS_SOLD:.3e} J")
+print(f"   Mean per site per launch:    {E_HTS_TOTAL/round(L_RING/SITE_LENGTH)/1e6:.1f} MJ  ({round(L_RING/SITE_LENGTH):,} sites)")
 print(f"   Recovery time (final v):     {T_RECOVERY:.0f} s  ({T_RECOVERY/60:.1f} min)")
 print(f"   Total passes per site:       {N_LAPS:.1f}")
 print(f"   Exposure per pass (final v): {L_SLED/V_FINAL:.2f} s")
@@ -147,7 +159,7 @@ print(f"   Reservoir margin:            {M_LN2_RESERVOIR/M_LN2_BOILED:.0f}x boil
 # 5. PER-METER THRUST AND STRUCTURAL LOADING
 # =============================================================================
 
-# At peak thrust (83.29 MN, before voltage crossover)
+# At peak thrust (83.29 MN, below the corner speed)
 f_per_m = F_PEAK / L_SLED
 a_sled = F_PEAK / M_TOTAL
 f_inertia_per_m = M_SLED_PER_M * a_sled
@@ -166,7 +178,7 @@ print(f"   Surplus fraction:            {f_surplus_per_m/f_per_m*100:.1f}%  (= p
 print(f"   Peak frame tension:          {T_frame_peak/1e6:.2f} MN  (at spacecraft attachment)")
 print(f"   (check: M_sc x a =           {F_spacecraft_check/1e6:.2f} MN)")
 
-# After voltage crossover
+# Above the corner speed
 F_FINAL = 14.26e6  # from sim at v~29.2 km/s (last report line)
 a_final = F_FINAL / M_TOTAL
 f_per_m_final = F_FINAL / L_SLED
@@ -174,7 +186,7 @@ f_inertia_final = M_SLED_PER_M * a_final
 f_surplus_final = f_per_m_final - f_inertia_final
 T_frame_final = f_surplus_final * L_SLED
 
-print(f"\n   At end of launch (~30 km/s, voltage-limited):")
+print(f"\n   At end of launch (~30 km/s, power-limited):")
 print(f"   Thrust (total):              {F_FINAL/1e6:.2f} MN")
 print(f"   Sled acceleration:           {a_final:.3f} m/s^2  ({a_final/G_0:.3f} g)")
 print(f"   Thrust per metre:            {f_per_m_final:.1f} N/m")

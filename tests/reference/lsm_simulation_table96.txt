@@ -1,0 +1,16 @@
+  Pole pitch:             130.0 m
+  Stator turns:           50
+Final velocity:       30,000.1 m/s
+Total time:           189.7 minutes (3.16 hours)
+Distance traveled:    222,015.5 km
+Fraction of ring:     499.2%
+Peak thrust:          83.29 MN
+Peak power:           416.47 GW
+Peak frequency:       115.4 Hz
+Peak voltage:         100.0 kV
+Peak current:         2106.6 A
+Peak g-load:          12.155 g
+Total HTS hysteresis: 8.488e+08 J  (235.8 kWh)
+Peak HTS hysteresis:  114.70 kW
+Peak radiator width:  1.1526 m
+Voltage limited:      True

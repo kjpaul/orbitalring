@@ -83,8 +83,12 @@ def calc_B_stator(I, N, w_coil, g_gap):
 # BACK-EMF AND VOLTAGE
 # =============================================================================
 
-def calc_EMF(N, v, B_sled, w_coil):
+def calc_EMF(N, v, B_sled, w_coil, k_w=1.0):
     """Calculate back-EMF per stator coil from moving sled field.
+
+    k_w is the winding factor (round 13): 1 for a coil whose sides are bunched,
+    3/pi for coil sides spread evenly over their 60 degree belts, as in the
+    ruled stator.  The default leaves the formula as it was.
 
     Derivation from Faraday's law:
       Each stator coil spans one pole pitch τ_p with N turns and width w_coil.
@@ -107,7 +111,7 @@ def calc_EMF(N, v, B_sled, w_coil):
     Returns:
         Back-EMF per coil (V)
     """
-    return 2.0 * N * v * B_sled * w_coil
+    return 2.0 * k_w * N * v * B_sled * w_coil
 
 
 def calc_max_B_sled_for_voltage(V_limit, N, v, w_coil):
@@ -529,3 +533,56 @@ def calc_thrust_switch(I, B_sled, delta, params):
                                            params['tau_p'], params.get('winding_factor', 1.0))
         return calc_thrust_current_sheet(K1, B_sled, delta, params['a_active_total'])
     return calc_thrust(calc_B_stator(I, params['n_stator'], params['w_coil'], params['g_gap']), B_sled, delta, params['a_active_total'])
+
+
+# =============================================================================
+# ROUND 13 ADDITIONS (2026-11-17): THE HEAT OF THE RULED STATOR
+#
+# The ruled stator's tape-by-tape loss model (tools/round11_stator_model.py,
+# tools/round12_stator_model.py) is run once by tools/round13_stator_table.py.
+# The simulation reads its table (data/lsm_stator_ruled.json) through
+# lsm_config.STATOR_TABLE and calls the function below at every step.
+# =============================================================================
+
+def calc_stator_heat_strip(v, table, active_length, n_sides):
+    """Heat in the ruled stator's tape at sled speed v (W), for the whole stator under the sled.
+
+    The table holds, per meter of track of one side and per cycle, the
+    hysteresis on the strip model (Brandt and Indenbom for the field through
+    each tape's face, Norris for the transport current) and the loss of the
+    soldered layers (the bearing's slab model), and the tape length times the
+    mean square field through the tapes' faces, at values of
+    s = v_corner / v along the ruled split of the sled's field and the coil
+    current.  Below the corner speed s = 1.  The eddy loss in the tape's metal
+    is pi^2 f^2 w^3 G b2 / 6 per meter of track, G the sheet conductance of the
+    tape's metal.
+
+    Args:
+        v: Sled speed over the casing (m/s)
+        table: lsm_config.STATOR_TABLE
+        active_length: Length of stator facing the sled on one side (m)
+        n_sides: Sides of the stator
+
+    Returns:
+        (hysteresis, eddy, soldered) in W
+    """
+    if v <= 0:
+        return (0.0, 0.0, 0.0)
+    s_tab = table['s']
+    s = min(1.0, table['v_corner'] / v)
+    s = max(s, s_tab[0])
+    # log-log interpolation along the table (it runs from the smallest s to 1)
+    k = 0
+    while k < len(s_tab) - 2 and s > s_tab[k + 1]:
+        k += 1
+    t = (math.log(s) - math.log(s_tab[k])) / (math.log(s_tab[k + 1]) - math.log(s_tab[k]))
+
+    def at(col):
+        return math.exp(math.log(col[k]) * (1.0 - t) + math.log(col[k + 1]) * t)
+
+    f = v / (2.0 * table['tau_p'])
+    scale = n_sides * active_length
+    p_h = at(table['q_hyst']) * f * scale
+    p_s = at(table['q_sold']) * f * scale
+    p_e = (PI**2 / 6.0) * f**2 * table['tape_width']**3 * table['eddy_sheet_conductance'] * at(table['b2']) * scale
+    return (p_h, p_e, p_s)

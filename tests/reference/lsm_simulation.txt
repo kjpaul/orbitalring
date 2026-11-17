@@ -4,3 +4,9 @@ Distance traveled:    222,015.5 km
 Fraction of ring:     499.2%
 Peak thrust:          83.29 MN
 Peak g-load:          12.155 g
+Peak frequency:       2500.0 Hz
+Peak voltage:         83.0 kV
+Peak current:         2087.6 A
+Peak back-EMF:        95.1 kV
+  Coils facing the sled:  14,190
+Stator tape heat:     5.734e+12 J  (0.1243% of the launch's energy)

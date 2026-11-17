@@ -187,6 +187,8 @@ def lane(**kw):
              couple=None)                     # (c, F_full): the load tracks' coupling to the persistent support beside them (round 6, 2026-11-14): while the
                                               # floor tracks pull F_hu the support force is multiplied by 1 - c sqrt(F_hu / F_full) (flux conservation,
                                               # the support's ampere-turns falling with the load winding's); c is dF/F at F_full, F_full the pull at full current
+    d["release_t"] = None   # round 13: s (the spacecraft's front at this place at 0); from then on the spacecraft's load is gone and the bare sled's stays.
+                            # The plan and what the plan expects are not changed.  -inf: the spacecraft is not there for the whole pass.
     d["reg"] = None      # round 10: the continuous gap regulator in the compensation coils, a dict from regulator() (no dead band; see there)
     d.update(kw)
     return d
@@ -292,6 +294,8 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         qz = float(q_zone(u, L_sc, ln["M_sc"]))
         qb = float(q_bare(u))
         q[i] = qz * cov_zone + qb * (cov_sled - cov_zone)
+        if ln.get("release_t") is not None:      # round 13: the spacecraft is released at this time (at this place); the sled passes on bare
+            q[i] -= (qz - qb) * cov_zone * (t >= ln["release_t"])
         if ln["no_sled"]:
             q[i] = 0.0
         if ln["support_fail_t"] is not None:
@@ -669,6 +673,7 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
         L_section = L_coil or L_section
     """Casing (Timoshenko truss lanes) and cable (tensioned string) on one grid.
     cases: list of dicts with keys
+        release_t: the spacecraft is released at this time; from then the sled passes on bare (round 13)
         fail_x: (x0, x1) sections whose supply has failed (no pulse) or None
         open_x: (x0, x1) sections that have lost their gap regulation (open loop) or None
         regulated: False for the whole pulse open loop
@@ -733,6 +738,8 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
     fail_mask = np.ones((n_c, n_coils, n_sec))
     reg_mask = np.ones((n_c, n_coils, n_sec))
     late = np.zeros(n_c)
+    release_t = np.array([c.get("release_t", np.inf) if c.get("release_t") is not None else np.inf for c in cases])   # round 13: see lane()'s release_t; here in
+                                                                                                                        # the window's time (the zone's front at x = u t)
     spurious = np.zeros(n_c, dtype=bool)
     no_pulse = np.zeros(n_c, dtype=bool)
     loop_on = np.ones(n_c)
@@ -929,6 +936,10 @@ def beam_pulsed(u, L_sc, trusses, cases, tabs, L_section=50.0, tau=2e-3, L_win=6
         if SUPPORT_OF_GAP is not None:               # the support's pull at constant flux follows its gap (round 9)
             S = S * np.interp(gap_b, SUPPORT_OF_GAP[0], SUPPORT_OF_GAP[1])
         q_cas = q[None, :] * np.ones((n, 1))
+        if not parked and (t >= release_t).any():
+            for ic in range(n_c):
+                if t >= release_t[ic]:
+                    q_cas[ic * n_s:(ic + 1) * n_s] = qb * (fz + fb)
         if spurious.any():
             for ic in range(n_c):
                 if spurious[ic]:

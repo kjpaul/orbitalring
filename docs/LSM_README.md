@@ -2,6 +2,8 @@
 
 # LSM Mass Driver Simulation
 
+> **Since 2026-11-17 (round 13)** the default stator of `lsm_config.py` is the ruled 6 m stator: 17 turns of 30 layers of 3 mm tape, 2,088 A, 14,190 coils facing the 10 km sled. Above 5 km/s the power is held at 416 GW by lowering the sled's field as (5 km/s / v)^0.4 and the coil current as (5 km/s / v)^0.6. The launch is unchanged (83.29 MN, 416.47 GW, 189.7 minutes, 222,015.5 km). The text below describes the earlier 130 m stator (50 turns, 2,107 A, the back-EMF held at 100 kV), which is still there: set `ORBITAL_RING_LSM_STATOR=table96` or run `python lsm_simulation.py --stator=table96`.
+
 This directory contains a complete LSM (Linear Synchronous Motor) mass driver simulation for launching spacecraft from an orbital ring at 250 km altitude.
 
 ## Files Created

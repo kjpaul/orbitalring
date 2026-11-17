@@ -15,9 +15,17 @@ Key differences from LIM:
   - No slip (synchronous operation)
   - No eddy current losses (no sled heating)
   - Load angle delta is the control variable (not slip velocity)
-  - Voltage limit is the primary constraint at high speed
-  - Fixed N=50 stator turns (optimization proved switchable windings useless)
   - No thermal limit on the sled
+
+The stator (lsm_config.py, switch ORBITAL_RING_LSM_STATOR or --stator=):
+  - ruled (the default): 6 m pole pitch, 17 turns, 2,088 A, 14,190 coils facing the sled.  The thrust is that of the
+    winding's current sheet, (1/2) K1 B_sled sin(delta) x area.  Up to 5 km/s the thrust is the limit.  Above it the
+    power is held at the rating of the stator and its supply by lowering the sled's field as (5 km/s / v)^0.4 and the
+    coil current as (5 km/s / v)^0.6.  The coil's terminal voltage is the back-EMF and the coil's inductive voltage
+    added as phasors; it stays under the 100 kV limit to the end of the launch.  The heat in the stator's tape is the
+    hysteresis on the strip model, the eddy loss in the tape's metal and the loss of the soldered layers.
+  - table96: the 130 m stator of the earlier Table 9.6, N=50 turns, the back-EMF held at 100 kV above 5 km/s by
+    lowering the sled's field.  Kept for the record; prints what the script printed before round 13.
 
 Usage:
     python lsm_simulation.py [options] [graph keywords]
@@ -27,8 +35,9 @@ Options:
   --accel=N         Maximum acceleration in g (default: 1.0)
   --mass=N          Spacecraft mass in tonnes (default: 5000)
   --B_sled=N        Sled DC field in T (default: 0.10)
-  --tau_p=N         Pole pitch in m (default: 130)
-  --N_stator=N      Stator turns (default: 50)
+  --stator=NAME     ruled (default) or table96, the 130 m stator of the earlier Table 9.6
+  --tau_p=N         Pole pitch in m (table96 stator only; default: 130)
+  --N_stator=N      Stator turns (table96 stator only; default: 50)
   --adjustable-B    Allow controller to reduce B_sled [default]
   --sled-length=N   Sled length in m (default: 10000)
   --crew            Crew launch mode (15 km/s, 3g limit)
@@ -61,6 +70,10 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 # Import configuration and physics modules
+import os as _os
+for _a in sys.argv[1:]:
+    if _a.startswith("--stator=") and __name__ == "__main__":
+        _os.environ["ORBITAL_RING_LSM_STATOR"] = _a.split("=", 1)[1]     # the switch is read when lsm_config is imported
 import lsm_config as cfg
 import lsm_physics as phys
 
@@ -175,7 +188,11 @@ def run_lsm_simulation(quick_mode=False):
         'g_load': 0.0,
         'hysteresis': 0.0,
         'radiator_width': 0.0,
+        'emf': 0.0,
+        'inductive': 0.0,
     }
+    E_heat_parts = [0.0, 0.0, 0.0]       # the ruled stator: hysteresis, eddy, soldered layers (J)
+    stator_power_limited = False
 
     # Flags
     voltage_limited = False
@@ -212,61 +229,91 @@ def run_lsm_simulation(quick_mode=False):
     # Main simulation loop
     while v < cfg.V_LAUNCH:
 
-        # Controller: adjust current to achieve desired thrust
-        for _ in range(5):
-            # Calculate supply frequency (synchronous)
+        if cfg.STATOR == "ruled":
+            # The ruled stator.  Up to the corner speed the thrust is the limit; above it the sled's field and the
+            # coil current are lowered together, which holds the power at the rating of the stator and its supply.
             f_supply = phys.calc_frequency(v, tau_p_eff)
-
-            # Calculate back-EMF
-            V_coil = phys.calc_EMF(cfg.N_STATOR, v, B_sled, cfg.W_COIL)
-
-            # Check voltage limit
-            if V_coil > cfg.V_COIL_LIMIT:
-                voltage_limited = True
-                if cfg.B_SLED_ADJUSTABLE:
-                    # Reduce B_sled to meet voltage limit
-                    B_sled = phys.calc_max_B_sled_for_voltage(
-                        cfg.V_COIL_LIMIT, cfg.N_STATOR, v, cfg.W_COIL
-                    )
-                    V_coil = cfg.V_COIL_LIMIT
-                else:
-                    print(f"\nVoltage limit reached at v = {v:.1f} m/s")
-                    print(f"Cannot achieve target velocity without adjustable B_sled")
-                    break
-
-            # Calculate stator field
-            B_stator = phys.calc_B_stator(
-                I_stator, cfg.N_STATOR, cfg.W_COIL, cfg.G_GAP
-            )
-
-            # Desired thrust for target acceleration
+            s_lim = 1.0 if v <= cfg.V_CORNER else cfg.V_CORNER / v
+            if s_lim < 1.0:
+                stator_power_limited = True
+            B_sled = cfg.B_SLED_NOMINAL * s_lim**cfg.ALPHA_SLED
+            I_stator = cfg.I_PEAK * s_lim**(1.0 - cfg.ALPHA_SLED)
+            K1 = phys.calc_sheet_current_full_pitch(cfg.N_STATOR, I_stator, cfg.COILS_Q, tau_p_eff, cfg.K_W)
+            B_stator = phys.MU0 * K1                      # Equation 10.2's stator field; the sheet's own field is half of it
+            F_avail = phys.calc_thrust_current_sheet(K1, B_sled, cfg.DELTA_MAX, A_active_eff)
             F_desired = cfg.M_TOTAL * a_target
-
-            # Calculate required load angle for desired thrust
-            delta, limited = phys.calc_delta_for_thrust(
-                F_desired, B_stator, B_sled, A_active_eff, cfg.DELTA_MAX
-            )
-
-            if limited:
+            if F_desired >= F_avail:
                 thrust_limited = True
-                if I_stator < cfg.I_PEAK:
-                    I_stator = min(cfg.I_PEAK, I_stator * 1.1)
-                    continue
-                else:
-                    F = phys.calc_thrust(B_stator, B_sled, cfg.DELTA_MAX, A_active_eff)
-                    a = F / cfg.M_TOTAL
-                    break
+                F = F_avail
+                delta = cfg.DELTA_MAX
             else:
                 F = F_desired
-                a = a_target
+                delta = math.asin(F_desired * math.sin(cfg.DELTA_MAX) / F_avail)
+            a = F / cfg.M_TOTAL
+            # the coil's voltage: back-EMF, inductive voltage (self and mutual), and their phasor sum at the terminals
+            E_coil = phys.calc_EMF(cfg.N_STATOR, v, B_sled, cfg.W_COIL, cfg.K_W)
+            X_I = 2.0 * math.pi * f_supply * cfg.L_COIL * I_stator
+            V_coil = phys.calc_coil_voltage(E_coil, X_I, delta)
+            max_values['emf'] = max(max_values['emf'], E_coil)
+            max_values['inductive'] = max(max_values['inductive'], X_I)
+            if max(V_coil, E_coil) > cfg.V_COIL_LIMIT:
+                voltage_limited = True
+        else:
+            # Controller: adjust current to achieve desired thrust
+            for _ in range(5):
+                # Calculate supply frequency (synchronous)
+                f_supply = phys.calc_frequency(v, tau_p_eff)
 
-                if delta < cfg.DELTA_TARGET and I_stator > cfg.I_TARGET:
-                    I_stator = max(cfg.I_TARGET, I_stator * 0.95)
+                # Calculate back-EMF
+                V_coil = phys.calc_EMF(cfg.N_STATOR, v, B_sled, cfg.W_COIL)
+
+                # Check voltage limit
+                if V_coil > cfg.V_COIL_LIMIT:
+                    voltage_limited = True
+                    if cfg.B_SLED_ADJUSTABLE:
+                        # Reduce B_sled to meet voltage limit
+                        B_sled = phys.calc_max_B_sled_for_voltage(
+                            cfg.V_COIL_LIMIT, cfg.N_STATOR, v, cfg.W_COIL
+                        )
+                        V_coil = cfg.V_COIL_LIMIT
+                    else:
+                        print(f"\nVoltage limit reached at v = {v:.1f} m/s")
+                        print(f"Cannot achieve target velocity without adjustable B_sled")
+                        break
+
+                # Calculate stator field
+                B_stator = phys.calc_B_stator(
+                    I_stator, cfg.N_STATOR, cfg.W_COIL, cfg.G_GAP
+                )
+
+                # Desired thrust for target acceleration
+                F_desired = cfg.M_TOTAL * a_target
+
+                # Calculate required load angle for desired thrust
+                delta, limited = phys.calc_delta_for_thrust(
+                    F_desired, B_stator, B_sled, A_active_eff, cfg.DELTA_MAX
+                )
+
+                if limited:
+                    thrust_limited = True
+                    if I_stator < cfg.I_PEAK:
+                        I_stator = min(cfg.I_PEAK, I_stator * 1.1)
+                        continue
+                    else:
+                        F = phys.calc_thrust(B_stator, B_sled, cfg.DELTA_MAX, A_active_eff)
+                        a = F / cfg.M_TOTAL
+                        break
+                else:
+                    F = F_desired
+                    a = a_target
+
+                    if delta < cfg.DELTA_TARGET and I_stator > cfg.I_TARGET:
+                        I_stator = max(cfg.I_TARGET, I_stator * 0.95)
+                    break
+
+            # Exit if voltage limit hit without adjustable B
+            if V_coil > cfg.V_COIL_LIMIT and not cfg.B_SLED_ADJUSTABLE:
                 break
-
-        # Exit if voltage limit hit without adjustable B
-        if V_coil > cfg.V_COIL_LIMIT and not cfg.B_SLED_ADJUSTABLE:
-            break
 
         # G-load limiting
         a_radial_net = phys.calc_net_radial_acceleration(v, cfg.R_ORBIT, cfg.G_250)
@@ -305,10 +352,17 @@ def run_lsm_simulation(quick_mode=False):
 
         # HTS hysteresis losses and radiator width
         # Build params with current effective pitch for hysteresis calc
-        hyst_params = dict(params)
-        hyst_params['tau_p'] = tau_p_eff
-        P_hyst = phys.calc_hysteresis_power(f_supply, I_stator, hyst_params,
-                                            n_units_eff)
+        if cfg.STATOR == "ruled":
+            # the strip model's table, with the eddy loss in the tape's metal and the soldered layers
+            _parts = phys.calc_stator_heat_strip(v, cfg.STATOR_TABLE, active_length_eff, cfg.N_LIM_SIDES)
+            P_hyst = sum(_parts)
+            for _k in range(3):
+                E_heat_parts[_k] += _parts[_k] * dt
+        else:
+            hyst_params = dict(params)
+            hyst_params['tau_p'] = tau_p_eff
+            P_hyst = phys.calc_hysteresis_power(f_supply, I_stator, hyst_params,
+                                                n_units_eff)
         E_hyst_cum += P_hyst * dt
         radiator_w = phys.calc_radiator_width(P_hyst, active_length_eff)
 
@@ -404,10 +458,22 @@ def run_lsm_simulation(quick_mode=False):
     print(f"Peak load angle:      {math.degrees(max_values['delta']):.1f} deg")
     print(f"Peak g-load:          {max_values['g_load']:.3f} g")
     print()
-    print(f"Total HTS hysteresis: {E_hyst_cum:.3e} J  ({E_hyst_cum/3.6e6:.1f} kWh)")
-    print(f"Peak HTS hysteresis:  {max_values['hysteresis']/1e3:.2f} kW")
-    print(f"Peak radiator width:  {max_values['radiator_width']:.4f} m")
-    print()
+    if cfg.STATOR == "ruled":
+        print(f"Peak back-EMF:        {max_values['emf']/1e3:.1f} kV")
+        print(f"Peak inductive volts: {max_values['inductive']/1e3:.1f} kV")
+        print()
+        print(f"Stator tape heat:     {E_hyst_cum:.3e} J  ({E_hyst_cum/KE*100:.4f}% of the launch's energy)")
+        print(f"  hysteresis:         {E_heat_parts[0]:.3e} J")
+        print(f"  eddy, tape metal:   {E_heat_parts[1]:.3e} J")
+        print(f"  soldered layers:    {E_heat_parts[2]:.3e} J")
+        print(f"Peak stator heat:     {max_values['hysteresis']/1e6:.1f} MW  ({max_values['hysteresis']/(cfg.L_SLED/500.0)/1e3:,.0f} kW per 500 m site)")
+        print()
+        print(f"Power limited:        {stator_power_limited} (above {cfg.V_CORNER/1000:.1f} km/s, at {cfg.P_STATOR_MAX/1e9:.2f} GW)")
+    else:
+        print(f"Total HTS hysteresis: {E_hyst_cum:.3e} J  ({E_hyst_cum/3.6e6:.1f} kWh)")
+        print(f"Peak HTS hysteresis:  {max_values['hysteresis']/1e3:.2f} kW")
+        print(f"Peak radiator width:  {max_values['radiator_width']:.4f} m")
+        print()
     print(f"Voltage limited:      {voltage_limited}")
     print(f"Thrust limited:       {thrust_limited}")
     print(f"G-load limited:       {g_load_limited}", end="")
@@ -439,8 +505,19 @@ def print_parameters():
 
     print(f"\nConfiguration:")
     print(f"  Launch mode:            {cfg.LAUNCH_MODE}")
+    if cfg.STATOR == "ruled":
+        print("  Stator:                 the ruled 6 m stator (ORBITAL_RING_LSM_STATOR=table96 gives the old 130 m one)")
     print(f"  Pole pitch:             {cfg.TAU_P:.1f} m")
     print(f"  Stator turns:           {cfg.N_STATOR}")
+    if cfg.STATOR == "ruled":
+        print(f"  Coil tape:              {cfg.TAPE_WIDTH_MM:.0f} mm, {cfg.N_HTS_LAYERS} layers on edge, {cfg.STATOR_TABLE['tape_current']:.1f} A per tape")
+        print(f"  Coil current (peak):    {cfg.I_PEAK:.1f} A")
+        print(f"  Coils per phase per pole pitch, each side: {cfg.COILS_Q:.3f}")
+        print(f"  Coils facing the sled:  {cfg.N_LIM_SIDES * 3 * cfg.COILS_Q * derived['n_units']:,.0f}")
+        print(f"  Winding factor:         {cfg.K_W:.4f}")
+        print(f"  Coil inductance:        {cfg.L_COIL*1e3:.3f} mH (self and mutual)")
+        print(f"  Tape:                   {cfg.STATOR_TABLE['tape_kg_per_m_ring']:.2f} kg per meter of ring (turn {cfg.STATOR_TABLE['turn_length']:.0f} m)")
+        print(f"  Above {cfg.V_CORNER/1000:.1f} km/s:         sled field as s^{cfg.ALPHA_SLED:.1f}, coil current as s^{1-cfg.ALPHA_SLED:.1f}, s = {cfg.V_CORNER/1000:.0f} km/s / v; power held at {cfg.P_STATOR_MAX/1e9:.2f} GW")
     print(f"  Air gap:                {cfg.G_GAP * 1000:.1f} mm")
     print(f"  Coil height:            {cfg.W_COIL:.2f} m")
     print("  Stator type:            Air-core")
@@ -730,6 +807,8 @@ def main():
                 cfg.TAU_P = float(arg.split("=")[1])
             elif arg.startswith("--N_stator="):
                 cfg.N_STATOR = int(arg.split("=")[1])
+            elif arg.startswith("--stator="):
+                pass                                   # read before lsm_config was imported (top of this file)
             elif arg == "--adjustable-B":
                 cfg.B_SLED_ADJUSTABLE = True
             elif arg.startswith("--sled-length="):

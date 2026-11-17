@@ -29,12 +29,33 @@ Launch modes:
   - "crew": v_target = 15,000 m/s (Mars transfer), 3g human physiological limit
   - "cargo": v_target = 30,000 m/s (deep solar system), 13g structural limit
 
+The stator (round 13, 2026-11-17).  Two stators are held here, chosen by one switch:
+
+  ORBITAL_RING_LSM_STATOR=ruled     (the default) the stator ruled on 17 November 2026 and written into Chapters 6, 9, 10,
+                                    14 and 19: 6 m pole pitch, 17 turns of 30 soldered layers of 3 mm tape standing on
+                                    edge, 2,088 A, 14,190 coils facing the 10 km sled, two sides; above 5 km/s the power is
+                                    held by lowering the sled's field as (5 km/s / v)^0.4 and the coil current as
+                                    (5 km/s / v)^0.6; 60 degree load angle.  Section 6b below.
+  ORBITAL_RING_LSM_STATOR=table96   the 130 m stator of the earlier Table 9.6 (50 turns, five layers of 12 mm tape,
+                                    2,107 A, Equations 10.1 and 10.2 as they were coded, the back-EMF held at 100 kV above
+                                    5 km/s by lowering the sled's field alone).  Kept for the record: with it
+                                    lsm_simulation.py prints what it printed before round 13, line for line.
+
+Set the variable before Python starts (bash: ORBITAL_RING_LSM_STATOR=table96 python lsm_simulation.py; PowerShell:
+$env:ORBITAL_RING_LSM_STATOR = 'table96'; python lsm_simulation.py), or pass --stator=table96 to lsm_simulation.py.
+Both stators give the same launch: 83.29 MN, 416.47 GW, 189.7 minutes, 222,015.5 km, 4.99 laps.
+
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
 
+import json
 import math
 import ring_altitude as ring
 import os
+
+STATOR = os.environ.get("ORBITAL_RING_LSM_STATOR", "ruled").strip().lower()
+if STATOR not in ("ruled", "table96"):
+    raise ValueError(f"ORBITAL_RING_LSM_STATOR must be 'ruled' or 'table96', not {STATOR!r}")
 
 # =============================================================================
 # SECTION 1: ORBITAL RING PARAMETERS
@@ -149,6 +170,51 @@ T_SPACE = 2.7               # K, deep space temperature
 T_STATOR = 77.0             # K, stator coil operating temperature (LN2)
 
 # =============================================================================
+# SECTION 6b: THE RULED STATOR (the default since round 13; STATOR == "ruled")
+#
+# Sections 2 and 3 above hold the 130 m stator of the earlier Table 9.6.  When
+# the switch is "ruled" the values below replace them.  The tape current, the
+# coil's inductance and the loss table come from the tape-by-tape model of
+# rounds 11 and 12, run once by tools/round13_stator_table.py and kept in
+# data/lsm_stator_ruled.json.
+# =============================================================================
+
+K_W = 1.0                   # winding factor in the back-EMF and the current sheet (1 for the old stator's formulas)
+ALPHA_SLED = 1.0            # above the corner speed the sled's field goes as s^ALPHA_SLED, the coil current as s^(1 - ALPHA_SLED)
+V_CORNER = None             # m/s, where the power limit begins (the old stator: where the back-EMF reaches the voltage limit)
+ACTIVE_FRACTION = None      # share of the sled's length that faces stator (the old stator: from its repeating units)
+COILS_Q = None              # coils per phase per pole pitch on each side (the old stator's formulas do not use it)
+L_COIL = None               # H, the coil's cyclic inductance (self and mutual)
+F_PEAK_DESIGN = None        # N
+STATOR_TABLE = None         # the loss table of the ruled stator
+
+if STATOR == "ruled":
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "lsm_stator_ruled.json"), encoding="utf-8") as _f:
+        STATOR_TABLE = json.load(_f)
+    TAU_P = 6.0                                  # m, pole pitch
+    N_POLES_PER_UNIT = 1                         # the sled's poles are counted one by one
+    L_GAP = 0.0
+    N_STATOR = 17                                # turns per stator coil
+    TAPE_WIDTH_MM = 3.0                          # mm, tape without copper, standing on edge
+    TAPE_WIDTH = TAPE_WIDTH_MM / 1000.0
+    N_HTS_LAYERS = 30                            # soldered layers in a turn
+    K_W = 3.0 / math.pi                          # coil sides spread evenly over their 60 degree belts
+    ALPHA_SLED = 0.4
+    V_CORNER = 5000.0                            # m/s
+    ACTIVE_FRACTION = 0.975                      # 9,750 m of the 10 km sled, 39,000 m2 on two sides
+    F_PEAK_DESIGN = 83_294_324.34775715          # N, the design launch's peak thrust (the book's 83.29 MN, to the last digit the old equations gave)
+    T_STATOR = 70.0                              # K
+    assert (STATOR_TABLE["tau_p"], STATOR_TABLE["n_turns"], STATOR_TABLE["alpha"], STATOR_TABLE["layers"]) == (TAU_P, N_STATOR, ALPHA_SLED, N_HTS_LAYERS)
+    I_C_PER_LAYER = 2.0 * STATOR_TABLE["tape_current"]       # A, the worst tape's measured limit in the field it sits in (the tape runs at half of it)
+    I_CRITICAL = I_C_PER_LAYER * N_HTS_LAYERS
+    I_PEAK = STATOR_TABLE["tape_current"] * N_HTS_LAYERS     # A, 2,087.6: the 50 percent rule
+    I_TARGET = I_PEAK
+    L_COIL = STATOR_TABLE["L_coil_cyclic"]                   # H, 3.365 mH
+    # the coils that give the design thrust: F = sides x 3 q (L_active / tau) x N k_w I B w sin(delta)
+    COILS_Q = F_PEAK_DESIGN / (N_LIM_SIDES * 3.0 * (ACTIVE_FRACTION * 10_000.0 / TAU_P) * N_STATOR * K_W * I_PEAK * B_SLED_NOMINAL * W_COIL * math.sin(DELTA_MAX))
+    P_STATOR_MAX = F_PEAK_DESIGN * V_CORNER                  # W, the rating of the stator and its supply (416.47 GW)
+
+# =============================================================================
 # SECTION 7: DERIVED PARAMETERS
 # =============================================================================
 
@@ -158,13 +224,20 @@ def calc_derived():
     global M_SLED_HARDWARE, M_TOTAL, KE_TARGET, F_MAX_SUPPLY
     global A_STATOR_COIL
 
-    # Repeating unit geometry
-    L_UNIT = N_POLES_PER_UNIT * TAU_P + L_GAP  # m, length of one repeating unit
-    W_ACTIVE_PER_UNIT = N_POLES_PER_UNIT * TAU_P  # m, active length per unit
-    F_ACTIVE = W_ACTIVE_PER_UNIT / L_UNIT  # active fraction
+    if STATOR == "ruled":
+        # the sled's poles, one pole pitch each, over the active share of its length
+        N_UNITS = int(round(L_SLED * ACTIVE_FRACTION / TAU_P))
+        W_ACTIVE_PER_UNIT = N_POLES_PER_UNIT * TAU_P
+        L_UNIT = L_SLED / N_UNITS
+        F_ACTIVE = W_ACTIVE_PER_UNIT / L_UNIT
+    else:
+        # Repeating unit geometry
+        L_UNIT = N_POLES_PER_UNIT * TAU_P + L_GAP  # m, length of one repeating unit
+        W_ACTIVE_PER_UNIT = N_POLES_PER_UNIT * TAU_P  # m, active length per unit
+        F_ACTIVE = W_ACTIVE_PER_UNIT / L_UNIT  # active fraction
 
-    # Number of units on sled
-    N_UNITS = int(L_SLED / L_UNIT)
+        # Number of units on sled
+        N_UNITS = int(L_SLED / L_UNIT)
 
     # Total active area (both sides of sled)
     A_ACTIVE_TOTAL = 2 * N_UNITS * W_ACTIVE_PER_UNIT * W_COIL  # m²
@@ -226,6 +299,14 @@ def get_physics_params():
         'sin_alpha': SIN_ALPHA,
         'lim_phases': LIM_PHASES,
         'n_lim_sides': N_LIM_SIDES,
+        # round 13: the stator switch and the ruled stator's values (None or 1 for the old stator)
+        'stator': STATOR,
+        'winding_factor': K_W,
+        'coils_per_phase_per_pole_pitch': COILS_Q,
+        'alpha_sled': ALPHA_SLED,
+        'v_corner': V_CORNER,
+        'l_coil': L_COIL,
+        'stator_table': STATOR_TABLE,
     }
 
 def apply_launch_mode():

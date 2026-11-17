@@ -37,6 +37,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # the repository root
+os.environ["ORBITAL_RING_LSM_STATOR"] = "table96"   # round 13: this study was run on the old 130 m stator of lsm_config.py (its launch and its
+                                                   # constants); the switch keeps it reproducing now that the 6 m stator is the default
 import numpy as np
 
 import lsm_config as cfg
