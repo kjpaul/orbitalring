@@ -21,6 +21,8 @@ Read by `bearing_design.py` (`read_theva`), `bearing_mass.py`, `final_bearing.py
 
 `THEVA_Pro-Line_Advanced_Pinning_2G_HTS_77.5K_Field_Dependence.csv`: the same measurement at 77.5 K, same columns and source, used with permission of THEVA. Read by `bearing_optimize.py` for the warming a tape can take before its limit falls to the operating current (Part 2 of the coil optimization).
 
+`THEVA_ProLine_TPL4420c_Robinson_2019_30K_50K_60K_70K.csv`: a different sample, added 2026-11-17 for the temperature dependence only. It is the Robinson Research Institute's published measurement of a THEVA Pro-Line 2G HTS wire of 2019 (4 mm wide, designation TPL4420c, not the Advanced Pinning grade): Wimbush, S. and Strickland, N. (2019), "Critical current characterisation of THEVA Pro-Line 2G HTS superconducting wire", figshare, dataset, https://doi.org/10.6084/m9.figshare.3759327.v2, licence CC BY 4.0. The file holds the rows at 30, 50, 60 and 70 K of the dataset's `nnK angle dependences.xlsx` files (set temperature, set field 0 to 7 T, set angle 0 to 240 degrees, Ic per cm of width). Read by `tools/round11_stator_model.py`, which uses only the ratio Ic(T) / Ic(70 K) at each field and angle and applies it to the Advanced Pinning tape's 70 K curve. The full dataset has every 2.5 K from 20 to 90 K.
+
 ## Solver caches
 
 Results of the two-dimensional magnetostatic solver (`magnetostatic_2d.py`) that several scripts read instead of solving again. Each one can be recomputed from scratch; the recompute overwrites the file here.

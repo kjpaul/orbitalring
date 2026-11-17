@@ -144,6 +144,9 @@ REG_SAMPLE = 1e-3       # s, the gap sensors' rate (1 kHz, Chapter 7)
 REG_WINDOW = 2e-3       # s, the rate is the difference of two readings this far apart
 REG_MARGIN_DEG = 60.0   # the phase margin the gains are set for
 REG_RISE = 10e-3        # s, a coil goes from zero to its full pull in this time at the supply's voltage
+REG_SEPARATE = True     # round 11: in the point model the lift tracks and the load tracks each have their own current (as the hardware and the
+                        # cross-section model have); False gives round 10's one signed current for the pair, in which the lift tracks had to fall to
+                        # zero before the load tracks could start
 
 
 def regulator(mass, F_full, cap_up, cap_down, sensor_err=0.0, rise=None):
@@ -405,7 +408,7 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         reg_cap_up = g("cap_up"); reg_cap_dn = g("cap_down")
         reg_delay = int(round(r0["delay"] / dt)); reg_ks = max(int(round(r0["sample"] / dt)), 1); reg_kw = max(int(round(r0["window"] / dt)), 1)
         reg_rate = np.sqrt(reg_full) / g("rise", 1.0)            # the supply's voltage: the root of the pull moves no faster than full pull in one rise time
-        reg_s = np.zeros(n); reg_int = np.zeros(n); reg_F = np.zeros(n)
+        reg_s = np.zeros(n); reg_int = np.zeros(n); reg_F = np.zeros(n); reg_su = np.zeros(n); reg_sd = np.zeros(n)
         # the reference: the regulator holds the casing on the path the plan itself predicts (the planned pull moves the casing a few millimeters on
         # purpose before the spacecraft arrives), from a model of two free masses with the planned pull and the expected sled load and nothing else
         reg_zr = np.zeros(n); reg_vr = np.zeros(n); I_pl_hd = np.zeros(n); I_pl_hu = np.zeros(n)
@@ -530,6 +533,9 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
             c = np.clip(F_ff_now + reg_F, -reg_cap_dn, reg_cap_up)
             s_t = np.sign(c) * np.sqrt(np.abs(c))
             reg_s = np.where(reg_on, reg_s + np.clip(s_t - reg_s, -reg_rate * dt, reg_rate * dt), 0.0)
+            if REG_SEPARATE:
+                reg_su = np.where(reg_on, reg_su + np.clip(np.sqrt(np.clip(c, 0, None)) - reg_su, -reg_rate * dt, reg_rate * dt), 0.0)
+                reg_sd = np.where(reg_on, reg_sd + np.clip(np.sqrt(np.clip(-c, 0, None)) - reg_sd, -reg_rate * dt, reg_rate * dt), 0.0)
         # open loop: force goes as 1/gap^2; regulated: the current is set for the measured gap (true gap plus sensor error)
         fac_t = np.where(gap_dep, (GAP0 / np.maximum(gap_t, 1e-3)) ** 2, ((gap_t + gap_err) / np.maximum(gap_t, 1e-3)) ** 2)
         fac_b = np.where(gap_dep, (GAP0 / np.maximum(gap_b, 1e-3)) ** 2, ((gap_b + gap_err) / np.maximum(gap_b, 1e-3)) ** 2)
@@ -537,8 +543,8 @@ def point_pulsed(lanes, u, tabs, t_settle=1.5, dt=None):
         F_pd = F_ref_hd * I_hd**2 * push_share * np.exp(np.minimum(push_k * rel, 5.0))  # push-down, stable with the gap
         F_hu = np.minimum(F_ref_hu * I_hu**2 * fac_b, cap_hu)                          # pulls casing up, cable down
         if reg_on.any():
-            F_hd = np.where(reg_on, np.minimum(np.clip(-reg_s, 0, None)**2 * fac_t, cap_hd), F_hd)
-            F_hu = np.where(reg_on, np.minimum(np.clip(reg_s, 0, None)**2 * fac_b, cap_hu), F_hu)
+            F_hd = np.where(reg_on, np.minimum((reg_sd if REG_SEPARATE else np.clip(-reg_s, 0, None))**2 * fac_t, cap_hd), F_hd)
+            F_hu = np.where(reg_on, np.minimum((reg_su if REG_SEPARATE else np.clip(reg_s, 0, None))**2 * fac_b, cap_hu), F_hu)
             F_pd = np.where(reg_on, 0.0, F_pd)
             hist["F_fb"][:, j] = (F_hu - F_hd) - F_ff_now; hist["F_ff"][:, j] = F_ff_now; hist["z_ref"][:, j] = reg_zr
             J_abs += (F_hu + F_hd) * dt; J_ff += np.abs(F_ff_now) * dt

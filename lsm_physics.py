@@ -474,3 +474,58 @@ def calc_power_limit_full_pitch(V_limit, I, delta, n_coils):
     """Mechanical power of n_coils coils held at the back-EMF limit (W):
     (1/2) V_limit I sin(delta) per coil, whatever N, B_sled and w_coil are."""
     return n_coils * 0.5 * V_limit * I * math.sin(delta)
+
+
+# =============================================================================
+# ROUND 11 ADDITIONS (2026-11-17): THE THRUST OF THE WINDING, BEHIND A SWITCH
+#
+# Nothing above this line is changed.  calc_thrust_switch returns what
+# calc_thrust(calc_B_stator(...)) returns unless params['thrust_model'] is
+# 'current_sheet'; lsm_simulation.py does not call it.  Used by
+# tools/round11_stator.py and tools/round11_stator_model.py.
+# =============================================================================
+
+def calc_sheet_current_full_pitch(N, I, q, tau_p, k_w=1.0):
+    """Peak of the fundamental of the current sheet (A per meter of track) of
+    a two-layer three-phase winding of full-pitch coils: q coils per phase per
+    pole pitch, N turns each, peak coil current I.  Each pole pitch holds 3 q
+    coils and so 6 q coil sides of N I: K1 = k_w x 6 q N I / tau_p, k_w the
+    winding factor (1 for coil sides bunched at one place, 3/pi for sides
+    spread evenly over their 60 degree belts)."""
+    return k_w * 6.0 * q * N * I / tau_p
+
+
+def calc_thrust_current_sheet(K1, B_sled, delta, A_active):
+    """Thrust (N) of a current sheet K1 sin(pi x / tau_p - ...) lying in the
+    sled's field B_sled sin(pi x / tau_p): the Lorentz force K x B averaged
+    over a pole pitch, (1/2) K1 B_sled sin(delta) per square meter.  With K1
+    from calc_sheet_current_full_pitch and k_w = 1 this equals
+    calc_thrust_full_pitch for the same coils."""
+    return 0.5 * K1 * B_sled * math.sin(delta) * A_active
+
+
+def calc_coil_voltage(E, X_I, delta, demagnetizing=True):
+    """Peak voltage at a coil's terminals (V): the back-EMF E and the coil's
+    inductive voltage X_I = omega L I (L the cyclic inductance: self plus the
+    mutuals of the other coils with their phases), as phasors.  The stator's
+    flux lies at the load angle delta from the sled's flux, against it
+    (demagnetizing=True) or with it: |V|^2 = E^2 + X_I^2 -/+ 2 E X_I cos(delta).
+    Both signs give the same thrust."""
+    sign = -1.0 if demagnetizing else 1.0
+    return math.sqrt(max(0.0, E * E + X_I * X_I + sign * 2.0 * E * X_I * math.cos(delta)))
+
+
+def calc_thrust_switch(I, B_sled, delta, params):
+    """Thrust (N) with the model chosen by params['thrust_model'].
+
+    Key absent (the default): Equations 10.1 and 10.2 as the simulation has
+    them, calc_thrust(calc_B_stator(I, ...), ...).
+    'current_sheet': the winding's own thrust, (1/2) K1 B_sled sin(delta) x
+    area, with K1 from the turns, the pole pitch and
+    params['coils_per_phase_per_pole_pitch'] (default 1) and
+    params['winding_factor'] (default 1)."""
+    if params.get('thrust_model') == 'current_sheet':
+        K1 = calc_sheet_current_full_pitch(params['n_stator'], I, params.get('coils_per_phase_per_pole_pitch', 1.0),
+                                           params['tau_p'], params.get('winding_factor', 1.0))
+        return calc_thrust_current_sheet(K1, B_sled, delta, params['a_active_total'])
+    return calc_thrust(calc_B_stator(I, params['n_stator'], params['w_coil'], params['g_gap']), B_sled, delta, params['a_active_total'])
