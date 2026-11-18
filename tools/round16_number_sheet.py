@@ -279,6 +279,9 @@ N("b", "Least pull of the center line during the opening", "%.2f MN" % (tc_min/1
 N("b", "Energy to the center line's brake, first pull to flat", "%.1f GJ" % (E_brake/1e9), E_brake/1e9, "Ch12 Section 12.11")
 N("b", "Stop: moment that would open the joint at work ; pull across the upper chords ; shift of the thrust line under the push ; its limit", "%.0f MN m ; %.2f MN ; %.1f m ; %.1f m" % (-M0_MNm, -M0_MNm/lever, -M0_MNm*1e6/F, 0.2887*t["d"]),
   "%.2f MN m ; %.3f MN ; %.3f m ; %.2f m" % (-M0_MNm, -M0_MNm/lever, -M0_MNm*1e6/F, 0.2887*t["d"]), "Ch12 Section 12.3", key="A and B")
+s100 = state(flat["h"] + 100.0, A, L0)
+N("b", "Stop, before the sheet is out: moment that holds the joint shut for each 100 m the spool pays out past flat ; force across the upper chords", "%.0f MN m ; %.2f MN" % (s100["Mh"]/1e6, s100["Mh"]/lever/1e6), "%.2f MN m ; %.3f MN" % (s100["Mh"]/1e6, s100["Mh"]/lever/1e6), "Ch12 Section 12.3 / 12.11")
+N("b", "Spool pay-out past the working height that brings the frame flat with no push on it", "%.0f m" % (flat["h"] - Zt), flat["h"] - Zt, "Ch12 Section 12.11")
 N("b", "Drawing out with the ridge held: peak weight on a tip ; outer line ; tie at the joint ; chord force over sized", "%.1f MN ; %.1f MN ; %.2f MN ; %.2f" % (ptm, tom/1e6, -mhm/lever, crm), "%.3f ; %.3f ; %.3f ; %.3f" % (ptm, tom/1e6, -mhm/lever, crm), "not for the book's design ; Ch12 Section 12.11 if the reason is given")
 N("b", "Drawing out with the ridge held: the fixed outer line would be longer by", "%.1f km" % (sink/1e3), sink/1e3, "Ch12 Section 12.11 (why the ridge is let down)")
 N("b", "Drawing out with the ridge let down: tether winch work for each half-sheet for each 10 km ; ridge comes down ; ridge brakes", "%.2f GJ ; %.0f m ; %.2f GJ" % (W_teth/1e9, s_half - drop, E_ridge/1e9), "%.4f GJ ; %.2f m ; %.4f GJ" % (W_teth/1e9, s_half - drop, E_ridge/1e9), "Ch12 Section 12.11")
@@ -383,7 +386,7 @@ for sA in (1.0, 0.5, 0.2):
         OUT["F"][str(sA)][nm] = dict(S_km=b["S"]/1e3, sheet_km=b["W"]/1e3, footprint_km=HS45*b["W"]/1e3, P_TW=b["P_TW"], frame_t=x["mass_t"], Lf=x["Lf"], depth_m=x["truss"]["d"], push_MN=x["F"]/1e6, pan=b["pan"], ret=b["ret"],
                                      frames=b["frames"], GW_per_frame=b["P_TW"]*1e3/(Lr/b["S"]), kgm_per_TW=1200/b["P_TW"], drop_m=DR45*b["W"]/2, ret_MN=x["TR_MN"], ret_mm=x["ret_mm"], vs_best=b["P_TW"]/best["P_TW"] - 1)
         lab = "best spacing" if nm == "best" else "frames every 10 km"
-        N("f", "Table 12.1, %.1f kg/m2, %s: spacing ; sheet ; footprint ; power" % (sA, lab), "%.0f km ; %.2f km ; %.2f km ; %.1f TW" % (b["S"]/1e3, b["W"]/1e3, HS45*b["W"]/1e3, b["P_TW"]),
+        N("f", "Table 12.1, %.1f kg/m2, %s: spacing ; sheet ; footprint ; power" % (sA, lab), "%.1f km ; %.2f km ; %.2f km ; %.1f TW" % (b["S"]/1e3, b["W"]/1e3, HS45*b["W"]/1e3, b["P_TW"]),
           "%.2f km ; %.4f km ; %.4f km ; %.3f TW" % (b["S"]/1e3, b["W"]/1e3, HS45*b["W"]/1e3, b["P_TW"]), "Ch12 Table 12.1 (lines 117 to 125), lines 7, 283, 304 ; Ch8 line 46")
         N("f", "Table 12.1, %.1f kg/m2, %s: frame mass, length, depth ; power for each frame ; kg/m for each TW" % (sA, lab),
           "%.0f t, %.0f m, %.0f m ; %.1f GW ; %.0f kg/m" % (x["mass_t"], x["Lf"], x["truss"]["d"], b["P_TW"]*1e3/(Lr/b["S"]), 1200/b["P_TW"]), "%.1f t, %.1f m, %.2f m ; %.3f GW ; %.2f" % (x["mass_t"], x["Lf"], x["truss"]["d"], b["P_TW"]*1e3/(Lr/b["S"]), 1200/b["P_TW"]), "Ch12 Table 12.1, line 125")
@@ -784,6 +787,8 @@ for k, p in PA.items():
       "%.0f km, %.1f km/s ; %.2f MN ; %.1e /cm2 ; %.1f years ; %.0f days" % (p["alt0"], p["rows"][0]["v"]/1e3, p["drag0"], p["flu"], p["flu"]/(f600*yr), p["days_1eV"]),
       "%.2f km, %.1f m/s ; %.4f MN ; %.4e ; %.3f ; %.0f" % (p["alt0"], p["rows"][0]["v"], p["drag0"], p["flu"], p["flu"]/(f600*yr), p["days_1eV"]), GD, key="ITEM 2 (d)")
 N("2d", "O atoms on a face in a year at rest at 600 km", "%.1e /cm2" % (f600*yr), f600*yr, "Ch12 Section 12.7, 12.11", key="ITEM 2 (d)")
+N("2f", "Possibility, frame opened 1 km under the casing on day 0: weight there ; push on a frame ; tether work for each half-sheet for each 10 km", "1/%.0f of the final ; %.0f kN ; %.1f MJ" % (ga/g1d0, F*g1d0/ga/1e3, W_teth*g1d0/ga/1e6), "%.1f ; %.3f kN ; %.4f MJ" % (ga/g1d0, F*g1d0/ga/1e3, W_teth*g1d0/ga/1e6), "Ch12 Section 12.11 (the possibility passage)", key="ITEM 2 (f)")
+N("2e", "Opening: work of the casing's rise in lifting the frame's center of mass half a leg", "%.1f GJ" % (2*Wl*leg/2/1e9), 2*Wl*leg/2/1e9, GD, key="ITEM 2 (e)")
 N("2e", "Drawing out at 1 MW for each half-sheet for each 10 km [my choice]: time ; around the ring", "%.0f minutes ; %.1f GW" % (W_teth/P_TETHER/60, 2*n_fr*P_TETHER/1e9), "%.2f min ; %.3f GW" % (W_teth/P_TETHER/60, 2*n_fr*P_TETHER/1e9), GD, key="ITEM 2 (e)")
 for nm, o in OUT["item2"]["f"]["schedules"].items():
     N("2f", "Possibility, schedule %s: strip's power ; least multiple of the demand ; O atoms in years at rest at 600 km" % nm, "%.1f to %.1f TW ; %.0f times ; %.1f years" % (o["supply_min_GW"]/1e3, o["supply_max_GW"]/1e3, o["ratio_min"], o["AO_years"]),
