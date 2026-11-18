@@ -95,6 +95,8 @@ FAST = [
     ("lsm_chapter_metrics", ["tools/lsm_chapter_metrics.py"], {}),
     ("lsm_n_optimization", ["tools/lsm_n_optimization_demo.py"], {}),
     ("lsm_simulation", ["lsm_simulation.py"], {}),
+    # round 20: the braking of the empty sled after the release, the LSM as a generator
+    ("lsm_simulation_brake", ["lsm_simulation.py", "--brake"], {}),
     # round 13: the 130 m stator of the earlier Table 9.6 behind its switch must print what the script printed before
     ("lsm_simulation_table96", ["lsm_simulation.py"], {"ORBITAL_RING_LSM_STATOR": "table96"}),
     ("md_simulation", ["md_simulation.py", "--no-graphs"], {}),

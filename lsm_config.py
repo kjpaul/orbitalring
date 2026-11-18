@@ -67,6 +67,8 @@ G_250 = ring.G_LOCAL        # m/s², gravitational acceleration at the ring (nam
 G_0 = 9.807                 # m/s², standard gravity at sea level
 V_ORBIT = ring.V_ORBIT      # m/s, orbital velocity at the ring
 L_RING = ring.L_RING        # m, ring circumference
+V_CASING_SPACE = ring.V_GROUND_SYNC   # m/s, the casing's own speed in space, eastward (it turns with the Earth); the sled is launched eastward,
+                                      # so its speed in space is its speed over the casing plus this (round 20, 2026-11-18)
 
 # HVDC power grid capacity
 # The ring's total orbit-averaged generation is 8 MW at each LIM site (666 GW at 250 km, 722 GW at 800 km).
@@ -153,6 +155,8 @@ elif LAUNCH_MODE == "cargo":
     G_LOAD_MAX = 13.0       # g — structural limit only
 
 A_MAX_G = 1.0               # maximum tangential acceleration in g (system is thrust-limited at ~0.75g)
+G_FRAME_MAX = 13.0          # g, the outward load the sled's frame is rated for (Chapter 10); the limit on the empty sled while it brakes
+A_BRAKE_MAX_G = None        # g, cap on the braking deceleration of the empty sled; None: the motor's own limits only (thrust, power, coil voltage)
 DT = 0.1                    # s, timestep (default)
 DT_QUICK = 1.0              # s, timestep for --quick mode
 

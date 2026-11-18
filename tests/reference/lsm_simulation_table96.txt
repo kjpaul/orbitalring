@@ -9,7 +9,7 @@ Peak power:           416.47 GW
 Peak frequency:       115.4 Hz
 Peak voltage:         100.0 kV
 Peak current:         2106.6 A
-Peak g-load:          12.155 g
+Peak g-load:          12.605 g
 Total HTS hysteresis: 8.488e+08 J  (235.8 kWh)
 Peak HTS hysteresis:  114.70 kW
 Peak radiator width:  1.1526 m

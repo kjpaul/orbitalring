@@ -1,0 +1,9 @@
+Peak g-load:          12.605 g
+Release in space:     30,516.2 m/s (the casing's own 516.1 m/s added)
+Net outward there:    12.604 g
+Braking time:         97.2 minutes (5,830.4 s)
+Peak braking force:   83.29 MN (at the start 13.88 MN)
+Peak power returned:  416.47 GW (mechanical, at the sled)
+Impulse given back:   1.5750e+11 N s
+Energy given up:      2362.5 TJ
+  against the launch: 0.512 of the heat the launch left

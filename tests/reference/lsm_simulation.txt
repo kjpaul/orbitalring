@@ -3,7 +3,7 @@ Total time:           189.7 minutes (3.16 hours)
 Distance traveled:    222,015.5 km
 Fraction of ring:     499.2%
 Peak thrust:          83.29 MN
-Peak g-load:          12.155 g
+Peak g-load:          12.605 g
 Peak frequency:       2500.0 Hz
 Peak voltage:         83.0 kV
 Peak current:         2087.6 A

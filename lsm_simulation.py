@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Linear synchronous motor mass driver launch along the ring: laps, time, power and acceleration to the launch speed.
-Book: Orbital Ring Engineering, Volume I: Chapter 10 (189.7 min, 4.99 laps, 416 GW, 12.2 g); Chapter 7 (the sled speed profile the bearing scripts import).
+Book: Orbital Ring Engineering, Volume I: Chapter 10 (189.7 min, 4.99 laps, 416 GW, 12.6 g); Chapter 7 (the sled speed profile the bearing scripts import).
 Run: python lsm_simulation.py [--v_launch=..] [see --help]
 Environment: ORBITAL_RING_ALT_KM, ORBITAL_RING_CABLE, ORBITAL_RING_HW_KGM (the ring, through ring_altitude.py); ORBITAL_RING_OUT (output folder, default runs)
 
@@ -45,6 +45,8 @@ Options:
   --g-limit=N       Override g-load limit (in g)
   --p_hvdc_max=N    HVDC power limit in watts (default: 666e9)
   --no_power_limit  Disable HVDC power limit entirely
+  --brake           After the release, brake the empty sled to rest with the LSM as a generator
+  --brake-accel=N   Cap the braking deceleration at N g (default: no cap, the motor's limits only)
   --quick           Use 1-second timesteps
   --save-csv        Export time-series data
 
@@ -53,6 +55,19 @@ Graph keywords:
   all               All individual plots
   velocity, accel, thrust, power, delta, frequency, voltage, bfield, gload
   hysteresis, radiator_width, E_hyst
+
+The felt load (round 20, 2026-11-18): the stator is on the casing, so v here is the sled's speed over the casing.  The
+casing turns with the Earth at lsm_config.V_CASING_SPACE (516 m/s at 700 km) and the sled is launched eastward, so the
+centrifugal term is taken at the speed in space, v + V_CASING_SPACE.  The g-load limit acts on the vector sum of that
+net outward acceleration and the acceleration along the track.
+
+The braking run (--brake, round 20): after the release the stator's field is shifted so that the sled's poles lead it
+(the load angle is -60 degrees), the force on the empty sled reverses and the power goes back to the HVDC lines.  The
+limits are those of the launch: the coil current up to 5 km/s (83.29 MN), the stator's power above it (416.47 GW, by
+the same split between the sled's field and the coil current), the 100 kV coil limit and the HVDC limit.  It starts at
+the release with no pause.  The spacecraft's g-load limit does not apply to the empty sled; the frame's does
+(lsm_config.G_FRAME_MAX).  Inverter losses are not modelled, in the launch or in the braking.  The braking's series
+are kept in brake_* and brake_result; the data_* series of the launch are not changed by it.
 
 Reference: "Orbital Ring Engineering" by Paul G de Jong
 """
@@ -104,8 +119,24 @@ data_E_hyst_cumulative = []
 data_radiator_width = []
 
 
+# the braking run (round 20): its own series, so that the launch's data_* arrays stay as they were
+brake_t = []
+brake_v = []
+brake_x = []
+brake_F = []
+brake_P_mech = []
+brake_V_coil = []
+brake_P_heat = []
+brake_g = []
+brake_result = {}
+launch_result = {}
+
+
 def clear_data():
     """Clear all data arrays for a fresh run."""
+    global brake_t, brake_v, brake_x, brake_F, brake_P_mech, brake_V_coil, brake_P_heat, brake_g, brake_result, launch_result
+    brake_t = []; brake_v = []; brake_x = []; brake_F = []; brake_P_mech = []; brake_V_coil = []; brake_P_heat = []; brake_g = []
+    brake_result = {}; launch_result = {}
     global data_t, data_v, data_x, data_a, data_F, data_P_mech
     global data_I_stator, data_B_stator, data_B_sled, data_delta
     global data_f_supply, data_V_coil, data_a_centrifugal
@@ -138,11 +169,12 @@ def clear_data():
 # MAIN SIMULATION LOOP
 # =============================================================================
 
-def run_lsm_simulation(quick_mode=False):
+def run_lsm_simulation(quick_mode=False, brake=False):
     """Run the LSM mass driver simulation.
 
     Args:
         quick_mode: If True, use larger timesteps (1 s instead of 0.1 s)
+        brake: If True, brake the empty sled to rest after the release (run_lsm_braking)
 
     Returns:
         success: True if simulation completed successfully
@@ -316,7 +348,8 @@ def run_lsm_simulation(quick_mode=False):
                 break
 
         # G-load limiting
-        a_radial_net = phys.calc_net_radial_acceleration(v, cfg.R_ORBIT, cfg.G_250)
+        # the centrifugal term is taken at the sled's speed in space, its speed over the casing plus the casing's own
+        a_radial_net = phys.calc_net_radial_acceleration(v + cfg.V_CASING_SPACE, cfg.R_ORBIT, cfg.G_250)
         a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
 
         if a_total_g > cfg.G_LOAD_MAX:
@@ -367,7 +400,7 @@ def run_lsm_simulation(quick_mode=False):
         radiator_w = phys.calc_radiator_width(P_hyst, active_length_eff)
 
         # Calculate g-loads
-        a_centrifugal = phys.calc_centrifugal_acceleration(v, cfg.R_ORBIT)
+        a_centrifugal = phys.calc_centrifugal_acceleration(v + cfg.V_CASING_SPACE, cfg.R_ORBIT)
         a_occupant_g = a_total_g
 
         # Update velocity and position
@@ -457,6 +490,9 @@ def run_lsm_simulation(quick_mode=False):
     print(f"Peak current:         {max_values['current']:.1f} A")
     print(f"Peak load angle:      {math.degrees(max_values['delta']):.1f} deg")
     print(f"Peak g-load:          {max_values['g_load']:.3f} g")
+    _a_out = phys.calc_net_radial_acceleration(v + cfg.V_CASING_SPACE, cfg.R_ORBIT, cfg.G_250)
+    print(f"Release in space:     {v + cfg.V_CASING_SPACE:,.1f} m/s (the casing's own {cfg.V_CASING_SPACE:.1f} m/s added)")
+    print(f"Net outward there:    {_a_out / cfg.G_0:.3f} g")
     print()
     if cfg.STATOR == "ruled":
         print(f"Peak back-EMF:        {max_values['emf']/1e3:.1f} kV")
@@ -492,7 +528,124 @@ def run_lsm_simulation(quick_mode=False):
     print("=" * 80)
 
     success = (v >= cfg.V_LAUNCH * 0.99)
+    launch_result.update(t=t, v=v, x=x, v_space=v + cfg.V_CASING_SPACE, a_out_g=_a_out / cfg.G_0, g_peak=max_values['g_load'],
+                         E_heat=E_hyst_cum, E_heat_parts=list(E_heat_parts), g_load_limited=g_load_limited, g_load_engage_v=g_load_engage_v, KE=KE)
+    if brake:
+        run_lsm_braking(v, x0=x, t0=t, quick_mode=quick_mode)
     return success
+
+
+def run_lsm_braking(v0, x0=0.0, t0=0.0, quick_mode=False):
+    """Brake the empty sled from v0 (m/s over the casing) to rest with the LSM as a generator.
+
+    The stator's field is shifted so that the sled's poles lead it: the load angle is -DELTA_MAX and the force of the
+    current sheet reverses.  Its size is the launch's at the same speed: the coil current's limit up to the corner
+    speed, and above it the stator's power, held by the same split between the sled's field and the coil current.  The
+    coil's terminal voltage has the same size as in the launch at the same speed (the phasor sum does not depend on the
+    sign of the load angle).  The heat in the stator's tape is the launch's at the same speed.  Fills brake_* and
+    brake_result.  t and x run on from the release (t0, x0).
+    """
+    if cfg.STATOR != "ruled":
+        print("\nBraking run: only for the ruled stator.  Not run.")
+        return None
+    dt = cfg.DT_QUICK if quick_mode else cfg.DT
+    m = cfg.M_SLED_HARDWARE
+    tau_p = cfg.TAU_P
+    A_active = cfg.A_ACTIVE_TOTAL
+    active_length = cfg.N_UNITS * cfg.N_POLES_PER_UNIT * cfg.TAU_P
+    t = t0; v = v0; x = x0
+    E_mech = 0.0; E_heat = 0.0; heat_parts = [0.0, 0.0, 0.0]; impulse = 0.0
+    mx = dict(thrust=0.0, power=0.0, voltage=0.0, emf=0.0, g_load=0.0, decel=0.0)
+    voltage_limited = False; frame_limited = False; hvdc_limited = False; cap_limited = False
+    t_corner = None
+    while v > 0.0:
+        f_supply = phys.calc_frequency(v, tau_p)
+        s_lim = 1.0 if v <= cfg.V_CORNER else cfg.V_CORNER / v
+        if s_lim >= 1.0 and t_corner is None:
+            t_corner = t - t0
+        B_sled = cfg.B_SLED_NOMINAL * s_lim**cfg.ALPHA_SLED
+        I_stator = cfg.I_PEAK * s_lim**(1.0 - cfg.ALPHA_SLED)
+        K1 = phys.calc_sheet_current_full_pitch(cfg.N_STATOR, I_stator, cfg.COILS_Q, tau_p, cfg.K_W)
+        F_avail = phys.calc_thrust_current_sheet(K1, B_sled, cfg.DELTA_MAX, A_active)
+        F = F_avail                                   # the size of the braking force; it acts against the motion
+        delta = -cfg.DELTA_MAX                        # the sled's poles lead the stator's field
+        if cfg.A_BRAKE_MAX_G is not None and F > m * cfg.A_BRAKE_MAX_G * cfg.G_0:
+            cap_limited = True
+            F = m * cfg.A_BRAKE_MAX_G * cfg.G_0
+            delta = -math.asin(F * math.sin(cfg.DELTA_MAX) / F_avail)
+        a = F / m
+        E_coil = phys.calc_EMF(cfg.N_STATOR, v, B_sled, cfg.W_COIL, cfg.K_W)
+        X_I = 2.0 * math.pi * f_supply * cfg.L_COIL * I_stator
+        V_coil = phys.calc_coil_voltage(E_coil, X_I, abs(delta))
+        if max(V_coil, E_coil) > cfg.V_COIL_LIMIT:
+            voltage_limited = True
+        # the empty sled's frame: the vector sum of the net outward acceleration (speed in space) and the deceleration
+        a_radial_net = phys.calc_net_radial_acceleration(v + cfg.V_CASING_SPACE, cfg.R_ORBIT, cfg.G_250)
+        a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
+        if a_total_g > cfg.G_FRAME_MAX:
+            frame_limited = True
+            a_sq = (cfg.G_FRAME_MAX * cfg.G_0)**2 - a_radial_net**2
+            if a_sq <= 0:
+                print(f"\nBraking run: the outward load alone exceeds the frame's {cfg.G_FRAME_MAX:.1f} g at {v/1000:.2f} km/s.  Stopped.")
+                break
+            a = min(a, math.sqrt(a_sq)); F = a * m
+            a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
+        P_mech = F * v
+        if cfg.P_HVDC_MAX is not None and P_mech > cfg.P_HVDC_MAX:
+            hvdc_limited = True
+            F = cfg.P_HVDC_MAX / v; a = F / m; P_mech = cfg.P_HVDC_MAX
+        if a * dt > v:                                # the last step brings the sled just to rest
+            a = v / dt; F = a * m; P_mech = F * v
+        parts = phys.calc_stator_heat_strip(v, cfg.STATOR_TABLE, active_length, cfg.N_LIM_SIDES)
+        P_heat = sum(parts)
+        for k in range(3):
+            heat_parts[k] += parts[k] * dt
+        E_heat += P_heat * dt
+        v_new = v - a * dt
+        E_mech += 0.5 * m * (v * v - v_new * v_new)   # the kinetic energy the sled gives up in this step
+        impulse += F * dt
+        mx['thrust'] = max(mx['thrust'], F); mx['power'] = max(mx['power'], P_mech); mx['voltage'] = max(mx['voltage'], V_coil)
+        mx['emf'] = max(mx['emf'], E_coil); mx['g_load'] = max(mx['g_load'], a_total_g); mx['decel'] = max(mx['decel'], a)
+        brake_t.append(t); brake_v.append(v); brake_x.append(x); brake_F.append(F); brake_P_mech.append(P_mech)
+        brake_V_coil.append(V_coil); brake_P_heat.append(P_heat); brake_g.append(a_total_g)
+        x += v * dt; v = v_new; t += dt
+        if v < 1e-9:
+            v = 0.0
+        if t - t0 > 72000:
+            print("\nBraking run exceeded 20 hours - stopping")
+            break
+    dur = t - t0
+    brake_result.update(v0=v0, m_sled=m, duration_s=dur, distance_m=x - x0, t_end=t, x_end=x, v_end=v, impulse=impulse,
+                        E_mech=E_mech, E_heat=E_heat, E_heat_parts=heat_parts, E_returned=E_mech - E_heat,
+                        F_peak=mx['thrust'], F_first=brake_F[0] if brake_F else 0.0, P_peak=mx['power'], V_peak=mx['voltage'], emf_peak=mx['emf'],
+                        g_peak=mx['g_load'], decel_peak_g=mx['decel'] / cfg.G_0, t_corner_s=t_corner,
+                        voltage_limited=voltage_limited, frame_limited=frame_limited, hvdc_limited=hvdc_limited, cap_limited=cap_limited)
+    print("\n" + "=" * 80)
+    print("BRAKING THE SLED (the LSM as a generator, from the release, no pause)")
+    print("=" * 80)
+    print(f"Sled mass:            {m:,.0f} kg")
+    print(f"Speed at the start:   {v0:,.1f} m/s over the casing")
+    print(f"Braking time:         {dur/60:.1f} minutes ({dur:,.1f} s)")
+    print(f"Distance:             {(x - x0)/1000:,.1f} km ({(x - x0)/cfg.L_RING:.2f} laps)")
+    print(f"Peak braking force:   {mx['thrust']/1e6:.2f} MN (at the start {brake_result['F_first']/1e6:.2f} MN)")
+    print(f"Peak deceleration:    {mx['decel']/cfg.G_0:.3f} g")
+    print(f"Peak power returned:  {mx['power']/1e9:.2f} GW (mechanical, at the sled)")
+    print(f"Peak coil voltage:    {mx['voltage']/1e3:.1f} kV (back-EMF {mx['emf']/1e3:.1f} kV)")
+    print(f"Peak load on frame:   {mx['g_load']:.3f} g (limit {cfg.G_FRAME_MAX:.1f} g)")
+    if t_corner is not None:
+        print(f"Power-limited for:    {t_corner/60:.1f} minutes, until the sled is down to {cfg.V_CORNER/1000:.1f} km/s")
+    print(f"Impulse given back:   {impulse:.4e} N s")
+    print(f"Energy given up:      {E_mech/1e12:.1f} TJ")
+    print(f"Stator tape heat:     {E_heat:.3e} J  ({E_heat/E_mech*100:.4f}% of it)")
+    print(f"  hysteresis:         {heat_parts[0]:.3e} J")
+    print(f"  eddy, tape metal:   {heat_parts[1]:.3e} J")
+    print(f"  soldered layers:    {heat_parts[2]:.3e} J")
+    if launch_result.get('E_heat'):
+        print(f"  against the launch: {E_heat/launch_result['E_heat']:.3f} of the heat the launch left")
+    print(f"Returned at the coils:{(E_mech - E_heat)/1e12:9.1f} TJ (inverter losses are not modelled)")
+    print(f"Limits met:           voltage {voltage_limited}, frame load {frame_limited}, HVDC {hvdc_limited}, deceleration cap {cap_limited}")
+    print("=" * 80)
+    return brake_result
 
 
 # =============================================================================
@@ -775,6 +928,7 @@ def save_csv():
 def main():
     """Main entry point with command-line argument parsing."""
     quick_mode = False
+    brake_flag = False
     save_csv_flag = False
     plot_keywords = []
 
@@ -787,6 +941,10 @@ def main():
         for arg in sys.argv[1:]:
             if arg == "--quick":
                 quick_mode = True
+            elif arg == "--brake":
+                brake_flag = True
+            elif arg.startswith("--brake-accel="):
+                cfg.A_BRAKE_MAX_G = float(arg.split("=")[1])
             elif arg == "--save-csv":
                 save_csv_flag = True
             elif arg == "--crew":
@@ -829,7 +987,7 @@ def main():
     cfg.calc_derived()
 
     # Run simulation
-    success = run_lsm_simulation(quick_mode)
+    success = run_lsm_simulation(quick_mode, brake=brake_flag)
 
     # Save CSV if requested
     if save_csv_flag:
