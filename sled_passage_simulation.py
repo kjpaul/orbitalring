@@ -44,9 +44,11 @@ Usage:
 
 Frame convention (Paul, 2026-10-09): the sled speed u is relative to the
 casing, because the LSM stator is on the casing.  The sled's inertial speed is
-u + V_GROUND_SYNC.  Note that lsm_simulation.py starts the sled at v = 0 and
-uses that v directly in v^2/R, so its radial load treats v as inertial; its
-12.2 g at 30 km/s is 12.6 g in this convention.  Both are printed.
+u + V_GROUND_SYNC.  lsm_simulation.py also starts the sled at v = 0 over the
+casing.  Since 18 November 2026 (round 20) it adds V_GROUND_SYNC before v^2/R,
+so its radial load at 30 km/s over the casing is the 12.6 g of this convention.
+Before that it put v straight into v^2/R and gave 12.2 g, the figure the hand
+values of the instructions followed.  Both are printed.
 
 Mass driver rails are taken on top of the casing (Chapters 7 and 10 layout).
 The spacecraft zone is at the front of the sled.  The vertical force balance
@@ -131,7 +133,7 @@ def a_down(u):
 
 
 def a_down_inertial(v_i):
-    """Same, with v_i already inertial (the lsm_simulation.py convention)."""
+    """Same, with v_i already inertial (what lsm_simulation.py did before round 20, when it took the speed over the casing as inertial)."""
     return G_LOCAL - np.asarray(v_i, dtype=float)**2 / R_ORBIT
 
 
@@ -847,7 +849,7 @@ def main():
     hr("HAND VALUES OF THE INSTRUCTIONS (L_sc = 200 m, u = 30 km/s)")
     L_h, u_h = 200.0, 30_000.0
     a_frame = -float(a_down(u_h))                   # upward, casing-frame convention
-    a_lsm = -float(a_down_inertial(u_h))            # upward, lsm_simulation convention (30 km/s inertial)
+    a_lsm = -float(a_down_inertial(u_h))            # upward, lsm_simulation's convention before round 20 (30 km/s taken as inertial)
     tp = L_h / u_h
     acc_frame = (mass_zone(L_h) * a_frame - W_CASING) / MU
     acc_lsm = (mass_zone(L_h) * a_lsm - W_CASING) / MU
@@ -871,9 +873,9 @@ def main():
         chk = "pass" if rel <= 0.05 else ("lsm" if rel_l <= 0.05 else "FAIL")
         print(f"  {name:64} {hv:9.4g} {sv:9.4g} {lv:9.4g} {chk:>6}")
     print(f"\n  'script' uses the casing-frame convention (v_i = {u_h + V_GS:,.0f} m/s).  'lsm conv' uses")
-    print(f"  v_i = {u_h:,.0f} m/s, which is what lsm_simulation.py does: it starts the sled at v = 0 and")
-    print(f"  puts that v straight into v^2/R, so its radial load treats the launch speed as inertial.")
-    print(f"  The hand values follow the lsm number (12.2 g).  In the casing-frame convention the peak")
+    print(f"  v_i = {u_h:,.0f} m/s, which is what lsm_simulation.py did until 18 November 2026: it put the speed")
+    print(f"  over the casing straight into v^2/R.  It now adds the casing's own speed and agrees with 'script'.")
+    print(f"  The hand values follow the old lsm number (12.2 g).  In the casing-frame convention the peak")
     print(f"  radial load is {a_frame/G0_STD:.2f} g and every load-based hand value is {100*(a_frame/a_lsm-1):.1f} % higher.")
     print(f"  'pass' = within 5 % of the script value; 'lsm' = within 5 % only under the lsm convention.")
     print(f"  The displacement, speed and energy lines include the casing weight acting during the pass (EML off).")

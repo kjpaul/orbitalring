@@ -58,8 +58,12 @@ Graph keywords:
 
 The felt load (round 20, 2026-11-18): the stator is on the casing, so v here is the sled's speed over the casing.  The
 casing turns with the Earth at lsm_config.V_CASING_SPACE (516 m/s at 700 km) and the sled is launched eastward, so the
-centrifugal term is taken at the speed in space, v + V_CASING_SPACE.  The g-load limit acts on the vector sum of that
-net outward acceleration and the acceleration along the track.
+centrifugal term is taken at the speed in space, v + V_CASING_SPACE.
+
+The g-load limit (round 21, 2026-11-18): the limit (3 g for a crew, --g-limit) acts on the net outward load alone, the
+centrifugal term less gravity, as Table 10.1's note and Section 10.2 word it.  It does not throttle the thrust: the
+launch ends where the outward load reaches the limit.  The acceleration along the track has its own cap (--accel).
+The "Peak g-load" that is printed and plotted is still the vector sum of the two, for the record.
 
 The braking run (--brake, round 20): after the release the stator's field is shifted so that the sled's poles lead it
 (the load angle is -60 degrees), the force on the empty sled reverses and the power goes back to the HVDC lines.  The
@@ -352,22 +356,14 @@ def run_lsm_simulation(quick_mode=False, brake=False):
         a_radial_net = phys.calc_net_radial_acceleration(v + cfg.V_CASING_SPACE, cfg.R_ORBIT, cfg.G_250)
         a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
 
-        if a_total_g > cfg.G_LOAD_MAX:
+        # the limit is on the net outward load alone (round 21); the thrust is not throttled for it
+        if a_radial_net > cfg.G_LOAD_MAX * cfg.G_0:
             g_load_limited = True
             if g_load_engage_v is None:
                 g_load_engage_v = v
-            a_radial = abs(a_radial_net)
-            a_max_tangential_sq = (cfg.G_LOAD_MAX * cfg.G_0)**2 - a_radial**2
-            if a_max_tangential_sq > 0:
-                a = min(a, math.sqrt(a_max_tangential_sq))
-                F = a * cfg.M_TOTAL
-            else:
-                # Radial acceleration alone exceeds g-limit
-                print(f"\nRadial g-load alone exceeds {cfg.G_LOAD_MAX:.1f}g at v={v/1000:.2f} km/s")
-                print(f"Maximum achievable velocity for this g-limit reached.")
-                break
-            # Recompute g-load after throttle
-            a_total_g = math.sqrt(a**2 + a_radial_net**2) / cfg.G_0
+            print(f"\nNet outward load exceeds {cfg.G_LOAD_MAX:.1f}g at v={v/1000:.2f} km/s over the casing")
+            print(f"Maximum achievable velocity for this g-limit reached.")
+            break
 
         # Calculate power
         P_mech = phys.calc_power_mechanical(F, v)
