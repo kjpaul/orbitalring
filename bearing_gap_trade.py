@@ -10,7 +10,8 @@ Run (from Python/orbitalring):
   python bearing_gap_trade.py --part=solve-b [--h=0.005]                                       item 1 (b): the loop width and the bundle on a grid at each gap
   python bearing_gap_trade.py --part=solve-b2                                                  item 1 (b): the picked points solved in full
   python bearing_gap_trade.py --part=solve-shape [--h=0.005]                                   item 2: the support bundle's shape at the 100 mm gap
-  python bearing_gap_trade.py --part=solve-face [--h=0.0025]                                   item 3: the field across the plate's face, six states
+  python bearing_gap_trade.py --part=solve-face [--h=0.0025]                                   item 3: the field across the plate's face, six states;
+                                                                                               since round 22 also "fast 199", a lift track in the design launch at 30 km/s
   python bearing_gap_trade.py --part=stiff                                                     item 1: the support's pull against the gap at constant flux
   python bearing_gap_trade.py --part=cases --gap=0.075 [--noflux]                              item 1: the 114 cases at a gap, the support's constant-flux pull carried
   python bearing_gap_trade.py --part=report|pump|start                                         the tables (bearing_gap_trade_parts.py)
@@ -256,7 +257,15 @@ def part_solve_shape(h):
     return run_pool(tasks, "gap_trade_shape.json", jobs=4)
 
 
-FACE_STATES = ("support normal", "support cap", "support rating", "support one loop", "fast 196.5", "fast rating")
+FACE_STATES = ("support normal", "support cap", "support rating", "support one loop", "fast 196.5", "fast rating", "fast 199")
+
+
+def F_lift_30():
+    """Round 22: a lift compensation track's planned pull in the design launch at 30 km/s, half of the pair's planned pull in round 10's launch table
+    (runs/round10_logs/round10_table.json, bearing_round10.py --part=table).  The book prints 199 kN/m."""
+    rows = json.load(open(os.path.join(OUT, "round10_logs", "round10_table.json"), encoding="utf-8"))["rows"]
+    r = next(r for r in rows if abs(r["u"] - 30e3) < 1 and r["kind"] == "lift")
+    return r["planned"] / 2
 
 
 def job_face(a):
@@ -274,12 +283,19 @@ def job_face(a):
             g, s = tr.solve(legs)
         Wp = SUP["Wp"]
     else:
-        NI = fsol["NI_req"] if state == "fast 196.5" else next(r["NI"] for r in rows["t74_fast"] if r["state"].startswith("the rating"))
         with r4.plate_patch(FAST["Wp"], FAST["T"]):
             tr = fast_track(gap, FAST["Wl"], FAST["bw"], FAST["bh"], h)
-            g, s = tr.solve(tr.NI_design(NI))
+            if state == "fast 199":                    # the ampere-turns that give the pull are found here, from the 196.5 kN/m solve's as the first guess
+                Ft = F_lift_30()
+                def both(n):
+                    g, s = tr.solve(tr.NI_design(n))
+                    return s["F"], (g, s)
+                NI, F, (g, s) = r7.find_NI(both, Ft, fsol["NI_req"] * math.sqrt(Ft / fsol["F_req"]), tol=0.001)
+            else:
+                NI = fsol["NI_req"] if state == "fast 196.5" else next(r["NI"] for r in rows["t74_fast"] if r["state"].startswith("the rating"))
+                g, s = tr.solve(tr.NI_design(NI))
         Wp = FAST["Wp"]
-    out = dict(state=state, h=h, NI=NI, F=s["F"], sat=s["sat"], B_plate=s["B_plate"], Wp=Wp, legs=[(x, sg) for x, sg in tr.legs], bw=tr.wb, bh=tr.hb,
+    out = dict(state=state, h=h, NI=NI, F=s["F"], F_target=(F_lift_30() if state == "fast 199" else None), sat=s["sat"], B_plate=s["B_plate"], Wp=Wp, legs=[(x, sg) for x, sg in tr.legs], bw=tr.wb, bh=tr.hb,
                line=face_line(g, gap, Wp, s["F"], arrays=True), seconds=time.time() - t0)
     # the same line 0.1 m wider on each side (the solve's force box), for the pull that falls outside the plate's width
     xs, By, Bx = g.line_By(gap - 2 * g.h, -Wp / 2 - 0.1, Wp / 2 + 0.1)

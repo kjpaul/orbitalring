@@ -4,7 +4,10 @@ The figure of the field at the plate, redrawn (round 9, item 5b; addendum A4): t
 the plate's two edges marked, the bundles under the axis to scale, the even field as a dashed line.  The old version (the size of the whole field)
 stays beside it as fig07_candidate_field_at_plate.
 Book: Orbital Ring Engineering, Volume III: Chapter 7.
-Run (from Python/orbitalring): python tools/round9_field_figure.py [output folder]     (default ../../Vol_III/figure_work_2026-11-16)
+Run (from Python/orbitalring): python tools/round9_field_figure.py [output folder]     (default ../../Vol_III/figure_work_2026-11-19)
+Round 22 (2026-11-19): the compensation panel is the state "fast 199" (a lift compensation track in the design launch at 30 km/s, the book's
+199 kN/m) when the face solve holds it, else "fast 196.5" as on 16 November; its label is the state's own pull.  The states of the figure are
+printed beside the book's fields, and the log goes to runs/round22_logs/round22_field_figure.json and .txt as well.
 Reads runs/gap_trade_logs/gap_trade_face.json (bearing_gap_trade.py --part=solve-face, 2.5 mm cells).  Prints, for each state, the pull from the
 integral of (Bn^2 - Bt^2) / (2 mu0) across the face against the solver's pull, and the share of it from the strips outside the outer bundles;
 writes runs/round9_logs/round9_field_figure.json.
@@ -44,11 +47,16 @@ def shares(d):
     return out
 
 
+BOOK = {"support cap": ("0.72 T", "1.13 T"), "support normal": ("0.32 T", "not printed"), "fast 199": ("0.71 T", "not printed")}
+
+
 def fig(folder, d):
+    comp = "fast 199" if "fast 199" in d else "fast 196.5"
+    comp_label = f"{d[comp]['F']/1e3:.0f} kN/m" if comp == "fast 199" else "196.5 kN/m"
     f, axes = plt.subplots(2, 1, figsize=(g.W_IN, 5.0))
     f.subplots_adjust(left=0.125, right=0.975, top=0.985, bottom=0.085, hspace=0.30)
     panels = [(axes[0], "Support plate", [("support cap", C["support"], LW2), ("support normal", C["support"], LW2 * 0.6)], 1.45),
-              (axes[1], "Compensation plate", [("fast 196.5", C["load"], LW2)], 1.45)]
+              (axes[1], "Compensation plate", [(comp, C["load"], LW2)], 1.45)]
     for ax, title, curves, ymax in panels:
         s0 = d[curves[0][0]]; Wp = s0["Wp"]
         yb = -0.20 * ymax / 1.45
@@ -85,17 +93,28 @@ def fig(folder, d):
     axes[1].set_xlabel("Position across the plate (mm)", fontsize=FS, color=C["ink"], x=0.40)
     axes[0].text(-300, 1.20, "the cap", fontsize=FS, color=C["support"], ha="center", va="bottom")
     axes[0].text(300, 0.47, "normal\noperation", fontsize=FS, color=C["support"], ha="center", va="bottom", linespacing=1.05)
-    axes[1].text(0, 0.98, "196.5 kN/m", fontsize=FS, color=C["load"], ha="center", va="bottom")
+    axes[1].text(0, 0.98, comp_label, fontsize=FS, color=C["load"], ha="center", va="bottom")
     return g.save(f, folder, "fig07_candidate_field_through_face")
 
 
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
-    folder = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "..", "..", "..", "Vol_III", "figure_work_2026-11-16")
+    folder = sys.argv[1] if len(sys.argv) > 1 else os.path.join(here, "..", "..", "..", "Vol_III", "figure_work_2026-11-19")
     d = json.load(open(os.path.join(g.LOGS, "gap_trade_face.json"), encoding="utf-8"))
     out = shares(d)
     os.makedirs(os.path.join(os.path.dirname(g.LOGS), "round9_logs"), exist_ok=True)
     json.dump(out, open(os.path.join(os.path.dirname(g.LOGS), "round9_logs", "round9_field_figure.json"), "w", encoding="utf-8"), indent=1)
+    comp = "fast 199" if "fast 199" in d else "fast 196.5"
+    print()
+    print("  The states the figure shows, beside the book (Table 7.3 and the paragraph under it):")
+    print(f"  {'state':>16} {'pull kN/m':>10} {'ampere-turns kA':>15} {'plate m':>8} {'even field T':>12} {'book':>8} {'peak through the face T':>24} {'peak of the whole field T':>26} {'book':>12} {'in the plate T':>14}")
+    for k in ("support cap", "support normal", comp):
+        s = d[k]; b = BOOK.get(k, ("", ""))
+        out[k].update(NI=s["NI"], Wp=s["Wp"], peak_n=s["line"]["peak_n"], peak=s["line"]["peak"], B_plate=s["B_plate"], legs=s["legs"], bw=s["bw"], bh=s["bh"], y_line=s["line"]["y"], h=s["h"])
+        print(f"  {k:>16} {s['F']/1e3:10.2f} {s['NI']/1e3:15.1f} {s['Wp']:8.1f} {s['line']['even']:12.4f} {b[0]:>8} {s['line']['peak_n']:24.4f} {s['line']['peak']:26.4f} {b[1]:>12} {s['B_plate']:14.2f}")
+    r22 = os.path.join(os.path.dirname(g.LOGS), "round22_logs"); os.makedirs(r22, exist_ok=True)
+    json.dump(out, open(os.path.join(r22, "round22_field_figure.json"), "w", encoding="utf-8"), indent=1)
+    os.makedirs(folder, exist_ok=True)
     fig(folder, d)
 
 
