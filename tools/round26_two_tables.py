@@ -120,6 +120,17 @@ km = max(dec, key=lambda l: dec[l]["tube_dir"]); ks = max(dec, key=lambda l: dec
 tube_all = np.array([fold(k, t_tube, weights(ALT, k)[0])[0] if SP["min_%d" % ALT][0, k] > 0 and weights(ALT, k) is not None else 0.0 for k in range(len(lons))]); kt = int(tube_all.argmax())
 P("   The tube room over every longitude: largest %.4f Sv/yr at %.0f W.  Table 5.11 prints 0.72 at 56 W and 0.80 at 40 W, and does not print that longitude." % (tube_all[kt], -lons[kt]))
 OUT["tube_worst"] = dict(H=float(tube_all[kt]), lon=float(lons[kt]))
+# a row of Table 5.11 at 45 W, built the way sweetspot_trapped.py builds its rows
+from sweetspot_trapped import point_dose
+k45 = int(np.where(lons == -45)[0][0]); row45 = []
+for tw, tf, cab in ((5, 5, True), (100, 100, True), (300, 300, True), (100, 100, False), (100, 300, True)):
+    t, hit = thickness(1.0, t_wall=tw, t_floor=tf, cable=cab)
+    if not cab: t = room_tube(tw)
+    v, open5 = point_dose(ALT, k45, t); row45.append(v)
+J45 = float(SP["min_%d" % ALT][0, k45])
+P("   A row for Table 5.11 at 45 W (sweetspot_trapped.py's own rows are every 10 degrees and the flux peak): flux above 10 MeV %.1f ; open, 5 g/cm2 %.3f ; under the cable, thin walls %.4f ; 100 g/cm2 %.4f ; 300 g/cm2 %.4f ; no cable, 100 g/cm2 %.4f ; cable, floor 300 and walls 100 %.4f"
+  % (J45, open5, row45[0], row45[1], row45[2], row45[3], row45[4]))
+OUT["row_45W"] = dict(flux=J45, open5=open5, cable_thin=row45[0], cable_100=row45[1], cable_300=row45[2], no_cable_100=row45[3], cable_floor300_walls100=row45[4])
 OUT["decomposition"] = {str(k): v for k, v in dec.items()}; OUT["cable_side_in_sweetspot"] = float(CABLE_W)
 P("  (%.0f s so far)" % (time.time() - T0))
 
